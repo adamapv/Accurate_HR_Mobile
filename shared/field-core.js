@@ -1149,6 +1149,34 @@ export const managerRole = m => m.position || 'Manager';
 export const signInRows = e => [{ label: 'Sign-in email', value: e.email || '' }, { label: 'Phone', value: e.phone || '' }];
 export const PIN_CHANGE_NOTE = 'Changing your PIN signs out any other device.';
 
+// ---- the company's shared documents ----
+// Folders the company shares with its people (kept in its own Dropbox), browsed a folder at a time. `shared` is GET dropbox/shared ({ connected, folders });
+// `listing` is GET dropbox/list?folder=&path= ({ folder, path, entries: [{ type: 'folder' | 'file', name, size, modified }] }).
+export const SHARED_DOCS = 'Documents';
+// Nothing shared yet. An admin is told where to set it up: { before, link, after } around the words that lead there; anyone else gets { text }.
+export const sharedEmpty = isAdmin => isAdmin ? { before: 'No folders are shared yet. Connect Dropbox and choose folders in ', link: 'Settings → Dropbox', after: '.' } : { text: 'No documents have been shared with you yet.' };
+// The folders are listed but can't be opened while the connection is down.
+export const sharedDown = isAdmin => isAdmin ? { before: 'Dropbox is disconnected, so these folders can’t be opened. Reconnect in ', link: 'Settings → Dropbox', after: '.' } : { text: 'Documents are unavailable right now — ask an admin.' };
+export const sharedSaid = x => x.text || `${x.before}${x.link}${x.after}`;
+// A place inside a shared folder is the names from its top, joined by '/'; '' is the top.
+export const sharedJoin = (path, name) => path ? `${path}/${name}` : name;
+// The way back up, as crumbs: the folder itself, then each folder below it. `path` is where tapping it leads; the last one is where the person is (here: true).
+export function sharedCrumbs(folder, path) {
+  const segs = path ? String(path).split('/') : [];
+  return [{ label: folder.label, path: '', here: segs.length === 0 }, ...segs.map((s, i) => ({ label: s, path: segs.slice(0, i + 1).join('/'), here: i === segs.length - 1 }))];
+}
+// One level up from a place, or null at the top of the folder.
+export const sharedUp = path => !path ? null : String(path).split('/').slice(0, -1).join('/');
+// Whether a listing is the one for this folder and place (an answer for the last place can arrive after the person has moved on).
+export const sharedReady = (listing, folder, path) => !!listing && listing.folder?.id === folder.id && listing.path === path;
+export const SHARED_FOLDER_EMPTY = 'This folder is empty.';
+export const fmtBytes = n => n == null ? '' : n < 1024 ? `${n} B` : n < 1048576 ? `${Math.round(n / 1024)} KB` : `${(n / 1048576).toFixed(1)} MB`;
+export const sharedEntryMeta = (e, fmtDate) => e.type === 'file' ? [fmtBytes(e.size), e.modified && fmtDate(e.modified)].filter(Boolean).join(' · ') : '';
+// Where a file is fetched from. `inline` asks for it to be shown rather than saved, for the kinds a browser can show.
+export const sharedFilePath = (folderId, path, inline) => `/dropbox/file?folder=${encodeURIComponent(folderId)}&path=${encodeURIComponent(path)}${inline ? '&inline=1' : ''}`;
+export const sharedListPath = (folderId, path) => `/dropbox/list?folder=${encodeURIComponent(folderId)}&path=${encodeURIComponent(path)}`;
+export const SHARED_VIEWABLE = /\.(pdf|png|jpe?g|gif|webp|txt|csv)$/i;
+
 // ---- the session and links ----
 // The session's fingerprint: the first 8 bytes of SHA-256 over "Bearer <session id>", as 16 hex characters. Everything kept on a device for one session (the outbox,
 // the offline copies) is tagged with it, and the service worker keys its copies with the same value, so one person's never show for the next. '' with no session.
