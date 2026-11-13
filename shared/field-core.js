@@ -267,6 +267,57 @@ export function meAttention({ week, plant, quals, gaps, today, onSubmit }, { fmt
   return out.sort((a, b) => rank[a.tone] - rank[b.tone]);
 }
 
+// ---- My week ----
+// A pay period's name: its own label when it was given one, else "Week of <its first day>".
+export const periodLabel = (p, fmtDate) => p.label && !/^Week of \d{4}-\d{2}-\d{2}$/.test(p.label) ? p.label : `Week of ${fmtDate(p.period_start)}`;
+// The week grouped by day: job cards (with the blocks of time each lays out as), then any loose entries from before job cards. A night shift that started the evening
+// before the period is shown on the period's first day, where its time after midnight is. → { days: [dates, in order], byDay: { [date]: { cards, entries } }, cardEntries: { [card id]: [entries] } }
+export function weekByDay(week) {
+  const byDay = {}, cardEntries = {};
+  const dayOf = d => (byDay[d] = byDay[d] || { cards: [], entries: [] });
+  (week?.entries || []).forEach(t => t.card_id ? (cardEntries[t.card_id] = cardEntries[t.card_id] || []).push(t) : dayOf(t.work_date).entries.push(t));
+  (week?.cards || []).forEach(c => dayOf(c.carry_in ? week.period.period_start : c.work_date).cards.push(c));
+  return { days: Object.keys(byDay).sort(), byDay, cardEntries };
+}
+// Where the week stands, in a few words beside its dates (weekState): how many days are still to submit or waiting, else nothing more than the status itself.
+export const weekPillLabel = wk => wk.status === 'open' ? `${plural(wk.unsent, 'day')} to submit` : wk.status === 'submitted' ? `${plural(wk.submitted, 'day')} waiting for approval` : undefined;
+// What is said beside a card's times: more jobs on it, lunch, a night shift carried in from the day before, or one that ends the next day.
+export function cardNotes(c, fmtDate) {
+  const n = new Set((c.splits || []).map(s => s.job_id).filter(Boolean)).size;
+  return [n > 1 ? `+ ${n - 1} more job${n > 2 ? 's' : ''}` : null, c.lunch ? '30 min lunch' : null, c.carry_in ? `night shift from ${fmtDate(c.work_date)}` : null,
+    runsPastMidnight(c) && !c.carry_in ? 'ends the next day' : null].filter(Boolean);
+}
+// The Submit card: its heading and what it explains, by the company's Timesheet approval setting.
+export const submitHelp = autoApprove => autoApprove
+  ? { title: 'Submit your days', text: 'Time is approved a day at a time, and approved automatically here: once you submit a day it is approved and its time goes to simPRO. You can still add or change time on that day: it goes through again.', noteLabel: 'Note (optional)' }
+  : { title: 'Submit for approval', text: 'Time is approved a day at a time: submit each day when you finish it, and your manager approves it. Approved time goes to simPRO. You can still add or change time on a submitted day: it goes back to your manager.', noteLabel: 'Note for approver (optional)' };
+// The days that were sent back, in words: "2 days sent back: 4 Mar (wrong job); 5 Mar. Fix them, then submit them again." ('' when none).
+export function sentBackText(week, fmtDate) {
+  const back = (week?.days || []).filter(d => d.status === 'rejected');
+  return back.length ? `${plural(back.length, 'day')} sent back: ${back.map(d => `${fmtDate(d.work_date)}${d.decision_note ? ` (${d.decision_note})` : ''}`).join('; ')}. Fix them, then submit them again.` : '';
+}
+// What the Submit button says for these days, and what is said when there are none.
+export const submitLabel = (dates, fmtDate) => dates.length === 1 ? `Submit ${fmtDate(dates[0])}` : `Submit ${dates.length} days`;
+export const nothingToSubmit = wk => wk.status ? 'Nothing to submit right now — every finished day has been sent.' : 'Nothing logged yet this week.';
+// Copy last week: each day of this week up to today takes the cards of the same weekday last week (POST /job-cards/copy { from_date, to_date }, a day at a time).
+// → [{ from, to }]
+export function copyWeekPlan(period, today) {
+  const out = [];
+  for (let d = period.period_start; d <= period.period_end && d <= today; d = addDaysYmd(d, 1)) out.push({ from: addDaysYmd(d, -7), to: d });
+  return out;
+}
+// What copying said, from each day's answer ({ to, copied, skipped } or { to, error }): how many cards came across and what was skipped, and how it is toned.
+// A day with nothing on it last week is not a skip.
+export function copyWeekSaid(results, fmtDate) {
+  let copied = 0; const skipped = [];
+  for (const r of results) {
+    if (r.error) { if (!/no time on that day/.test(r.error)) skipped.push(`${fmtDate(r.to)}: ${r.error}`); continue; }
+    copied += r.copied; skipped.push(...(r.skipped || []).map(x => `${fmtDate(r.to)} ${x}`));
+  }
+  const text = copied || skipped.length ? `Copied ${copied} card${copied === 1 ? '' : 's'}` + (skipped.length ? `\nSkipped ${skipped.length}:\n${skipped.join('\n')}` : '') : 'Nothing to copy from last week';
+  return { copied, text, tone: skipped.length || !copied ? 'danger' : 'ok' };
+}
+
 // ---- a scheduled job ----
 // A row of the person's published schedule (GET /schedule/mine): { work_date, company_id, job_id, job_name, activity, customer_name, site_name, site_address, site_lat,
 // site_lng, site_id, notes, crew: [names], plant: [names] }.
