@@ -13,7 +13,7 @@ import { uploadPhoto } from '@/lib/upload';
 import type { Draft } from '@/lib/offline-core';
 import { localToday } from '@/lib/dates';
 import type { CheckItem, ForJobs } from '@/safety';
-import { Body, Button, Card, Field, Loading, Problem, Screen, Title } from '@/ui';
+import { Choice, Body, Button, Card, Field, Loading, Notice, Problem, Screen, Title } from '@/ui';
 
 type Answer = { state?: string; note?: string; photos?: string[] };
 
@@ -83,18 +83,13 @@ export default function ChecklistScreen() {
         const showPhoto = (!!it.needs_photo && a.state === 'ok') || (a.state === 'fail' && (photos.length > 0 || !!it.needs_photo));
         return (
           <Card key={it.id}>
-            <Body>{it.label}{!it.required ? ' (optional)' : ''}</Body>
-            <View style={{ flexDirection: 'row', gap: 8 }}>
-              {(STATES as string[]).filter(st => st !== 'na' || !it.required).map(st => (
-                <View key={st} style={{ flex: 1 }}>
-                  <Button kind={a.state === st ? 'primary' : 'plain'} onPress={() => set(it.id, { state: st })}>{(STATE_LABELS as Record<string, string>)[st]}</Button>
-                </View>
-              ))}
-            </View>
+            <Body strong>{it.label}{!it.required ? ' (optional)' : ''}</Body>
+            <Choice options={(STATES as string[]).filter(st => st !== 'na' || !it.required).map(st => ({ key: st, label: (STATE_LABELS as Record<string, string>)[st], tone: st === 'ok' ? 'ok' as const : st === 'fail' ? 'danger' as const : 'neutral' as const }))}
+              value={a.state || ''} onChange={st => set(it.id, { state: st })} />
             {a.state === 'fail' && <Field label={`What is wrong with ${it.label}?`} value={a.note || ''} onChangeText={v => set(it.id, { note: v })} maxLength={500} multiline />}
             {showPhoto && (
               <>
-                <Button kind="plain" onPress={() => { void addPhoto(it); }} busy={uploading === it.id} disabled={!online || photos.length >= MAX_PHOTOS}>{photos.length ? 'Add another photo' : 'Take photo'}</Button>
+                <Button kind="plain" icon="camera-outline" onPress={() => { void addPhoto(it); }} busy={uploading === it.id} disabled={!online || photos.length >= MAX_PHOTOS}>{photos.length ? 'Add another photo' : 'Take photo'}</Button>
                 {photos.length > 0 && <Body tone="muted">{photos.length} {photos.length === 1 ? 'photo' : 'photos'} added</Body>}
                 {!online && <Body tone="muted">A photo needs signal.</Body>}
               </>
@@ -102,9 +97,9 @@ export default function ChecklistScreen() {
           </Card>
         );
       })}
-      {problems.length > 0 && <Body tone="muted">{problems.length === 1 ? '1 thing' : `${problems.length} things`} to do first: {problems[0].text}</Body>}
+      {problems.length > 0 && <Notice tone="info">{`${problems.length === 1 ? '1 thing' : `${problems.length} things`} to do first: ${problems[0].text}`}</Notice>}
       <Problem>{problem}</Problem>
-      <Button onPress={submit} busy={busy} disabled={problems.length > 0 || !!uploading}>Submit checklist</Button>
+      <Button icon="checkmark-circle-outline" onPress={submit} busy={busy} disabled={problems.length > 0 || !!uploading}>Submit checklist</Button>
       <Button kind="plain" onPress={() => router.back()} disabled={busy}>Cancel</Button>
     </Screen>
   );

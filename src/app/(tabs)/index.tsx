@@ -103,7 +103,7 @@ function SignedIn({ me }: { me: Me }) {
       <JobRow key={`${r.work_date}:${key}`} row={r}>
         <JobSafety job={ref} swms={swms} lists={tomorrow ? [] : lists} queued={queued} today={today} keys={keys}
           showFinish={onThis || finishOf({ job: ref, lists, queued, today }).some(c => c.state !== 'todo')} />
-        {!!note && <Body tone={gate?.held ? 'danger' : 'fg'}>{note}</Body>}
+        {!!note && <Notice tone={gate?.held ? 'danger' : 'warn'}>{note}</Notice>}
         {!tomorrow && !fromJobs && (
           <>
             <Button icon={onThis ? undefined : 'play-circle-outline'} onPress={() => { void start(); }} busy={starting === key} disabled={btn.disabled} kind={onThis || card ? 'plain' : 'primary'}>{btn.label}</Button>

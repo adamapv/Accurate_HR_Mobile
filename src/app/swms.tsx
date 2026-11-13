@@ -13,7 +13,7 @@ import type { Draft } from '@/lib/offline-core';
 import { fmtDate } from '@/lib/dates';
 import { RichText } from '@/rich';
 import type { ForJobs } from '@/safety';
-import { Body, Button, Card, Field, Loading, Problem, Screen, Title } from '@/ui';
+import { Body, Button, Card, Field, Heading, Loading, Notice, Pill, Problem, Screen, Title } from '@/ui';
 
 type Version = { content: Record<string, unknown>; change_note?: string | null };
 type Model = { title: string; sub: string; job: [string, string][]; hazardous: string[]; hrcw: string[]; ppe: string[]; supervision: string[]; plant: string[]; overall: string | null; references: unknown;
@@ -22,10 +22,16 @@ const TONE: Record<string, 'ok' | 'muted' | 'danger' | 'fg'> = { ok: 'ok', info:
 
 function Rating({ label, code }: { label: string; code: string }) {
   if (!code) return null;
-  return <Body tone={TONE[(RATING_TONE as Record<string, string>)[code]] || 'muted'}>{label}: {ratingName(code)}</Body>;
+  const tone = (RATING_TONE as Record<string, string>)[code];
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+      <Body tone="muted">{label}</Body>
+      <Pill tone={tone === 'danger' ? 'danger' : tone === 'warn' ? 'warn' : tone === 'ok' ? 'ok' : 'neutral'}>{ratingName(code)}</Pill>
+    </View>
+  );
 }
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
-  return <Card><Body tone="muted">{title}</Body>{children}</Card>;
+  return <Card><Heading>{title}</Heading><View style={{ height: 4 }} />{children}</Card>;
 }
 const List = ({ items }: { items: string[] }) => <View style={{ gap: 4 }}>{items.map((t, i) => <Body key={i}>• {t}</Body>)}</View>;
 
@@ -61,7 +67,7 @@ export default function SwmsScreen() {
     <Screen>
       <Title>{swms.title}</Title>
       <Body tone="muted">{p.label} · version {swms.version}</Body>
-      {!!version.data?.change_note && <Card><Body>What changed in version {swms.version}: {version.data.change_note}</Body></Card>}
+      {!!version.data?.change_note && <Notice tone="info">{`What changed in version ${swms.version}: ${version.data.change_note}`}</Notice>}
       {!m ? (version.error ? <Problem>{version.error}</Problem> : <Body tone="muted">Loading the statement…</Body>) : (
         <>
           <Body tone="muted">{m.sub}</Body>
@@ -69,10 +75,10 @@ export default function SwmsScreen() {
           {m.hazardous.length > 0 && <Section title="Hazardous work and environmental impacts"><List items={m.hazardous} /></Section>}
           {m.hrcw.length > 0 && <Section title="High-risk construction work"><List items={m.hrcw} /></Section>}
           {m.ppe.length > 0 && <Section title="Protective equipment"><List items={m.ppe} /></Section>}
-          {m.tasks.length > 0 && <Body tone="muted">Job tasks, hazards and controls</Body>}
+          {m.tasks.length > 0 && <Heading>Job tasks, hazards and controls</Heading>}
           {m.tasks.map((t, i) => (
             <Card key={t.id}>
-              <Body>{i + 1}. {t.name}</Body>
+              <Body strong>{i + 1}. {t.name}</Body>
               {t.hazards.map((x, j) => (
                 <View key={j} style={{ gap: 4, marginTop: 6 }}>
                   {isRichText(x.hazard) ? <RichText value={x.hazard} /> : <Body>{String(x.hazard ?? '')}</Body>}
@@ -92,14 +98,14 @@ export default function SwmsScreen() {
         </>
       )}
 
-      {swms.signed || waiting?.status === 'sent' ? <Body tone="ok">You have signed on to this version.</Body>
-        : waiting ? <Body tone="muted">Your sign-on is saved on this phone. It is sent when you have signal.</Body>
+      {swms.signed || waiting?.status === 'sent' ? <Notice tone="ok">You have signed on to this version.</Notice>
+        : waiting ? <Notice tone="info" icon="cloud-upload-outline">Your sign-on is saved on this phone. It is sent when you have signal.</Notice>
         : (
           <>
             <Body>{SIGN_ON_STATEMENT}</Body>
             <Field label="Type your full name to sign on" value={name} onChangeText={setName} maxLength={120} autoComplete="name" autoCapitalize="words" />
             <Problem>{problem}</Problem>
-            <Button onPress={sign} busy={busy} disabled={name.trim().length < 2 || !version.data}>Sign on</Button>
+            <Button icon="create-outline" onPress={sign} busy={busy} disabled={name.trim().length < 2 || !version.data}>Sign on</Button>
           </>
         )}
       <Button kind="plain" onPress={() => router.back()} disabled={busy}>{done ? 'Close' : 'Cancel'}</Button>
