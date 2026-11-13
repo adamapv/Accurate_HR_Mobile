@@ -1,6 +1,6 @@
 {
   "repo": "adamapv/AccurateHR",
-  "commit": "15aefe312d1a6bff6f194a982dcc181a6facf739",
+  "commit": "13fb25f5795a50ddf1fbf4876ffaa14c896a649a",
   "files": {
     "access.js": "b486c5098ae89af2cd1654c8304e0ec8cb06f2045331a035df2e3f5ab472aa4e",
     "pay-rules.js": "8424b1d5662cb698a30b3f017e27505fb26f8cca7290a6da5d3655f12c412adb",
@@ -8,7 +8,7 @@
     "field-core.js": "b1988a8de828b0a5006935d087370b700e9245ae5f06231e32abf2f384fd1965",
     "job-checks.js": "41e28047578969ddcb83454844599f01d0e033cd5af18287e71768797d77571a",
     "whs-core.js": "6ba147163402118254d9d5eec7e47bc06eba72882e48b92506282e6fe173287d",
-    "chat-core.js": "3748323d9199560cf38d31e8a87cf2ad1613288a519a46a5c6795a1382f7fd6b",
+    "chat-core.js": "2b6da5ed53a02daa5725fa5485db5f00232d59883bb9dac591c939014edbe82c",
     "offline-queue.js": "72c373f2fe528c3d6dadb679849b8f347bb3f8cdc362df05565e6cc374651e5c",
     "rich-text.js": "621b12c798d46435d168a8fd37518a5c875bd2c51826f979e8f7db606b99705f",
     "swms.js": "3bb7b953bb0b2e2764933fdcb0d411d3e32df196a5edab7becedbe87282e2ca7",

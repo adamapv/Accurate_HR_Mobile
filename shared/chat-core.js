@@ -222,3 +222,38 @@ export const voiceDraft = ({ key, secs, ref, reply }) => ({ audio_key: key, audi
 export const CHAT_VOICE = { record: 'Record a voice message', recording: 'Recording…', send: 'Send the voice message', discard: 'Throw the recording away', failed: 'Couldn’t upload the recording',
   noMic: 'Allow the microphone for AccurateHR in your phone’s settings to send voice messages', cantStart: 'Couldn’t start the microphone', cantPlay: 'Couldn’t get the recording', play: 'Play voice message', pause: 'Pause voice message', unplayable: 'This phone can’t play that recording',
   noSignal: 'A voice message needs signal' };
+
+// ---- a chat's own menu, a group's people, and who reacted ----
+// The line under a chat's name: who is in it.
+export const chatSub = t => !t ? '' : t.kind === 'office' ? 'Everyone in the company' : t.kind === 'dm' ? (t.others?.[0]?.position || '') : (t.others || []).map(p => firstName(p.name)).concat('You').join(', ');
+// What a chat's menu offers: notifications on or off for anyone, and for a group its people and (for someone who can send) its name.
+export function chatMenu(thread, sendable) {
+  if (!thread) return [];
+  const group = thread.kind === 'group';
+  return [{ act: 'mute', label: thread.muted ? 'Turn notifications on' : 'Mute notifications' }, group && { act: 'info', label: 'Group info' }, group && sendable && { act: 'rename', label: 'Rename group…' }].filter(Boolean);
+}
+export const muteDraft = thread => ({ muted: !thread.muted });
+export const muteSaid = wasMuted => wasMuted ? 'Notifications are on' : 'Muted';
+// Renaming a group: the words, and what is sent (nothing for a name left empty or left as it was).
+export const CHAT_RENAME = { title: 'Rename this group', label: 'Group name', confirmLabel: 'Rename', said: 'Group renamed' };
+export function renameDraft(name, thread) {
+  const next = String(name ?? '').trim().slice(0, CHAT_GROUP_NAME_MAX);
+  return !next || next === thread?.title ? null : { title: next };
+}
+// A group's own page: how many are in it, who (the reader first, as "You"), who cannot be added because they are in it already, and the words.
+export const groupCount = thread => `${(thread.others || []).length + 1} people`;
+export const groupPeople = (thread, me) => [{ id: me, name: 'You' }, ...(thread.others || [])];
+export const groupExclude = (thread, me) => [...(thread.others || []).map(p => p.id), me];
+export const CHAT_GROUP = { fallback: 'Group', add: 'Add people', addDo: 'Add', added: 'Added', leave: 'Leave group', rename: 'Rename group', takeOut: 'Take out' };
+export const groupAddDraft = ids => ({ people_ids: ids });
+export const groupRemoveDraft = person => ({ employee_id: person.id });
+export const leaveConfirm = thread => ({ title: `Leave “${thread.title}”?`, confirmLabel: 'Leave', body: 'You will no longer get its messages.' });
+export const takeOutConfirm = (person, thread) => ({ title: `Take ${person.name} out of “${thread.title}”?`, confirmLabel: 'Take them out',
+  body: 'They stop getting its messages. What they have said stays in the chat, and they can be added again.' });
+export const takeOutSaid = person => `${person.name} taken out`;
+// Who reacted to a message: a line each (the reader as "You"), and the reader's own reaction if they have one, which they can take back.
+export const CHAT_REACTIONS_TITLE = 'Reactions';
+export const CHAT_REACTION_REMOVE = 'Remove my reaction';
+export const reactionRows = (rows, me) => (rows || []).map(r => ({ key: r.id, text: `${r.emoji}  ${r.id === me ? 'You' : r.name}` }));
+export const reactionMine = (rows, me) => (rows || []).find(r => r.id === me)?.emoji || null;
+export const reactionsPath = id => `/chat/messages/${id}/reactions`;
