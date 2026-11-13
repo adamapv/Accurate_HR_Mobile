@@ -568,6 +568,47 @@ export const ticketProblem = (title, photos) => !title ? 'Choose which ticket th
 export const ticketDraft = ({ renews, named, form, files }) => ({ qualification_id: renews?.id, title: named.title, category: named.category, ...form, files });
 export const TICKET_SENT = 'Sent for review';
 
+// ---- a person's own documents ----
+export const DOC_TYPE_LABEL = { cert: 'Certificate', id: 'ID', policy: 'Policy', contract: 'Contract', offer: 'Offer letter', payslip: 'Payslip', other: 'Other' };
+// A document still waiting on the person: neither signed nor acknowledged.
+export const docOpen = r => !r.signed_at && !r.acknowledged_at;
+// A person's documents as the screen lists them: the ones waiting on them, then the rest.
+export const docsToDo = rows => (rows || []).filter(docOpen);
+export const docsOnFile = rows => (rows || []).filter(r => !docOpen(r));
+// The three figures over them. `soon` is the caller's own day 30 days from today.
+export function docTiles(rows, soon) {
+  const all = rows || [], toDo = docsToDo(all), expiring = all.filter(r => r.expiry_date && r.expiry_date <= soon);
+  return [
+    { key: 'todo', label: 'To sign or acknowledge', value: toDo.length, tone: toDo.length ? 'warn' : undefined, sub: toDo.length ? 'Waiting on you' : 'Nothing waiting on you' },
+    { key: 'expiring', label: 'Expiring soon', value: expiring.length, tone: expiring.length ? 'warn' : undefined, sub: 'Within 30 days' },
+    { key: 'file', label: 'On file', value: all.length, sub: `${plural(all.filter(r => r.r2_key).length, 'file')} to download` }];
+}
+// What a document says under its title, and whether it has expired. `today` is the caller's own day.
+export const docMeta = (r, today, fmtDate) => [DOC_TYPE_LABEL[r.doc_type] || sentenceCase(r.doc_type), r.issued_date && `issued ${fmtDate(r.issued_date)}`,
+  r.expiry_date && (r.expiry_date < today ? `expired ${fmtDate(r.expiry_date)}` : `expires ${fmtDate(r.expiry_date)}`), r.description].filter(Boolean).join(' · ');
+export const docExpired = (r, today) => !!r.expiry_date && r.expiry_date < today;
+// Where a document stands, in words.
+export const docStatus = d => d.signed_at ? 'Signed' : d.acknowledged_at ? 'Acknowledged' : d.requires_signature ? 'Awaiting signature' : 'Not yet opened';
+// What can be done with it: { kind, label } for the one thing waiting on the person (a contract is read and signed on its own page; anything else is confirmed with
+// a typed name), 'view' for a contract already signed, and whether there is a file to download.
+export function docActions(r) {
+  const open = docOpen(r);
+  return {
+    confirm: open ? (r.contract_id ? { kind: 'contract', label: 'Read & sign' } : r.requires_signature ? { kind: 'sign', label: 'Sign' } : { kind: 'acknowledge', label: 'Acknowledge' }) : null,
+    view: !open && !!r.contract_id,
+    download: !!r.r2_key };
+}
+export const DOCS_HEADING = toDo => toDo ? 'Everything on file' : 'Your documents';
+export const NO_DOCS = 'No documents yet. Contracts and HR paperwork show here once HR adds them.';
+export const DOCS_ALL_SIGNED = 'Everything else is signed and on file.';
+export const DOCS_NOT_YOURS = 'Your documents aren’t part of your access level. Ask HR if you need a copy of something.';
+// Confirming a document or a policy with a typed name: what the pop-up is called, its button, what stands in the way, what is sent and what is said after.
+export const confirmHead = sign => ({ title: sign ? 'Sign document' : 'Acknowledge document', label: sign ? 'Sign' : 'Acknowledge', done: sign ? 'Signed' : 'Acknowledged' });
+export const CONFIRM_NAME_LABEL = 'Type your full name to confirm';
+export const confirmProblem = name => String(name || '').trim() ? '' : CONFIRM_NAME_LABEL;
+export const confirmDraft = name => ({ signature_name: String(name || '').trim() });
+export const docConfirmPath = doc => `/documents/${doc.id}/${doc.requires_signature ? 'sign' : 'acknowledge'}`;
+
 // ---- the session and links ----
 // The session's fingerprint: the first 8 bytes of SHA-256 over "Bearer <session id>", as 16 hex characters. Everything kept on a device for one session (the outbox,
 // the offline copies) is tagged with it, and the service worker keys its copies with the same value, so one person's never show for the next. '' with no session.

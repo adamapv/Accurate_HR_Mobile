@@ -1,4 +1,4 @@
-// More: who is signed in, this build, and Sign out. Chat, POs, My leave, My expenses and My qualifications open from here. The rest of the Field view's More (documents, device settings) joins it as it is built.
+// More: who is signed in, this build, and Sign out. Chat, POs, My leave, My expenses, My qualifications and My documents open from here. The rest of the Field view's More (assets, forms, device settings) joins it as it is built.
 // The sentence that says what is still in the browser is kept in step with what the app has: change it whenever a screen is added.
 import { Linking } from 'react-native';
 import { router } from 'expo-router';
@@ -26,8 +26,9 @@ export default function More() {
       {can(me.access, 'leave') && <Button kind="plain" onPress={() => router.push('/leave')}>My leave</Button>}
       <Button kind="plain" onPress={() => router.push('/expenses')}>My expenses</Button>
       <Button kind="plain" onPress={() => router.push('/quals')}>My qualifications</Button>
+      {can(me.access, 'documents') && <Button kind="plain" onPress={() => router.push('/documents')}>My documents</Button>}
       <Card>
-        <Body tone="muted">Documents, scanning a card and reporting an incident are in the Field view in your browser for now. In Chat, photos, voice messages and documents are sent from the browser for now.</Body>
+        <Body tone="muted">Contracts, scanning a card and reporting an incident are in the Field view in your browser for now. In Chat, photos, voice messages and documents are sent from the browser for now.</Body>
         <Button kind="plain" onPress={() => { void Linking.openURL(API_URL); }}>Open AccurateHR in the browser</Button>
       </Card>
       {waiting > 0 && <Body tone="danger">{waiting === 1 ? 'One thing saved on your phone has not been sent yet. Signing out now tries once more, then it is lost.' : `${waiting} things saved on your phone have not been sent yet. Signing out now tries once more, then they are lost.`}</Body>}
