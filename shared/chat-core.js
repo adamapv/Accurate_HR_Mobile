@@ -208,3 +208,17 @@ export const chatDocUploadPath = name => `/chat/file?name=${encodeURIComponent(n
 export const chatDocDraft = ({ key, name, ref, reply }) => ({ file_key: key, file_name: name, client_ref: ref, ...(reply ? { reply_to_id: reply.id } : {}) });
 export const CHAT_DOC_FAILED = 'Couldn’t upload the document';
 export const CHAT_SEND_DOC = 'Send a document';
+
+// ---- voice messages ----
+// A recording lasts 1 to 300 seconds (the Worker refuses anything else). How long one ran, from the milliseconds it took; whether it is worth sending; where
+// its bytes go and where they are played from; what is then sent as the message; and the words.
+export const CHAT_VOICE_MAX_SECS = 300;
+export const voiceSecs = ms => Math.min(CHAT_VOICE_MAX_SECS, Math.round((ms || 0) / 1000));
+export const voiceKeep = (secs, hasSound) => secs >= 1 && !!hasSound;
+export const voiceFull = ms => Math.floor((ms || 0) / 1000) >= CHAT_VOICE_MAX_SECS;
+export const voiceUploadPath = secs => `/chat/audio?secs=${secs}`;
+export const voicePath = key => `/chat/audio?key=${encodeURIComponent(key)}`;
+export const voiceDraft = ({ key, secs, ref, reply }) => ({ audio_key: key, audio_secs: secs, client_ref: ref, ...(reply ? { reply_to_id: reply.id } : {}) });
+export const CHAT_VOICE = { record: 'Record a voice message', recording: 'Recording…', send: 'Send the voice message', discard: 'Throw the recording away', failed: 'Couldn’t upload the recording',
+  noMic: 'Allow the microphone for AccurateHR in your phone’s settings to send voice messages', cantStart: 'Couldn’t start the microphone', cantPlay: 'Couldn’t get the recording', play: 'Play voice message', pause: 'Pause voice message', unplayable: 'This phone can’t play that recording',
+  noSignal: 'A voice message needs signal' };
