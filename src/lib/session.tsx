@@ -13,9 +13,10 @@ const SESSION_KEY = 'hrhead_session', TENANT_KEY = 'hrhead_tenant', EMAIL_KEY = 
 // What GET /me and a sign-in answer with (AccurateHR's scripts/test-mobile-contract.mjs lists the fields the app may rely on).
 export type Grant = { scope: string; edit: boolean; approve: boolean };
 export type Me = {
-  employee: { id: string; name: string; email: string; role: string; position: string | null; must_change_pin: number; time_source: string; employment_type?: string | null };
+  employee: { id: string; name: string; email: string; role: string; position: string | null; must_change_pin: number; time_source: string; employment_type?: string | null; email_notifications?: number | null; day_note_hour?: number | null; day_note_email?: number | null };
   access: Record<string, Grant>;
   access_level: string | null;
+  email_configured?: boolean;   // whether the company's email is set up, so notification emails can be offered
   // `whs` is the company's own regulator and support line (the Worker works it out from the company's state and details); the app never names one itself.
   company: { company_name: string; timezone: string | null; zone: string; timesheet_auto_approve: number | null; whs: { regulator: string; phone: string | null; tel: string | null; written: string; eap: string | null; set: boolean } };
 };
@@ -36,6 +37,7 @@ type Session = {
   setTenantCode: (code: string | null) => Promise<void>;
   signIn: (email: string, pin: string) => Promise<void>;
   changePin: (currentPin: string, newPin: string) => Promise<void>;
+  refreshMe: () => Promise<void>;   // a setting of the person's own changed: read who they are again
   signOut: () => Promise<void>;
   retry: () => void;
 };
@@ -120,6 +122,11 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     async changePin(currentPin, newPin) {
       await api('/change-pin', { method: 'POST', body: { current_pin: currentPin, new_pin: newPin } });
       setState({ status: 'signedIn', me: await api<Me>('/me') });
+    },
+    async refreshMe() {
+      const me = await api<Me>('/me');
+      offline.remember('/me', me);
+      setState({ status: 'signedIn', me });
     },
     async signOut() {
       try { await offline.replay(); } catch { /* a last try at sending what is waiting */ }

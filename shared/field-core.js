@@ -672,6 +672,39 @@ export const ANSWERS_SAVED = 'Answers saved';
 export const fileAnswer = ({ r2_key, file_name, file_size_bytes, mime_type }) => ({ r2_key, file_name, file_size_bytes, mime_type });
 export const formFilePath = (formId, fieldId) => `/forms/${formId}/fields/${fieldId}/file`;
 
+// ---- notifications ----
+// How many are unread: the Worker's own count when it sends one, else counted from the rows.
+export const notifUnread = data => data?.unread ?? (data?.rows || []).filter(r => !r.read_at).length;
+export const notifBadge = unread => unread > 9 ? '9+' : String(unread);
+export const notifBellLabel = unread => unread ? `Notifications, ${unread} unread` : 'Notifications';
+export const NO_NOTIFS = 'Nothing yet — you’ll see leave decisions, approvals and tasks here.';
+export const notifReadPath = n => `/notifications/${n.id}/read`;
+
+// ---- a person's own settings ----
+// Notification emails: what the switch is called and what is said once it is flipped. `emailOn` is how it stands now; `email` is the address on their record.
+export const emailSwitch = (emailOn, email) => ({ label: emailOn ? 'Turn off email notifications' : 'Turn on email notifications',
+  said: emailOn ? 'Notification emails off' : `Notification emails on — they go to ${email}`, draft: { email_notifications: !emailOn } });
+export const emailIsOn = e => e.email_notifications !== 0;
+// The morning note: a short note of the person's day, at an hour they choose.
+export const DAY_NOTE_HOURS = [5, 6, 7, 8, 9];
+export const hourLabel = h => `${h} am`;
+export const dayNoteRow = e => e.day_note_hour != null ? { label: `My morning note: ${hourLabel(e.day_note_hour)}`, sub: 'Your day, each morning' } : { label: 'My morning note', sub: 'Get your day each morning' };
+export const dayNoteStart = e => ({ on: e.day_note_hour != null, hour: e.day_note_hour ?? 6, email: !!e.day_note_email });
+export const DAY_NOTE_ABOUT = 'A short note of what is on for you each morning: the jobs you are on and who is with you, events, who is away, milestones and what is due, then tomorrow in a line. It says only what the calendar shows you, and a morning with nothing on sends nothing.';
+export const DAY_NOTE_SWITCH = 'Send me my day each morning';
+export const DAY_NOTE_WHERE = 'It goes to the bell menu and, on a phone that has notifications on, to that phone. Nothing is emailed unless you tick the box.';
+// Emailing it too is offered only when the company's email is set up and the person has an address.
+export const dayNoteEmailLabel = (canEmail, email) => canEmail ? `Also email it to ${email}` : 'Also email it (email is not set up, or there is no address on your record)';
+export const dayNoteDraft = ({ on, hour, email }, canEmail) => ({ day_note_hour: on ? Number(hour) : null, day_note_email: !!(on && canEmail && email) });
+export const dayNoteSaid = ({ on, hour }) => on ? `Your day will arrive at ${hourLabel(hour)}` : 'Morning note off';
+// Changing a PIN: an admin's or owner's has to be longer (they reach everyone's pay and bank details). The Worker also turns away easy ones.
+export const pinStrict = role => ['admin', 'owner'].includes(role);
+export const pinLabel = strict => `New PIN (${strict ? '6–8' : '4–8'} digits)`;
+export const PIN_HINT = 'Not something easy to guess, like 1234 or 0000.';
+export const pinProblem = ({ next, confirm }, strict) => !(strict ? /^\d{6,8}$/ : /^\d{4,8}$/).test(String(next || '')) ? `New PIN must be ${strict ? '6–8' : '4–8'} digits` : next !== confirm ? 'PINs don’t match' : '';
+export const pinDraft = ({ current, next }) => ({ current_pin: current, new_pin: next });
+export const PIN_CHANGED = 'PIN changed — any other devices have been signed out';
+
 // ---- the session and links ----
 // The session's fingerprint: the first 8 bytes of SHA-256 over "Bearer <session id>", as 16 hex characters. Everything kept on a device for one session (the outbox,
 // the offline copies) is tagged with it, and the service worker keys its copies with the same value, so one person's never show for the next. '' with no session.

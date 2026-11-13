@@ -27,6 +27,7 @@ The AccurateHR Field view as a native Android and iPhone app. Built with React N
 - My assets (from More): the three figures over what you hold, and each item with Report issue (its condition has changed, it is damaged, lost or stolen, or just a check-in, with the condition it is in now and a note). Needs signal.
 - My forms (from More): the forms still to fill in and the ones already sent. A form is filled in with each question in the box its kind asks for (text, a choice, yes or no, a date, a photo taken with the camera), your earlier answers filled in, and can be updated any time. Needs signal.
 - Safety reports (from the Safety tab, for a level with the safety register): the emergency numbers with the company's own regulator, Report incident, Property damage and Report hazard (the same questions as the web forms, with photos taken with the camera), your own reports and the hazards everyone sees, and a report read back in its sections. Needs signal.
+- Notifications (from More): what you have been told, newest first; a tap marks one read and opens the screen it is about, and Mark all read clears the count. Under More, your own settings: notification emails on or off, My morning note (the hour it arrives, and whether it is emailed too) and Change PIN.
 - Home opens with no signal, on the copy kept from last time.
 - Sign out, which forgets everything kept on the phone.
 
