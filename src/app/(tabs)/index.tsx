@@ -179,7 +179,7 @@ function SignedIn({ me }: { me: Me }) {
       )}
 
       <Card>
-        <Body tone="muted">This is an early build of the app. Your week, Chat, POs and the rest are in the Field view in your browser for now.</Body>
+        <Body tone="muted">This is an early build of the app. Chat, POs, leave and the rest are in the Field view in your browser for now.</Body>
       </Card>
     </Screen>
   );

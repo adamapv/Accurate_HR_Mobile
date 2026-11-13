@@ -1,4 +1,4 @@
-// The tab bar: Home, Job card, Safety and More so far (My week joins it when it is built). Nothing here opens for someone who is not signed in.
+// The tab bar: Home, Job card, Safety, My week and More, as in the web Field view. Nothing here opens for someone who is not signed in.
 import type { ColorValue } from 'react-native';
 import { Redirect } from 'expo-router';
 import { Tabs } from 'expo-router/tabs';
@@ -31,6 +31,7 @@ export default function TabsLayout() {
       <Tabs.Screen name="index" options={{ title: 'Home', tabBarIcon: icon('home-outline'), tabBarBadge: failed || undefined }} />
       <Tabs.Screen name="day" options={{ title: 'Job card', tabBarIcon: icon('time-outline') }} />
       <Tabs.Screen name="safety" options={{ title: 'Safety', tabBarIcon: icon('shield-checkmark-outline') }} />
+      <Tabs.Screen name="week" options={{ title: 'My week', tabBarIcon: icon('calendar-outline') }} />
       <Tabs.Screen name="more" options={{ title: 'More', tabBarIcon: icon('menu-outline') }} />
     </Tabs>
   );
