@@ -1,5 +1,5 @@
 // One chat: its messages under day chips, with the unread line, names in a group and a tick on the reader's own, and a box to send a text message, a photo
-// from the camera or a document from the phone. Typing "@" offers the chat's people to mention. Holding a message offers a reaction, Reply, Copy and Delete; a
+// from the camera, a document from the phone or a voice message recorded here. Typing "@" offers the chat's people to mention. Holding a message offers a reaction, Reply, Copy and Delete; a
 // document opens through the phone's share sheet.
 // How the messages are laid out, how a message's text is cut into words, links and mentions, and what sending puts in the outbox are the web app's own rules
 // (shared/chat-core.js). A message goes through the outbox, so one typed with no signal waits in the chat and is sent once.
@@ -8,20 +8,23 @@ import { Alert, AppState, FlatList, Image, KeyboardAvoidingView, Linking, Modal,
 import * as Clipboard from 'expo-clipboard';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
+import { requestRecordingPermissionsAsync, setAudioModeAsync, useAudioRecorder } from 'expo-audio';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Redirect, router, useLocalSearchParams } from 'expo-router';
 import { can } from '@shared/access.js';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { CHAT_DELETE_CONFIRM, CHAT_DOC_FAILED, CHAT_EMOJI, CHAT_PHOTO_FAILED, CHAT_SEND_DOC, CHAT_SEND_PHOTO, MENTION_LIST, chatDocDraft, chatDocProblem, chatDocUploadPath, chatFileType, mentionCandidates, mentionIds, mentionPick, mentionQuery, chatActions, chatCanReact, chatClock, chatDeleted, chatDeletedText, chatDivider, chatFileLine, chatHue, chatItems, chatName, chatParts, chatPhotoDraft, chatQuote, chatReacted,
+import { CHAT_VOICE, voiceDraft, voiceFull, voiceKeep, voicePath, voiceSecs, voiceUploadPath, CHAT_DELETE_CONFIRM, CHAT_DOC_FAILED, CHAT_EMOJI, CHAT_PHOTO_FAILED, CHAT_SEND_DOC, CHAT_SEND_PHOTO, MENTION_LIST, chatDocDraft, chatDocProblem, chatDocUploadPath, chatFileType, mentionCandidates, mentionIds, mentionPick, mentionQuery, chatActions, chatCanReact, chatClock, chatDeleted, chatDeletedText, chatDivider, chatFileLine, chatHue, chatItems, chatName, chatParts, chatPhotoDraft, chatQuote, chatReacted,
   chatReactionDraft, chatSecs, chatSendDraft, mergeChat } from '@shared/chat-core.js';
 import { useSession } from '@/lib/session';
 import { useOutbox } from '@/lib/use-outbox';
 import { ApiError } from '@/lib/api-core';
 import { API_URL } from '@/lib/config';
 import { openFile } from '@/lib/open-file';
+import { VOICE_RECORDING, VOICE_TYPE, VoicePlayer } from '@/voice';
 import type { Draft, Entry } from '@/lib/offline-core';
 import { radius, space, TOUCH, useTheme } from '@/theme';
 
+const VOICE = CHAT_VOICE as Record<string, string>;
 type Person = { id: string; name: string; position?: string | null };
 type Quote = { sender_name?: string; text?: string | null; photo?: boolean; audio?: boolean; file?: string | null; deleted?: boolean };
 type Msg = { id: string; seq: number; sender_id: string; sender_name?: string; body?: string | null; created_at: string; system?: string; deleted?: boolean; reply?: Quote | null;
@@ -44,6 +47,9 @@ export default function Chat() {
   const [sheet, setSheet] = useState<Msg | null>(null);       // the message whose choices are showing
   const [replyTo, setReplyTo] = useState<Msg | null>(null);   // the message being answered
   const [sending, setSending] = useState(false);              // a photo or a document on its way
+  const [rec, setRec] = useState<{ secs: number } | null>(null);   // a voice message being recorded
+  const recorder = useAudioRecorder(VOICE_RECORDING);
+  const recState = useRef<{ start: number; timer: ReturnType<typeof setInterval> | null; reply: Msg | null; ending: boolean } | null>(null);
   const [caret, setCaret] = useState(0);                      // where the cursor is in the message box
   const [mentions, setMentions] = useState<{ id: string; name: string }[]>([]);   // the people picked from the "@" list
   const [officePeople, setOfficePeople] = useState<Person[] | null>(null);
@@ -180,6 +186,46 @@ export default function Chat() {
     } catch (e) { setError((e instanceof ApiError && e.offline) || e instanceof TypeError ? chatDocProblem({ name: a.name, size: a.size || 0 }, false) as string : e instanceof Error ? e.message : CHAT_DOC_FAILED as string); }
     setSending(false);
   };
+  // A voice message: the microphone starts it, the arrow sends it, the bin throws it away. Its bytes go up with its length, then it is a message that names
+  // them. It needs signal, and stops by itself at the longest a chat takes.
+  const finishVoice = async (sendIt: boolean) => {
+    const st = recState.current;
+    if (!st || st.ending) return;
+    st.ending = true;
+    if (st.timer) clearInterval(st.timer);
+    const secs = voiceSecs(Date.now() - st.start) as number;
+    let uri: string | null = null;
+    try { await recorder.stop(); uri = recorder.uri; } catch { /* nothing recorded */ }
+    void setAudioModeAsync({ allowsRecording: false }).catch(() => {});
+    recState.current = null; setRec(null);
+    if (!sendIt || !(voiceKeep(secs, !!uri) as boolean) || !uri) return;
+    setSending(true);
+    try {
+      const bytes = await (await fetch(uri)).blob();
+      const up = await fetch(`${API_URL.replace(/\/+$/, '')}/api/hr${voiceUploadPath(secs) as string}`, { method: 'PUT', body: bytes, headers: { 'content-type': VOICE_TYPE, ...(sid ? { Authorization: `Bearer ${sid}` } : {}) } });
+      const j = await up.json().catch(() => ({})) as { ok?: boolean; error?: string; audio_key?: string };
+      if (!up.ok || j.ok === false || !j.audio_key) throw new Error(j.error ? j.error.charAt(0).toUpperCase() + j.error.slice(1) : VOICE.failed);
+      const ref = `app${Date.now().toString(36)}${Math.random().toString(36).slice(2, 12)}`;
+      const d = await api<{ message: Msg }>(path, { method: 'POST', body: voiceDraft({ key: j.audio_key, secs, ref, reply: st.reply }) });
+      setMsgs(prev => mergeChat(prev, [d.message]) as Msg[]); latest.current = Math.max(latest.current, d.message.seq);
+      setReplyTo(null); changed();
+    } catch (e) { setError((e instanceof ApiError && e.offline) || e instanceof TypeError ? VOICE.noSignal : e instanceof Error ? e.message : VOICE.failed); }
+    setSending(false);
+  };
+  const startVoice = async () => {
+    if (recState.current) return;
+    setError('');
+    try {
+      const perm = await requestRecordingPermissionsAsync();
+      if (!perm.granted) return setError(VOICE.noMic);
+      await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
+      await recorder.prepareToRecordAsync();
+      recorder.record();
+    } catch { return setError(VOICE.cantStart); }
+    const st = { start: Date.now(), timer: null as ReturnType<typeof setInterval> | null, reply: replyTo, ending: false };
+    st.timer = setInterval(() => { const ms = Date.now() - st.start; setRec({ secs: Math.floor(ms / 1000) }); if (voiceFull(ms) as boolean) void finishVoice(true); }, 250);
+    recState.current = st; setRec({ secs: 0 });
+  };
   // "@": the people of this chat (everyone in the company for the Office), narrowed by what has been typed after it.
   const mentionQ = mentionQuery(draft, Math.min(caret, draft.length)) as string | null;
   const candidates = !canSend || !head ? [] : mentionCandidates(mentionQ, head.thread.kind === 'office' ? officePeople : head.thread.others) as Person[];
@@ -225,7 +271,7 @@ export default function Chat() {
         {m.deleted ? <Text style={[styles.text, { color: t.muted, fontStyle: 'italic' }]}>{chatDeletedText(mine) as string}</Text> : (
           <>
             {!!m.photo_key && <Image source={photo(m.photo_key)} style={styles.photo} resizeMode="cover" accessibilityLabel="Photo" />}
-            {!!m.audio_key && <Text style={[styles.text, { color: t.fg }]}>Voice message ({chatSecs(m.audio_secs) as string}). Play it in the browser for now.</Text>}
+            {!!m.audio_key && <VoicePlayer uri={`${API_URL.replace(/\/+$/, '')}/api/hr${voicePath(m.audio_key) as string}`} headers={sid ? { Authorization: `Bearer ${sid}` } : undefined} secs={m.audio_secs || 0} id={m.id} mine={mine} />}
             {!!m.file && (
               <Pressable accessibilityRole="button" accessibilityLabel={`Open ${m.file.name}`} onPress={() => { void openDoc(m); }} style={styles.doc}>
                 <Ionicons name="document-outline" size={22} color={t.fg} />
@@ -296,7 +342,18 @@ export default function Chat() {
             ))}
           </View>
         )}
-        {canSend && !!head && (
+        {canSend && !!head && !!rec && (
+          <View accessibilityRole="summary" style={[styles.bar, { borderTopColor: t.line, backgroundColor: t.topbar, alignItems: 'center' }]}>
+            <Pressable accessibilityRole="button" accessibilityLabel={VOICE.discard} onPress={() => { void finishVoice(false); }} style={[styles.send, { backgroundColor: t.surface2 }]}><Ionicons name="trash-outline" size={21} color={t.danger} /></Pressable>
+            <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: space.sm, paddingHorizontal: space.sm }}>
+              <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: t.danger }} />
+              <Text style={{ fontSize: 17, fontWeight: '700', color: t.fg }}>{chatSecs(rec.secs) as string}</Text>
+              <Text style={{ fontSize: 15, color: t.muted }}>{VOICE.recording}</Text>
+            </View>
+            <Pressable accessibilityRole="button" accessibilityLabel={VOICE.send} onPress={() => { void finishVoice(true); }} style={[styles.send, { backgroundColor: t.accent }]}><Ionicons name="send" size={19} color="#FFFFFF" /></Pressable>
+          </View>
+        )}
+        {canSend && !!head && !rec && (
           <View style={[styles.bar, { borderTopColor: t.line, backgroundColor: t.topbar }]}>
             <Pressable accessibilityRole="button" accessibilityLabel={CHAT_SEND_PHOTO as string} disabled={sending || busy} onPress={() => { void sendPhoto(); }}
               style={[styles.send, { backgroundColor: t.surface2, opacity: sending || busy ? 0.5 : 1 }]}><Ionicons name={sending ? 'cloud-upload-outline' : 'camera-outline'} size={21} color={t.fg} /></Pressable>
@@ -304,8 +361,9 @@ export default function Chat() {
               style={[styles.send, { backgroundColor: t.surface2, opacity: sending || busy ? 0.5 : 1 }]}><Ionicons name="attach-outline" size={22} color={t.fg} /></Pressable>
             <TextInput accessibilityLabel="Message" placeholder="Message" placeholderTextColor={t.dim} value={draft} onChangeText={setDraft} multiline onSelectionChange={e => setCaret(e.nativeEvent.selection.end)}
               style={[styles.box, { color: t.fg, backgroundColor: t.surface2, borderColor: t.line }]} />
-            <Pressable accessibilityRole="button" accessibilityLabel="Send" disabled={busy || !draft.trim()} onPress={() => { void send(); }}
-              style={[styles.send, { backgroundColor: t.accent, opacity: busy || !draft.trim() ? 0.5 : 1 }]}><Ionicons name="send" size={19} color="#FFFFFF" /></Pressable>
+            {draft.trim()
+              ? <Pressable accessibilityRole="button" accessibilityLabel="Send" disabled={busy} onPress={() => { void send(); }} style={[styles.send, { backgroundColor: t.accent, opacity: busy ? 0.5 : 1 }]}><Ionicons name="send" size={19} color="#FFFFFF" /></Pressable>
+              : <Pressable accessibilityRole="button" accessibilityLabel={VOICE.record} disabled={busy || sending} onPress={() => { void startVoice(); }} style={[styles.send, { backgroundColor: t.accent, opacity: busy || sending ? 0.5 : 1 }]}><Ionicons name="mic" size={20} color="#FFFFFF" /></Pressable>}
           </View>
         )}
       </KeyboardAvoidingView>
