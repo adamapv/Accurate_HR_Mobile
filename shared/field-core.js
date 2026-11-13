@@ -101,6 +101,21 @@ export function setSplitPct(rs, key, raw) {
   const v = Math.max(1, Math.min(Math.round(Number(raw) || 0), 100 - fixed - 1));
   return rs.map((r, j) => j === i ? { ...r, pct: v } : j === bal ? { ...r, pct: 100 - fixed - v } : r);
 }
+// Time on an activity (GET /activities → { id, name, needs_approval, ask_first, day_off, leave_type_id }), instead of on a job.
+// Leave, not time: asked for under My leave. The RDO is that too when its leave type needs approval (ask_first), except on an RDO that is the person's own (`rdoDay`).
+export const activityAsksFirst = (a, rdoDay) => !!a.needs_approval || (!!a.ask_first && !rdoDay);
+// A public holiday is offered only on a public holiday (`holiday`), as the server accepts; one already picked stays listed. The RDO is offered on any day.
+export const activityOfferable = (a, { chosenId, holiday }) => a.day_off !== 'holiday' || a.id === chosenId || !!holiday;
+// What the Activity box lists: the ones that can be logged as time, then (under their own heading) the ones asked for as leave.
+// `chosenId` and `chosenName` are the card's own activity, which stays listed even when the list no longer has it.
+// → [{ key: 'time' | 'ask', title, rows: [{ key, title, text }] }]
+export function activityGroups(activities, { chosenId, chosenName, holiday, rdoDay }) {
+  const row = a => ({ key: a.id, title: a.name, text: a.name });
+  const time = activities.filter(a => !activityAsksFirst(a, rdoDay) && activityOfferable(a, { chosenId, holiday })).map(row);
+  if (chosenId && !activities.some(a => a.id === chosenId)) time.unshift({ key: chosenId, title: chosenName || `Activity ${chosenId}`, text: chosenName || chosenId });
+  const ask = activities.filter(a => activityAsksFirst(a, rdoDay)).map(row);
+  return [{ key: 'time', title: ask.length ? 'Activities' : null, rows: time }, ...(ask.length ? [{ key: 'ask', title: 'Needs approval — request as leave', rows: ask }] : [])];
+}
 // Catches what the server would refuse, before the round trip: '' when the card can be saved, else the words to show.
 // `form` is { work_date, clock_on, clock_off, activity_id }, `rows` the job rows, `night` the person's Night shift rule or null, `dayEntries` their other time
 // ([{ card_id, work_date, start_time, end_time }]), `cardId` the card being changed, `needsApproval` the name of a chosen activity that goes in as leave instead.

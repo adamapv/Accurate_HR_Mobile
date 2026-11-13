@@ -1,11 +1,11 @@
 {
   "repo": "adamapv/AccurateHR",
-  "commit": "163df216155e16d2d2c8ac79501b3b6624ffb714",
+  "commit": "fe550bba51ffeffed70d35325c570fccd0c5df14",
   "files": {
     "access.js": "b486c5098ae89af2cd1654c8304e0ec8cb06f2045331a035df2e3f5ab472aa4e",
     "pay-rules.js": "8424b1d5662cb698a30b3f017e27505fb26f8cca7290a6da5d3655f12c412adb",
     "pickers-core.js": "187eb2caf60c759d8ee3cbeafabb97127025814c732f67212cd2c9b945be3063",
-    "field-core.js": "1753d572f82fb9fa42f2ea5f991c809eef9895a533ea0eaa1ffa290956085d8c",
+    "field-core.js": "342870ff87aa3a9195a109049849ddd6dafd03573bdfe1d3a2c3574ace14fd6b",
     "job-checks.js": "c0f91759382bc9e144304a6efa7a3b87baea1d60bd2261309ab30bfff630a930",
     "offline-queue.js": "72c373f2fe528c3d6dadb679849b8f347bb3f8cdc362df05565e6cc374651e5c",
     "rich-text.js": "621b12c798d46435d168a8fd37518a5c875bd2c51826f979e8f7db606b99705f",
