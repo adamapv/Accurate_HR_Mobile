@@ -38,7 +38,8 @@ export default function Quals() {
     <Screen>
       <Title>My qualifications</Title>
       <Body tone="muted">{QUALS_SUB as string}</Body>
-      <Button icon="camera-outline" onPress={() => router.push('/submit-ticket')}>Submit a ticket</Button>
+      {!!state.me.card_reader_configured && <Button icon="scan-outline" onPress={() => router.push('/scan-card')}>Scan a card</Button>}
+      <Button kind={state.me.card_reader_configured ? 'plain' : 'primary'} icon="camera-outline" onPress={() => router.push('/submit-ticket')}>Submit a ticket</Button>
       {quals.offlineAt !== null && <Notice tone="warn" icon="cloud-offline-outline">{`No signal. Showing what was saved at ${fmtTime(quals.offlineAt)}.`}</Notice>}
       <Problem>{problem || quals.error || sent.error}</Problem>
       {!!said && <Notice tone="ok">{said}</Notice>}

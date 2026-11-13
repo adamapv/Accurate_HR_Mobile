@@ -1212,6 +1212,42 @@ export const CONTRACT_DECLINE = { open: 'Decline the offer', about: 'If you decl
   reason: 'Anything you would like to tell them? (optional)', confirm: 'Yes, decline the offer', doneTitle: 'Offer declined', done: 'You have declined this offer and we have let them know. Thank you for telling us.' };
 export const contractDeclineDraft = reason => ({ reason: String(reason || '').trim() });
 
+// ---- Scan a card ----
+// A photo of a licence or ticket, read for its number and dates, which the person checks before anything is saved. `card` is what POST qualifications/read
+// answers with ({ qualification_number, expiry_date, issued_date, issuing_body, holder_name, unsure: [keys], name_ok, replaces }). `employee` is who it is for
+// when someone adds it for them (an admin); staff scan their own, and theirs is sent in for review.
+export const SCAN_MAX_PHOTOS = 2;
+export const SCAN_TOO_MANY = 'Two photos at most: the front and the back';
+export const SCAN_TITLE = 'Scan a card';
+export const SCAN_ABOUT = 'Choose which ticket it is, then take or choose a photo of the card (and the back, if the number or date is on it). The number and dates are read off the photo for you to check, and nothing is saved until you say so. The photo is read by an AI model on Cloudflare, the service this app already runs on.';
+export const SCAN_OWN = 'A photo of your licence or ticket';
+export const SCAN_WORDS = { ticket: 'Which ticket?', other: 'What is it called?', otherExample: 'e.g. Forklift licence', photo: 'Photo of the card', read: 'Read the card', reading: 'Reading the card. This takes a few seconds…', back: 'Back to the photo',
+  rightPerson: 'It is the right person’s card', thisCard: 'This card', unsure: 'Not sure: check this against the photo', notes: 'Notes (optional)' };
+export const SCAN_FIELDS = [['qualification_number', 'Number'], ['expiry_date', 'Expires (blank if none)', 'date'], ['issued_date', 'Issued', 'date'], ['issuing_body', 'Issued by']];
+// Whether the photo can be read yet: a ticket chosen, a photo taken and, for someone adding it for another person, that person chosen.
+export const scanCanRead = ({ title, photos, needsPerson, employee }) => !!title && photos > 0 && (!needsPerson || !!employee);
+// What is sent to be read. `files` are [{ name, media_type, data }], the photos as data.
+export const scanReadDraft = ({ employeeId, title, files }) => ({ employee_id: employeeId, ticket: title, files });
+// The form as it opens on what was read, and whether the card renews the one on file or is added beside it.
+export const scanFormStart = card => ({ qualification_number: card?.qualification_number || '', expiry_date: card?.expiry_date || '', issued_date: card?.issued_date || '', issuing_body: card?.issuing_body || '', notes: '' });
+export const scanModeStart = card => card?.replaces ? 'renew' : 'new';
+export const scanUnsure = (card, key) => !!card?.unsure?.includes(key);
+// The name on the card is not the person's: what to say, or '' when it matches.
+export const scanMismatch = (card, employee) => card?.name_ok === false ? `The name on this card is “${card.holder_name}”${employee ? `, not ${employee.name}` : ', which doesn’t look like yours'}. Make sure it’s the right person’s card.` : '';
+// Saving is held while the name does not match and the person has not said it is the right card.
+export const scanHeld = (card, rightPerson) => card?.name_ok === false && !rightPerson;
+export const scanCheck = employee => `Here’s what was read from the photo. Check it against the card, and fix anything that’s wrong, before you ${employee ? 'add it' : 'send it in'}.`;
+// The choice when the person already holds a card for this ticket: [[value, label]].
+export const scanModes = (old, fmtDate) => [['renew', `Renews ${old.title}${old.qualification_number ? ` #${old.qualification_number}` : ''}${old.expiry_date ? `, expires ${fmtDate(old.expiry_date)}` : ''} (the old card is kept as history)`],
+  ['new', 'An extra card: leave the one on file as it is']];
+// What goes on the record, from the ticket and the form as the person left it.
+export const scanFields = ({ title, category, form }) => ({ title, category, qualification_number: String(form.qualification_number || '').trim(), issuing_body: String(form.issuing_body || '').trim(), issued_date: form.issued_date, expiry_date: form.expiry_date,
+  notes: String(form.notes || '').trim() });
+// Staff: the card sent in for an admin to approve (a renewal names the card it replaces). `files` are the uploaded photos.
+export const scanSubmitDraft = ({ mode, card, fields, files }) => ({ qualification_id: mode === 'renew' ? card.replaces.id : undefined, ...fields, files });
+export const scanSaveLabel = (employee, mode) => employee ? (mode === 'renew' ? 'Renew the card' : 'Add the card') : 'Send for review';
+export const scanSaid = (employee, title) => employee ? `Added ${title}` : `Sent ${title} for review`;
+
 // ---- the session and links ----
 // The session's fingerprint: the first 8 bytes of SHA-256 over "Bearer <session id>", as 16 hex characters. Everything kept on a device for one session (the outbox,
 // the offline copies) is tagged with it, and the service worker keys its copies with the same value, so one person's never show for the next. '' with no session.
