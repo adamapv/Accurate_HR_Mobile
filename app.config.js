@@ -1,5 +1,7 @@
 // One app, two builds: production talks to app.accuratehr.co; APP_ENV=staging makes a separate "AccurateHR (staging)" app that talks to staging.accuratehr.co and
 // installs beside the real one. The address the app talks to is fixed at build time and never typed in by a person.
+const fs = require('fs');
+const path = require('path');
 const staging = process.env.APP_ENV === 'staging';
 // Every build has its own number, so the More tab can say exactly which one is on a phone. The Android build on GitHub passes its run number (the same number as in
 // the name of the file it makes) and the commit it was built from; a build made any other way is "dev".
@@ -20,6 +22,8 @@ module.exports = {
     android: {
       package: staging ? 'co.accuratehr.app.staging' : 'co.accuratehr.app',
       versionCode: build || 1,
+      // The push service's own file (Firebase): notifications from the Worker reach the phone only in a build that has it.
+      ...(fs.existsSync(path.join(__dirname, 'google-services.json')) ? { googleServicesFile: './google-services.json' } : {}),
       adaptiveIcon: { backgroundColor: '#3DA9E6', foregroundImage: './assets/images/android-icon-foreground.png' },
     },
     plugins: [

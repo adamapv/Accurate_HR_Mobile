@@ -12,6 +12,7 @@ import type { Offline } from './offline-core';
 import { EMAIL_KEY, SESSION_KEY, TENANT_KEY } from './keys';
 import { sendInBackground, setLiveOutbox } from './background';
 import { clearClockNotice } from './clock-notice-clear';
+import { registerForPush, unregisterFromPush } from './push';
 
 // What GET /me and a sign-in answer with (AccurateHR's scripts/test-mobile-contract.mjs lists the fields the app may rely on).
 export type Grant = { scope: string; edit: boolean; approve: boolean };
@@ -100,6 +101,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   // With the app closed the phone sends it too, now and then, for as long as someone is signed in; it uses this outbox while the app is in memory.
   useEffect(() => { setLiveOutbox(offline); return () => setLiveOutbox(null); }, [offline]);
   useEffect(() => { if (loaded) void sendInBackground(signedIn); }, [signedIn, loaded]);
+  // The Worker is told how to reach this phone with notifications, for as long as someone is signed in.
+  useEffect(() => { if (signedIn) void registerForPush(api); }, [signedIn, api]);
   useEffect(() => {
     if (!signedIn) return;
     const send = async () => { try { const r = await offline.replay(); if (r?.sent.length) setRefreshed(n => n + 1); } catch { /* the next try will say */ } };
@@ -142,6 +145,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     },
     async signOut() {
       try { await offline.replay(); } catch { /* a last try at sending what is waiting */ }
+      await unregisterFromPush(api);
       try { await api('/logout', { method: 'POST', body: {} }); } catch { /* the phone forgets the session either way */ }
       await forget();
     },
