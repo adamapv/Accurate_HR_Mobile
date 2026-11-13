@@ -633,6 +633,45 @@ export const assetReportStart = asset => ({ event_type: 'condition_change', cond
 export const assetReportTitle = asset => `Report on ${asset.name}`;
 export const ASSET_REPORT_SENT = 'Thanks — the office has your report';
 
+// ---- the forms a person fills in ----
+export const FORMS_SUB = 'Banking, super, licence and other details — fill in or update any time';
+export const NO_FORMS = 'No forms published yet.';
+// A person's forms as the screen lists them: the ones still to fill in, then the ones they have sent.
+export const formsToDo = rows => (rows || []).filter(f => !f.submitted);
+export const formsDone = rows => (rows || []).filter(f => f.submitted);
+export function formTiles(rows) {
+  const todo = formsToDo(rows).length, done = formsDone(rows).length;
+  return [
+    { key: 'todo', label: 'To fill in', value: todo, tone: todo ? 'warn' : undefined, sub: todo ? 'Waiting on you' : 'All done' },
+    { key: 'done', label: 'Submitted', value: done, tone: 'ok', sub: 'You can update these any time' }];
+}
+// Where a form stands, and what its button says.
+export const formRow = f => f.submitted ? { status: 'Submitted', action: 'Edit answers', done: true } : { status: 'Not started', action: 'Fill in', done: false };
+// An answer that was saved to the person's pay details comes back as this note in place of what they typed: the box is shown empty, and typing replaces it.
+const SAVED_NOTE = /^\(saved to your pay details\)$/;
+export const savedOnRecord = v => SAVED_NOTE.test(String(v ?? ''));
+export const SAVED_PLACEHOLDER = 'Saved on your record: type to replace';
+// A question's label (a required one is starred), and what is shown in its box.
+export const fieldLabel = f => `${f.label}${f.required ? ' *' : ''}`;
+export const fieldShown = v => savedOnRecord(v) ? '' : v || '';
+// The kind of box a question is answered in: 'section' (a heading, no answer), 'textarea', 'select', 'radio', 'checkbox', 'file', 'date', or 'text' with the
+// keyboard it wants ('number', 'email', 'tel' or 'text').
+export function fieldBox(f) {
+  const t = f.field_type;
+  if (['section', 'textarea', 'select', 'radio', 'checkbox', 'file', 'date'].includes(t)) return { kind: t };
+  return { kind: 'text', keyboard: { number: 'number', email: 'email', phone: 'tel' }[t] || 'text' };
+}
+// What stands in the way of saving the answers: the first required question with no answer ('' when there is none).
+export function formProblem(fields, answers) {
+  const missing = (fields || []).find(f => f.field_type !== 'section' && f.required && !(answers || {})[f.id]);
+  return missing ? `“${missing.label}” is required` : '';
+}
+export const formDraft = answers => ({ answers });
+export const ANSWERS_SAVED = 'Answers saved';
+// A file given as an answer: what is kept for it once it has been uploaded.
+export const fileAnswer = ({ r2_key, file_name, file_size_bytes, mime_type }) => ({ r2_key, file_name, file_size_bytes, mime_type });
+export const formFilePath = (formId, fieldId) => `/forms/${formId}/fields/${fieldId}/file`;
+
 // ---- the session and links ----
 // The session's fingerprint: the first 8 bytes of SHA-256 over "Bearer <session id>", as 16 hex characters. Everything kept on a device for one session (the outbox,
 // the offline copies) is tagged with it, and the service worker keys its copies with the same value, so one person's never show for the next. '' with no session.
