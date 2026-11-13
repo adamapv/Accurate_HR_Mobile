@@ -11,6 +11,7 @@ import type { Offline } from './offline-core';
 
 import { EMAIL_KEY, SESSION_KEY, TENANT_KEY } from './keys';
 import { sendInBackground, setLiveOutbox } from './background';
+import { clearClockNotice } from './clock-notice-clear';
 
 // What GET /me and a sign-in answer with (AccurateHR's scripts/test-mobile-contract.mjs lists the fields the app may rely on).
 export type Grant = { scope: string; edit: boolean; approve: boolean };
@@ -66,6 +67,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
   const forget = useCallback(async () => {
     sid.current = null;
+    void clearClockNotice();
     offlineRef.current?.forgetAll();
     await SecureStore.deleteItemAsync(SESSION_KEY).catch(() => {});
     setState({ status: 'signedOut' });
