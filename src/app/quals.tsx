@@ -7,14 +7,13 @@ import { NO_QUALS, qualRow, qualTiles, QUALS_SUB, recentSubmissions, submissionR
 import { useSession } from '@/lib/session';
 import { useRead } from '@/lib/use-read';
 import { fmtDate, fmtTime } from '@/lib/dates';
-import { Body, Button, Card, Problem, Screen, Title } from '@/ui';
+import { Body, Button, Card, Empty, Figures, Heading, Notice, Pill, Problem, Screen, Title, type Figure } from '@/ui';
 
 type Qual = { id: string; title: string; category: string | null; issuing_body: string | null; qualification_number: string | null; expiry_date: string | null; status: string; renewal_booked_for: string | null };
 type Sub = { id: string; title: string; qualification_number: string | null; status: string; submitted_at: string; reviewed_at: string | null; reject_reason: string | null };
 type Tile = { key: string; label: string; value: number; sub: string; tone?: 'ok' | 'warn' | 'danger' };
 type Row = { title: string; meta: string; status: string; tone?: 'ok' | 'warn' | 'danger'; canWithdraw?: boolean };
 const day = (d: string) => fmtDate(String(d).slice(0, 10));
-const toneOf = (t?: string) => t === 'danger' ? 'danger' : t === 'ok' ? 'ok' : 'muted';
 
 export default function Quals() {
   const { state, api, changed } = useSession();
@@ -39,50 +38,39 @@ export default function Quals() {
     <Screen>
       <Title>My qualifications</Title>
       <Body tone="muted">{QUALS_SUB as string}</Body>
-      <Button onPress={() => router.push('/submit-ticket')}>Submit a ticket</Button>
-      {quals.offlineAt !== null && <Body tone="muted">No signal. Showing what was saved at {fmtTime(quals.offlineAt)}.</Body>}
+      <Button icon="camera-outline" onPress={() => router.push('/submit-ticket')}>Submit a ticket</Button>
+      {quals.offlineAt !== null && <Notice tone="warn" icon="cloud-offline-outline">{`No signal. Showing what was saved at ${fmtTime(quals.offlineAt)}.`}</Notice>}
       <Problem>{problem || quals.error || sent.error}</Problem>
-      {!!said && <Body tone="ok">{said}</Body>}
+      {!!said && <Notice tone="ok">{said}</Notice>}
       {!!rows && (rows.length > 0 || recent.length > 0) && (
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-          {tiles.map(t => (
-            <View key={t.key} style={{ flexBasis: '47%', flexGrow: 1 }}>
-              <Card>
-                <Body tone="muted">{t.label}</Body>
-                <Body tone={t.value && t.tone === 'danger' ? 'danger' : t.tone === 'ok' ? 'ok' : 'fg'}>{String(t.value)}</Body>
-                <Body tone="muted">{t.sub}</Body>
-              </Card>
-            </View>
-          ))}
-        </View>
+        <Figures figures={tiles as Figure[]} />
       )}
-      {recent.length > 0 && <Body>Sent for review</Body>}
+      {recent.length > 0 && <Heading>Sent for review</Heading>}
       {recent.map(s => {
         const row = submissionRow(s, day) as Row;
         return (
           <Card key={s.id}>
-            <Body>{row.title}</Body>
+            <Body strong>{row.title}</Body>
             <Body tone="muted">{row.meta}</Body>
-            <Body tone={toneOf(row.tone)}>{row.status}</Body>
+            <Pill tone={row.tone === 'danger' ? 'danger' : row.tone === 'ok' ? 'ok' : 'warn'}>{row.status}</Pill>
             {row.canWithdraw && <Button kind="plain" onPress={() => withdraw(s)} busy={busy === s.id} disabled={!!busy}>Withdraw</Button>}
           </Card>
         );
       })}
-      <Body>On your record</Body>
+      <Heading>On your record</Heading>
       {!rows ? (quals.error ? null : <Body tone="muted">Loading…</Body>)
-        : rows.length === 0 ? <Body tone="muted">{NO_QUALS as string}</Body>
+        : rows.length === 0 ? <Empty>{NO_QUALS as string}</Empty>
         : rows.map(q => {
           const row = qualRow(q, day) as Row;
           return (
             <Card key={q.id}>
-              <Body>{row.title}</Body>
+              <Body strong>{row.title}</Body>
               <Body tone="muted">{row.meta}</Body>
-              <Body tone={row.tone === 'warn' ? 'danger' : toneOf(row.tone)}>{row.status}</Body>
+              <Pill tone={row.tone || 'neutral'}>{row.status}</Pill>
               <Button kind="plain" onPress={() => router.push(`/submit-ticket?renew=${encodeURIComponent(q.id)}`)} disabled={!!busy}>Renew / update</Button>
             </Card>
           );
         })}
-      <Button kind="plain" onPress={() => router.back()}>Back</Button>
     </Screen>
   );
 }

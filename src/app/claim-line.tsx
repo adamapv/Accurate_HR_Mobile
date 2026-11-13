@@ -92,7 +92,7 @@ export default function ClaimLine() {
           <Field label="GST ($)" value={gst} onChangeText={v => setGst(money(v))} keyboardType="decimal-pad" placeholder="0.00" />
           {form.receipt_r2_key
             ? <Card><Body tone="ok">Receipt attached</Body><Button kind="plain" onPress={() => setForm(f => ({ ...f, receipt_r2_key: null }))}>Remove</Button></Card>
-            : <Button kind="plain" onPress={() => { void snap(); }} busy={uploading}>Take a photo of the receipt</Button>}
+            : <Button kind="plain" icon="camera-outline" onPress={() => { void snap(); }} busy={uploading}>Take a photo of the receipt</Button>}
         </View>
       ) : (
         <View style={{ gap: 4 }}>

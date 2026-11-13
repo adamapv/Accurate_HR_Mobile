@@ -2,14 +2,14 @@
 // list, a short list of people, and photos taken with the camera. The numbers, the question and the steps are the web app's own words (shared/whs-core.js), written
 // from the company's own regulator details (`me.company.whs`): the app never names a regulator itself.
 import { useState } from 'react';
-import { Image, Linking, Pressable, Switch, Text, View } from 'react-native';
+import { Image, Linking, Pressable, Text, View } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { emergencyLines, enumLabel, MAX_ROWS, NOTIFIABLE_CHECK, NOTIFIABLE_MEANS, NOTIFIABLE_QUESTION, notifiableSteps, notifiableUnsure, photoHint, WHS_MAX_PHOTOS } from '@shared/whs-core.js';
 import { useSession } from '@/lib/session';
 import { uploadPhoto } from '@/lib/upload';
 import { ChooseField } from '@/pickers';
 import { useTheme } from '@/theme';
-import { Body, Button, Card, Field, Problem } from '@/ui';
+import { Toggle, Body, Button, Card, Field, Problem } from '@/ui';
 
 export type Whs = { regulator: string; phone: string | null; tel: string | null; written: string; eap: string | null; set: boolean };
 type Part = { text?: string; phone?: string; tel?: string };
@@ -94,7 +94,7 @@ export function TickList({ options, value, onChange }: { options: [string, strin
       {options.map(([v, label]) => (
         <View key={v} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
           <View style={{ flex: 1 }}><Body>{label}</Body></View>
-          <Switch accessibilityLabel={label} value={list.includes(v)} onValueChange={on => onChange(on ? [...list, v] : list.filter(x => x !== v))} />
+          <Toggle accessibilityLabel={label} value={list.includes(v)} onValueChange={on => onChange(on ? [...list, v] : list.filter(x => x !== v))} />
         </View>
       ))}
     </View>
@@ -106,7 +106,7 @@ export function Tick({ label, value, onChange }: { label: string; value: boolean
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
       <View style={{ flex: 1 }}><Body>{label}</Body></View>
-      <Switch accessibilityLabel={label} value={value} onValueChange={onChange} />
+      <Toggle accessibilityLabel={label} value={value} onValueChange={onChange} />
     </View>
   );
 }
@@ -158,7 +158,7 @@ export function PhotoList({ photos, onChange, onBusy }: { photos: Photo[]; onCha
           ))}
         </View>
       )}
-      {photos.length < (WHS_MAX_PHOTOS as number) && <Button kind="plain" onPress={() => { void snap(); }} busy={busy}>{photos.length ? 'Take another photo' : 'Take a photo'}</Button>}
+      {photos.length < (WHS_MAX_PHOTOS as number) && <Button kind="plain" icon="camera-outline" onPress={() => { void snap(); }} busy={busy}>{photos.length ? 'Take another photo' : 'Take a photo'}</Button>}
       <Body tone="muted">{photoHint as string}</Body>
       <Problem>{problem}</Problem>
     </View>

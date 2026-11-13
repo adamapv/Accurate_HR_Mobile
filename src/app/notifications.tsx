@@ -8,7 +8,7 @@ import { useSession } from '@/lib/session';
 import { useRead } from '@/lib/use-read';
 import { fmtDateTime, fmtTime } from '@/lib/dates';
 import { screenFor } from '@/lib/links';
-import { Body, Button, Card, Problem, Screen, Title } from '@/ui';
+import { Body, Button, Empty, List, Notice, Pill, Problem, Row, Screen, Title } from '@/ui';
 
 type Note = { id: string; title: string; body: string | null; link: string | null; read_at: string | null; created_at: string };
 
@@ -34,20 +34,18 @@ export default function Notifications() {
   return (
     <Screen>
       <Title>Notifications</Title>
-      {notes.offlineAt !== null && <Body tone="muted">No signal. Showing what was saved at {fmtTime(notes.offlineAt)}.</Body>}
+      {notes.offlineAt !== null && <Notice tone="warn" icon="cloud-offline-outline">{`No signal. Showing what was saved at ${fmtTime(notes.offlineAt)}.`}</Notice>}
       <Problem>{problem || notes.error}</Problem>
-      {!!said && <Body tone="muted">{said}</Body>}
-      {unread > 0 && <Button kind="plain" onPress={() => { void readAll(); }}>Mark all read</Button>}
-      {!rows ? (notes.error ? null : <Body tone="muted">Loading…</Body>) : rows.length === 0 ? <Body tone="muted">{NO_NOTIFS as string}</Body> : rows.map(n => (
-        <Pressable key={n.id} accessibilityRole="button" accessibilityLabel={`${n.read_at ? '' : 'Unread. '}${n.title}`} onPress={() => open(n)}>
-          <Card>
-            <Body tone={n.read_at ? 'muted' : 'fg'}>{n.read_at ? n.title : `● ${n.title}`}</Body>
-            {!!n.body && <Body tone="muted">{n.body}</Body>}
-            <Body tone="muted">{fmtDateTime(n.created_at)}</Body>
-          </Card>
-        </Pressable>
-      ))}
-      <Button kind="plain" onPress={() => router.back()}>Back</Button>
+      {!!said && <Notice tone="neutral">{said}</Notice>}
+      {unread > 0 && <Button kind="plain" icon="checkmark-done-outline" onPress={() => { void readAll(); }}>Mark all read</Button>}
+      {!rows ? (notes.error ? null : <Body tone="muted">Loading…</Body>) : rows.length === 0 ? <Empty icon="notifications-outline">{NO_NOTIFS as string}</Empty> : (
+        <List>
+          {rows.map((n, i) => (
+            <Row key={n.id} icon={n.read_at ? 'notifications-outline' : 'notifications'} tint={n.read_at ? 'slate' : 'blue'} title={n.title} sub={[n.body, fmtDateTime(n.created_at)].filter(Boolean).join(' · ')}
+              right={n.read_at ? undefined : <Pill tone="info">New</Pill>} onPress={() => open(n)} last={i === rows.length - 1} />
+          ))}
+        </List>
+      )}
     </Screen>
   );
 }

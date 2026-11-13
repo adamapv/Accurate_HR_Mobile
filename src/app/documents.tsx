@@ -10,7 +10,7 @@ import { useSession } from '@/lib/session';
 import { useRead } from '@/lib/use-read';
 import { fmtDate, fmtTime, isoLocal, localToday, parseDay } from '@/lib/dates';
 import { openFile } from '@/lib/open-file';
-import { Body, Button, Card, Problem, Screen, Title } from '@/ui';
+import { Body, Button, Card, Empty, Figures, Heading, Notice, Pill, Problem, Screen, Title, type Figure } from '@/ui';
 
 export type Doc = { id: string; title: string; doc_type: string; description: string | null; issued_date: string | null; expiry_date: string | null; requires_signature: number; signed_at: string | null; acknowledged_at: string | null; contract_id: string | null; r2_key: string | null; mime_type: string | null };
 type Tile = { key: string; label: string; value: number; sub: string; tone?: 'warn' };
@@ -39,41 +39,30 @@ export default function Documents() {
     const acts = docActions(d) as Acts;
     return (
       <Card key={d.id}>
-        <Body>{d.title}</Body>
+        <Body strong>{d.title}</Body>
         <Body tone={docExpired(d, today) ? 'danger' : 'muted'}>{docMeta(d, today, day) as string}</Body>
-        <Body tone={d.signed_at || d.acknowledged_at ? 'ok' : 'muted'}>{docStatus(d) as string}</Body>
+        <Pill tone={d.signed_at || d.acknowledged_at ? 'ok' : d.requires_signature ? 'warn' : 'neutral'}>{docStatus(d) as string}</Pill>
         {acts.confirm && acts.confirm.kind !== 'contract' && <Button onPress={() => router.push(`/sign-document?id=${encodeURIComponent(d.id)}`)} disabled={!!busy}>{acts.confirm.label}</Button>}
         {(acts.view || acts.confirm?.kind === 'contract') && <Body tone="muted">{acts.view ? 'This is a contract. View and print it in the Field view in your browser for now.' : 'This is a contract. Read and sign it in the Field view in your browser for now.'}</Body>}
-        {acts.download && <Button kind="plain" onPress={() => { void open(d); }} busy={busy === d.id} disabled={!!busy}>Open the file</Button>}
+        {acts.download && <Button kind="plain" icon="open-outline" onPress={() => { void open(d); }} busy={busy === d.id} disabled={!!busy}>Open the file</Button>}
       </Card>
     );
   };
   return (
     <Screen>
       <Title>My documents</Title>
-      {docs.offlineAt !== null && <Body tone="muted">No signal. Showing what was saved at {fmtTime(docs.offlineAt)}.</Body>}
+      {docs.offlineAt !== null && <Notice tone="warn" icon="cloud-offline-outline">{`No signal. Showing what was saved at ${fmtTime(docs.offlineAt)}.`}</Notice>}
       <Problem>{problem || docs.error}</Problem>
       {!!rows && rows.length > 0 && (
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-          {(docTiles(rows, isoLocal(soonDate)) as Tile[]).map(t => (
-            <View key={t.key} style={{ flexBasis: '30%', flexGrow: 1 }}>
-              <Card>
-                <Body tone="muted">{t.label}</Body>
-                <Body tone={t.tone ? 'danger' : 'fg'}>{String(t.value)}</Body>
-                <Body tone="muted">{t.sub}</Body>
-              </Card>
-            </View>
-          ))}
-        </View>
+        <Figures figures={docTiles(rows, isoLocal(soonDate)) as Figure[]} />
       )}
-      {toDo.length > 0 && <Body>Needs your signature</Body>}
+      {toDo.length > 0 && <Heading>Needs your signature</Heading>}
       {toDo.map(row)}
-      <Body>{DOCS_HEADING(toDo.length > 0) as string}</Body>
+      <Heading>{DOCS_HEADING(toDo.length > 0) as string}</Heading>
       {!rows ? (docs.error ? null : <Body tone="muted">Loading…</Body>)
-        : rows.length === 0 ? <Body tone="muted">{NO_DOCS as string}</Body>
-        : onFile.length === 0 ? <Body tone="muted">{DOCS_ALL_SIGNED as string}</Body>
+        : rows.length === 0 ? <Empty>{NO_DOCS as string}</Empty>
+        : onFile.length === 0 ? <Empty>{DOCS_ALL_SIGNED as string}</Empty>
         : onFile.map(row)}
-      <Button kind="plain" onPress={() => router.back()}>Back</Button>
     </Screen>
   );
 }

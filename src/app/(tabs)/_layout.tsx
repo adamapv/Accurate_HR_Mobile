@@ -27,12 +27,12 @@ export default function TabsLayout() {
   if (state.me.employee.must_change_pin) return <Redirect href="/change-pin" />;
   const icon = (name: keyof typeof Ionicons.glyphMap) => ({ color, size }: { color: ColorValue; size: number }) => <Ionicons name={name} color={typeof color === "string" ? color : undefined} size={size} />;
   return (
-    <Tabs screenOptions={{ headerShown: false, tabBarActiveTintColor: t.accent2, tabBarInactiveTintColor: t.muted, tabBarStyle: { backgroundColor: t.topbar, borderTopColor: t.line }, sceneStyle: { backgroundColor: t.bg } }}>
-      <Tabs.Screen name="index" options={{ title: 'Home', tabBarIcon: icon('home-outline'), tabBarBadge: failed || undefined }} />
-      <Tabs.Screen name="day" options={{ title: 'Job card', tabBarIcon: icon('time-outline') }} />
-      <Tabs.Screen name="safety" options={{ title: 'Safety', tabBarIcon: icon('shield-checkmark-outline') }} />
-      <Tabs.Screen name="week" options={{ title: 'My week', tabBarIcon: icon('calendar-outline') }} />
-      <Tabs.Screen name="more" options={{ title: 'More', tabBarIcon: icon('menu-outline') }} />
+    <Tabs screenOptions={{ headerShown: false, tabBarActiveTintColor: t.accent2, tabBarInactiveTintColor: t.muted, tabBarStyle: { backgroundColor: t.topbar, borderTopColor: t.line }, tabBarLabelStyle: { fontSize: 11.5, fontWeight: '600' }, sceneStyle: { backgroundColor: t.bg } }}>
+      <Tabs.Screen name="index" options={{ title: 'Home', tabBarIcon: icon('home'), tabBarBadge: failed || undefined }} />
+      <Tabs.Screen name="day" options={{ title: 'Job card', tabBarIcon: icon('time') }} />
+      <Tabs.Screen name="safety" options={{ title: 'Safety', tabBarIcon: icon('shield-checkmark') }} />
+      <Tabs.Screen name="week" options={{ title: 'My week', tabBarIcon: icon('calendar') }} />
+      <Tabs.Screen name="more" options={{ title: 'More', tabBarIcon: icon('ellipsis-horizontal-circle') }} />
     </Tabs>
   );
 }

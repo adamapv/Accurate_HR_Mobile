@@ -1,4 +1,5 @@
 // Signing in: the company code first, then an email and PIN, as on the web. With a code the app is told nothing about the company (no name, no logo).
+import { Image } from 'react-native';
 import { useState } from 'react';
 import { Redirect } from 'expo-router';
 import { useSession } from '@/lib/session';
@@ -33,6 +34,7 @@ export default function SignIn() {
 
   return (
     <Screen centered>
+      <Image source={require('../../assets/images/icon.png')} style={{ width: 72, height: 72, borderRadius: 18 }} accessibilityIgnoresInvertColors />
       <Title>AccurateHR</Title>
       {APP_ENV !== 'production' && <Body tone="muted">Staging build: for testing only.</Body>}
       {!tenantCode ? (

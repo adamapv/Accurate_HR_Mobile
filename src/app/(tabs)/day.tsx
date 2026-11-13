@@ -11,7 +11,7 @@ import { useSession } from '@/lib/session';
 import { useRead } from '@/lib/use-read';
 import { useOutbox } from '@/lib/use-outbox';
 import { fmtDate, fmtTime, localToday } from '@/lib/dates';
-import { Body, Button, Card, Problem, Screen, Title } from '@/ui';
+import { Body, Button, Card, Empty, Notice, Pill, Problem, Screen, Title } from '@/ui';
 
 type WeekCard = { id: string; work_date: string; clock_on: string; clock_off: string | null; job_label: string | null; activity_label: string | null; pending?: boolean };
 type Entry = { card_id: string | null; work_date: string; start_time: string; end_time: string };
@@ -62,16 +62,16 @@ export default function Day() {
     <Screen>
       <Title>{date === today ? 'Today' : fmtDate(date)}</Title>
       <View style={{ flexDirection: 'row', gap: 12 }}>
-        <View style={{ flex: 1 }}><Button kind="plain" onPress={() => { setSaid(null); setDate(d => addDaysIso(d, -1)); }}>Earlier</Button></View>
-        <View style={{ flex: 1 }}><Button kind="plain" onPress={() => { setSaid(null); setDate(d => addDaysIso(d, 1)); }} disabled={date >= today}>Later</Button></View>
+        <View style={{ flex: 1 }}><Button kind="plain" icon="chevron-back" onPress={() => { setSaid(null); setDate(d => addDaysIso(d, -1)); }}>Earlier</Button></View>
+        <View style={{ flex: 1 }}><Button kind="plain" onPress={() => { setSaid(null); setDate(d => addDaysIso(d, 1)); }} disabled={date >= today} icon="chevron-forward">Later</Button></View>
       </View>
-      {week.offlineAt !== null && <Body tone="muted">No signal. Showing what was saved at {fmtTime(week.offlineAt)}.</Body>}
+      {week.offlineAt !== null && <Notice tone="warn" icon="cloud-offline-outline">{`No signal. Showing what was saved at ${fmtTime(week.offlineAt)}.`}</Notice>}
       <Problem>{week.error}</Problem>
 
       {dayRow && (
         <Card>
-          <Body tone={dayRow.status === 'rejected' ? 'danger' : dayRow.status === 'approved' ? 'ok' : 'fg'}>{STATUS[dayRow.status] || dayRow.status}</Body>
-          {dayRow.status === 'rejected' && <Body tone="muted">{dayRow.decision_note || 'Fix it and submit it again.'}</Body>}
+          <Pill tone={dayRow.status === 'rejected' ? 'danger' : dayRow.status === 'approved' ? 'ok' : dayRow.status === 'submitted' ? 'warn' : 'neutral'}>{STATUS[dayRow.status] || dayRow.status}</Pill>
+          {dayRow.status === 'rejected' && <Notice tone="danger">{dayRow.decision_note || 'Fix it and submit it again.'}</Notice>}
           {!mine && <Body tone="muted">This day can’t be changed while it is with your approver or approved.</Body>}
           {dayRow.status === 'submitted' && <Button kind="plain" onPress={pullBack} disabled={busy}>Pull back</Button>}
         </Card>
@@ -79,27 +79,30 @@ export default function Day() {
 
       {!view ? (week.error ? null : <Body tone="muted">Loading…</Body>)
         : fromJobs ? <Body tone="muted">Your job time for this day is recorded in AccurateJobs.</Body>
-        : cards.length === 0 ? <Body tone="muted">No time on this day.</Body>
+        : cards.length === 0 ? <Empty icon="time-outline">No time on this day.</Empty>
         : cards.map(c => {
           const mins = entries.filter(t => t.card_id === c.id).reduce((n, t) => n + entryHours(t), 0);
           const body = (
             <Card>
-              <Body>{c.clock_on}–{c.clock_off || 'on the clock'}{c.clock_off ? ` · ${hours(mins)}` : ''}</Body>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+                <Body strong>{c.clock_on}–{c.clock_off || 'on the clock'}</Body>
+                {c.clock_off ? <Pill tone="info">{hours(mins)}</Pill> : <Pill tone="ok">On the clock</Pill>}
+              </View>
               <Body tone="muted">{c.job_label || c.activity_label || 'No job yet'}</Body>
-              {c.pending && <Body tone="muted">Saved on your phone. It’s sent when you have signal.</Body>}
+              {c.pending && <Notice tone="info" icon="cloud-upload-outline">Saved on your phone. It’s sent when you have signal.</Notice>}
             </Card>
           );
           return mine
             ? <Pressable key={c.id} accessibilityRole="button" accessibilityLabel={`${c.clock_on} to ${c.clock_off || 'now'}, ${c.job_label || c.activity_label || 'no job yet'}. Change`} onPress={() => router.push({ pathname: '/job-card', params: { id: c.id, date } })}>{body}</Pressable>
             : <View key={c.id}>{body}</View>;
         })}
-      {view && cards.length > 0 && <Body>{hours(total)} on this day</Body>}
-      {mine && blocks.map(c => <Body key={c.key} tone="danger">{c.text}</Body>)}
+      {view && cards.length > 0 && <Body strong>{hours(total)} on this day</Body>}
+      {mine && blocks.map(c => <Notice key={c.key} tone="danger">{c.text}</Notice>)}
       {mine && queries.map(c => <Body key={c.key} tone="muted">{c.text}</Body>)}
-      {said && <Body tone={said.tone}>{said.text}</Body>}
+      {said && <Notice tone={said.tone}>{said.text}</Notice>}
 
-      {view && mine && !fromJobs && <Button kind={canSubmit ? 'plain' : 'primary'} onPress={() => router.push({ pathname: '/job-card', params: { date } })} disabled={busy}>Add time</Button>}
-      {canSubmit && <Button onPress={submit} busy={busy}>Submit day</Button>}
+      {view && mine && !fromJobs && <Button kind={canSubmit ? 'plain' : 'primary'} onPress={() => router.push({ pathname: '/job-card', params: { date } })} disabled={busy} icon="add-circle-outline">Add time</Button>}
+      {canSubmit && <Button icon="paper-plane-outline" onPress={submit} busy={busy}>Submit day</Button>}
     </Screen>
   );
 }

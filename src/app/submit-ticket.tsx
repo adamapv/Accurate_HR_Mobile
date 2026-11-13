@@ -78,7 +78,6 @@ export default function SubmitTicket() {
         <Title>Renew a ticket</Title>
         <Problem>{quals.error || (quals.data ? 'That ticket isn’t on your record.' : '')}</Problem>
         {!quals.data && !quals.error && <Body tone="muted">Loading…</Body>}
-        <Button kind="plain" onPress={() => router.back()}>Back</Button>
       </Screen>
     );
   }
@@ -98,7 +97,7 @@ export default function SubmitTicket() {
           <Button kind="plain" onPress={() => setPhotos(ps => ps.filter(x => x.r2_key !== p.r2_key))} disabled={busy}>Remove</Button>
         </Card>
       ))}
-      {photos.length < MAX_PHOTOS && <Button kind="plain" onPress={() => { void snap(); }} busy={uploading} disabled={busy}>{photos.length ? 'Take another photo' : 'Take a photo of the card'}</Button>}
+      {photos.length < MAX_PHOTOS && <Button kind="plain" icon="camera-outline" onPress={() => { void snap(); }} busy={uploading} disabled={busy}>{photos.length ? 'Take another photo' : 'Take a photo of the card'}</Button>}
       <Field label="Card / licence number" value={form.qualification_number} onChangeText={v => setForm(f => ({ ...f, qualification_number: v }))} maxLength={80} autoCapitalize="characters" />
       <Field label="Issued by" value={form.issuing_body} onChangeText={v => setForm(f => ({ ...f, issuing_body: v }))} maxLength={120} />
       <WhenField label="Issued" mode="date" value={form.issued_date} onChange={v => setForm(f => ({ ...f, issued_date: v }))} placeholder="Not set" />

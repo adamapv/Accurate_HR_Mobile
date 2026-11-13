@@ -18,7 +18,7 @@ import { useSession, type Me } from '@/lib/session';
 import { useRead } from '@/lib/use-read';
 import { useOutbox } from '@/lib/use-outbox';
 import { fmtDate, fmtMins, fmtTime, localNowHM, localToday } from '@/lib/dates';
-import { Body, Button, Card, Problem, Screen, Title } from '@/ui';
+import { Avatar, Body, Button, Card, Empty, Heading, List, Notice, Pill, Problem, Row, Screen, Title } from '@/ui';
 
 // The shared rules are plain JavaScript, so what these two take and give back is spelled out here.
 type Gate = { ready: boolean; held: boolean; outstanding: unknown[] };
@@ -106,11 +106,11 @@ function SignedIn({ me }: { me: Me }) {
         {!!note && <Body tone={gate?.held ? 'danger' : 'fg'}>{note}</Body>}
         {!tomorrow && !fromJobs && (
           <>
-            <Button onPress={() => { void start(); }} busy={starting === key} disabled={btn.disabled} kind={onThis || card ? 'plain' : 'primary'}>{btn.label}</Button>
+            <Button icon={onThis ? undefined : 'play-circle-outline'} onPress={() => { void start(); }} busy={starting === key} disabled={btn.disabled} kind={onThis || card ? 'plain' : 'primary'}>{btn.label}</Button>
             {btn.disabled && !onThis && !note && !!btn.title && <Body tone="muted">{btn.title}</Body>}
           </>
         )}
-        {canPo && <Button kind="plain" onPress={() => router.push({ pathname: '/raise-po', params: { job: key } })}>Raise PO</Button>}
+        {canPo && <Button kind="plain" icon="receipt-outline" onPress={() => router.push({ pathname: '/raise-po', params: { job: key } })}>Raise PO</Button>}
       </JobRow>
     );
   };
@@ -127,34 +127,46 @@ function SignedIn({ me }: { me: Me }) {
 
   return (
     <Screen>
-      <Title>Hi {me.employee.name.split(/\s+/)[0]}</Title>
-      <Body tone="muted">{me.company.company_name}{me.access_level ? ` · ${me.access_level}` : ''}</Body>
-      {open.offlineAt !== null && <Body tone="muted">No signal. Showing what was saved at {fmtTime(open.offlineAt)}.</Body>}
-      {seesPos && <Button kind="plain" onPress={() => router.push('/pos')}>POs</Button>}
-      {canChat && <Button kind="plain" onPress={() => router.push('/chats')}>{unread.data && unread.data.unread > 0 ? `Chat · ${unread.data.unread > 99 ? '99+' : unread.data.unread} unread` : 'Chat'}</Button>}
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+        <View style={{ flex: 1 }}>
+          <Title>Hi {me.employee.name.split(/\s+/)[0]}</Title>
+          <Body tone="muted">{me.company.company_name}{me.access_level ? ` · ${me.access_level}` : ''}</Body>
+        </View>
+        <Avatar name={me.employee.name} size={44} />
+      </View>
+      {open.offlineAt !== null && <Notice tone="warn" icon="cloud-offline-outline">{`No signal. Showing what was saved at ${fmtTime(open.offlineAt)}.`}</Notice>}
+      {(seesPos || canChat) && (
+        <List>
+          {canChat && <Row icon="chatbubbles-outline" tint="violet" title="Chat" sub={unread.data && unread.data.unread > 0 ? `${unread.data.unread > 99 ? '99+' : unread.data.unread} unread` : 'Message the office and your crew'}
+            right={unread.data && unread.data.unread > 0 ? <Pill tone="info">{unread.data.unread > 99 ? '99+' : String(unread.data.unread)}</Pill> : undefined} onPress={() => router.push('/chats')} last={!seesPos} />}
+          {seesPos && <Row icon="receipt-outline" tint="violet" title="Purchase orders" sub="Raise one, and see yours" onPress={() => router.push('/pos')} last />}
+        </List>
+      )}
 
       <Card>
         {!loaded ? <Body tone="muted">{open.error ? '' : 'Loading…'}</Body>
           : card && clock.sameDay ? (
             <>
-              <Body tone="ok">On the clock since {card.clock_on}</Body>
-              <Body>{fmtMins(clock.elapsed)} so far{card.job_label ? ` · ${card.job_label}` : card.activity_label ? ` · ${card.activity_label}` : ''}</Body>
-              {card.pending && <Body tone="muted">Saved on your phone. It’s sent when you have signal.</Body>}
-              <Button onPress={() => router.push({ pathname: '/job-card', params: { id: card.id } })}>Clock off</Button>
+              <Pill tone="ok">On the clock since {card.clock_on}</Pill>
+              <Title>{fmtMins(clock.elapsed)}</Title>
+              {!!(card.job_label || card.activity_label) && <Body tone="muted">{card.job_label || card.activity_label}</Body>}
+              {card.pending && <Notice tone="info" icon="cloud-upload-outline">Saved on your phone. It’s sent when you have signal.</Notice>}
+              <Button icon="stop-circle-outline" onPress={() => router.push({ pathname: '/job-card', params: { id: card.id } })}>Clock off</Button>
             </>
           ) : card ? (
             <>
-              <Body tone="danger">Still clocked on from {fmtDate(card.work_date)}.</Body>
+              <Notice tone="danger">{`Still clocked on from ${fmtDate(card.work_date)}.`}</Notice>
               <Button onPress={() => router.push({ pathname: '/job-card', params: { id: card.id } })}>Enter your clock-off time</Button>
             </>
           )
           : fromJobs ? <Body tone="muted">Your job time is recorded in AccurateJobs.</Body>
           : (
             <>
-              <Body>{view.clockedOff ? 'Clocked off. Saved on your phone until you have signal.' : 'Not on the clock.'}</Body>
-              {clock.rest && <Body tone="danger">{restHoldText(clock.rest, today, fmtDate)}</Body>}
-              <Button onPress={clockOn} busy={busy} disabled={!!clock.rest}>{`Clock on · ${now}`}</Button>
-              <Button kind="plain" onPress={() => router.push('/job-card')} disabled={busy}>Add time</Button>
+              <Pill tone="neutral">{view.clockedOff ? 'Clocked off' : 'Not on the clock'}</Pill>
+              {view.clockedOff && <Body tone="muted">Saved on your phone until you have signal.</Body>}
+              {clock.rest && <Notice tone="danger">{restHoldText(clock.rest, today, fmtDate) as string}</Notice>}
+              <Button icon="play-circle-outline" onPress={clockOn} busy={busy} disabled={!!clock.rest}>{`Clock on · ${now}`}</Button>
+              <Button kind="plain" icon="add-circle-outline" onPress={() => router.push('/job-card')} disabled={busy}>Add time</Button>
             </>
           )}
         <Problem>{problem || open.error}</Problem>
@@ -162,7 +174,7 @@ function SignedIn({ me }: { me: Me }) {
 
       {failed.length > 0 && (
         <Card>
-          <Body tone="danger">{failed.length === 1 ? 'Something saved on your phone couldn’t be sent' : `${failed.length} things saved on your phone couldn’t be sent`}</Body>
+          <Notice tone="danger">{failed.length === 1 ? 'Something saved on your phone couldn’t be sent' : `${failed.length} things saved on your phone couldn’t be sent`}</Notice>
           {failed.map(e => (
             <View key={e.id} style={{ gap: 8 }}>
               <Body>{describe(e)}</Body>
@@ -174,20 +186,17 @@ function SignedIn({ me }: { me: Me }) {
         </Card>
       )}
 
-      <Body tone="muted">Scheduled today</Body>
+      <Heading>Scheduled today</Heading>
       {!sched.data ? <Body tone="muted">{sched.error || 'Loading…'}</Body>
-        : sched.data.rows.filter(r => r.work_date === today).length === 0 ? <Body tone="muted">Nothing published for you today.</Body>
+        : sched.data.rows.filter(r => r.work_date === today).length === 0 ? <Empty icon="calendar-outline">Nothing published for you today.</Empty>
         : sched.data.rows.filter(r => r.work_date === today).map(r => jobRow(r, false))}
       {!!sched.data && sched.data.rows.some(r => r.work_date > today) && (
         <>
-          <Body tone="muted">Tomorrow</Body>
+          <Heading>Tomorrow</Heading>
           {sched.data.rows.filter(r => r.work_date > today).map(r => jobRow(r, true))}
         </>
       )}
 
-      <Card>
-        <Body tone="muted">This is an early build of the app. Contracts, scanning a card and a few other things are in the Field view in your browser for now.</Body>
-      </Card>
     </Screen>
   );
 }

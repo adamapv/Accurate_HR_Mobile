@@ -3,7 +3,7 @@
 // between its cost centres. Every rule is the web form's own (shared/field-core.js): what a new card opens with, what is refused before it is sent, how the shares
 // move, and what is sent. It is saved through the outbox, so it works with no signal.
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Switch, View } from 'react-native';
+import { Alert, View } from 'react-native';
 import { Redirect, router, useLocalSearchParams } from 'expo-router';
 import { can } from '@shared/access.js';
 import { activityAsksFirst, activityGroups, cardDefaults, cardDraft, cardProblem, costCentreOptions, dropSplits, findJob, hmMins, insertSplit, onlyCostCentre, planJobCard, rememberedCostCentre, setSplitPct, splitEvenly } from '@shared/field-core.js';
@@ -16,7 +16,7 @@ import type { Draft } from '@/lib/offline-core';
 import { fmtMins, localNowHM, localToday } from '@/lib/dates';
 import { take } from '@/lib/handoff';
 import { ChooseField, WhenField, type Option } from '@/pickers';
-import { Body, Button, Card, Field, Loading, Problem, Screen, Title } from '@/ui';
+import { Toggle, Body, Button, Card, Field, Loading, Problem, Screen, Title } from '@/ui';
 
 type CostCentre = { id: string; name: string };
 type Job = { id: string; company_id: string; name: string | null; customer_name?: string | null; site_name?: string | null; sections: { id: string; name: string; cost_centres: CostCentre[] }[]; closed?: boolean };
@@ -158,7 +158,7 @@ function Form({ card, open, date, start }: { card: CardRow | null; open: Open; d
       <WhenField label={byHand ? 'Finish' : 'Clock off'} mode="time" value={form.clock_off} step={byHand ? 15 : undefined} placeholder={stillOn ? 'Still on the clock' : undefined} onChange={v => setForm(f => ({ ...f, clock_off: v }))} />
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
         <Body>Lunch (30 minutes, unpaid)</Body>
-        <Switch accessibilityLabel="Lunch" value={form.lunch} onValueChange={v => setForm(f => ({ ...f, lunch: v }))} />
+        <Toggle accessibilityLabel="Lunch" value={form.lunch} onValueChange={v => setForm(f => ({ ...f, lunch: v }))} />
       </View>
       {plan.worked > 0 && <Body tone="muted">{fmtMins(plan.worked)} worked{plan.lunch ? ` · lunch ${plan.lunch}` : ''}</Body>}
 
