@@ -71,6 +71,9 @@ function SignedIn({ me }: { me: Me }) {
     }
   }, [forJobs.data, api, offline]);
   const [starting, setStarting] = useState('');
+  // Chat sits at the top of Home, as it sits in the top bar on the web, for a level with the Chat area.
+  const canChat = can(me.access, 'chat');
+  const unread = useRead<{ unread: number }>(canChat ? '/chat/unread' : null);
 
   // One scheduled job: its details, its safety checks, why Start is held if it is, and Start.
   const jobRow = (r: SchedRow, tomorrow: boolean) => {
@@ -125,6 +128,7 @@ function SignedIn({ me }: { me: Me }) {
       <Title>Hi {me.employee.name.split(/\s+/)[0]}</Title>
       <Body tone="muted">{me.company.company_name}{me.access_level ? ` · ${me.access_level}` : ''}</Body>
       {open.offlineAt !== null && <Body tone="muted">No signal. Showing what was saved at {fmtTime(open.offlineAt)}.</Body>}
+      {canChat && <Button kind="plain" onPress={() => router.push('/chats')}>{unread.data && unread.data.unread > 0 ? `Chat · ${unread.data.unread > 99 ? '99+' : unread.data.unread} unread` : 'Chat'}</Button>}
 
       <Card>
         {!loaded ? <Body tone="muted">{open.error ? '' : 'Loading…'}</Body>
@@ -179,7 +183,7 @@ function SignedIn({ me }: { me: Me }) {
       )}
 
       <Card>
-        <Body tone="muted">This is an early build of the app. Chat, POs, leave and the rest are in the Field view in your browser for now.</Body>
+        <Body tone="muted">This is an early build of the app. POs, leave, expenses and the rest are in the Field view in your browser for now.</Body>
       </Card>
     </Screen>
   );

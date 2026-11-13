@@ -47,6 +47,8 @@ export function createOffline({ store, send, isOnline }: { store: SyncStore; sen
     fingerprint: () => fp,
     // This session's waiting and failed entries (chat messages have their own list).
     entries: (): Entry[] => (fp ? queue.entries(fp).filter((e: Entry) => !isChat(e)) : []),
+    // This session's chat messages still waiting or refused, which the chat they belong to shows in place.
+    chatEntries: (): Entry[] => (fp ? queue.entries(fp).filter((e: Entry) => isChat(e)) : []),
     pending: (): number => (fp ? queue.pending(fp) : 0),
     // Queue a write, then send it at once when there is signal. A refusal on that first send is thrown, so the screen shows the Worker's words.
     async submit(draft: Draft): Promise<Submitted> {

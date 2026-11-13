@@ -18,10 +18,11 @@ The AccurateHR Field view as a native Android and iPhone app. Built with React N
 - Start on a scheduled job. It is held until the job's statements are signed on to and its start checklists ticked, and while a required item is Not OK. With one cost centre it clocks on straight away; otherwise the job card opens to choose. With a card already open it moves that card onto the job.
 - A Safety tab: the same checks for today's and tomorrow's jobs in one place, and the company's policies to read and acknowledge by typing your name.
 - My week: a pay period day by day with each day's cards, hours and where it stands, the week's safety counts and leave balances, Copy last week, Submit for one day or all that can go (with a note), and Pull back.
+- Chat: the list of chats with the last message and how many are waiting, and a chat with its messages under day chips, the unread line, names in a group, photos shown, links that open, and a box to send a text message. A message typed with no signal waits in the chat and is sent once.
 - Home opens with no signal, on the copy kept from last time.
 - Sign out, which forgets everything kept on the phone.
 
-Reporting an incident or hazard, the week's history, Chat, POs and the rest of More are still to be built. Until then people use the Field view in a browser.
+Reporting an incident or hazard, the week's history, sending photos, voice messages and documents in Chat (and replies, reactions, new chats and groups), POs and the rest of More are still to be built. Until then people use the Field view in a browser.
 
 ## Trying it on an Android phone
 

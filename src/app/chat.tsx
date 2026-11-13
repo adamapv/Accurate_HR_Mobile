@@ -1,0 +1,208 @@
+// One chat: its messages under day chips, with the unread line, names in a group and a tick on the reader's own, and a box to send a text message.
+// How the messages are laid out, how a message's text is cut into words, links and mentions, and what sending puts in the outbox are the web app's own rules
+// (shared/chat-core.js). A message goes through the outbox, so one typed with no signal waits in the chat and is sent once.
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { AppState, FlatList, Image, KeyboardAvoidingView, Linking, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Redirect, router, useLocalSearchParams } from 'expo-router';
+import { can } from '@shared/access.js';
+import { chatClock, chatDeletedText, chatDivider, chatFileLine, chatHue, chatItems, chatName, chatParts, chatSecs, chatSendDraft, mergeChat } from '@shared/chat-core.js';
+import { useSession } from '@/lib/session';
+import { useOutbox } from '@/lib/use-outbox';
+import { ApiError } from '@/lib/api-core';
+import { API_URL } from '@/lib/config';
+import type { Draft, Entry } from '@/lib/offline-core';
+import { radius, space, TOUCH, useTheme } from '@/theme';
+
+type Quote = { sender_name?: string; text?: string | null; photo?: boolean; audio?: boolean; file?: string | null; deleted?: boolean };
+type Msg = { id: string; seq: number; sender_id: string; sender_name?: string; body?: string | null; created_at: string; system?: string; deleted?: boolean; reply?: Quote | null;
+  mentions?: { id: string; name: string }[]; reactions?: { emoji: string; count: number; mine: boolean }[]; photo_key?: string | null; audio_key?: string | null; audio_secs?: number; file?: { name: string; size?: number } | null };
+type Page = { thread: { id: string; kind: string; title?: string | null; others?: { id: string; name: string }[] }; messages: Msg[]; last_read_seq: number; read_upto: number | null; me: string; rev?: number };
+type Item = { kind: 'day' | 'unread' | 'system'; key: string; text: string } | { kind: 'msg'; key: string; m: Msg; mine: boolean; first: boolean; showName: boolean; tick: string } | { kind: 'local'; key: string; e: Entry };
+
+export default function Chat() {
+  const { state, api, offline, sessionId, changed } = useSession();
+  const { id } = useLocalSearchParams<{ id: string }>();
+  const t = useTheme();
+  const path = `/chat/threads/${id}/messages`;
+  const [msgs, setMsgs] = useState<Msg[] | null>(null);
+  const [head, setHead] = useState<Page | null>(null);
+  const [divider, setDivider] = useState<{ seq: number; count: number } | null>(null);
+  const [more, setMore] = useState(false);
+  const [error, setError] = useState('');
+  const [draft, setDraft] = useState('');
+  const [busy, setBusy] = useState(false);
+  const latest = useRef(0), rev = useRef(0), readSent = useRef(0);
+  const list = useRef<FlatList<Item>>(null);
+  useOutbox();   // redraw when something in the outbox moves
+  const waiting = offline.chatEntries().filter(e => e.path === path);
+
+  // Open: the latest page, and where the reader left off. With no signal, the copy kept from last time.
+  const open = useCallback(async () => {
+    try {
+      const d = await api<Page>(path, { params: { limit: 40 } });
+      offline.remember(`${path}#latest`, d);
+      setDivider(chatDivider(d.messages, d.last_read_seq, d.me) as { seq: number; count: number } | null);
+      setHead(d); setMsgs(d.messages); setMore(d.messages.length >= 40); setError('');
+      rev.current = d.rev || 0; latest.current = d.messages.reduce((n, m) => Math.max(n, m.seq), 0);
+    } catch (e) {
+      const kept = offline.recall<Page>(`${path}#latest`);
+      if (kept && e instanceof ApiError && e.offline) { setHead(kept.json); setMsgs(kept.json.messages); setError('No signal. Showing the messages saved on this phone.'); }
+      else setError(e instanceof ApiError && e.status === 404 ? 'This chat isn’t available any more.' : e instanceof Error ? e.message : 'Could not load.');
+    }
+  }, [api, offline, path]);
+  useEffect(() => { void open(); }, [open]);
+
+  // While it is open and in front: what is new every few seconds, and the latest page now and then (or at once when the chat's revision moves) so a delete or a
+  // reaction made elsewhere shows up.
+  useEffect(() => {
+    if (!head) return undefined;
+    let n = 0, stop = false;
+    const tick = async () => {
+      if (stop || AppState.currentState !== 'active') return;
+      try {
+        const full = ++n % 10 === 0;
+        let d = await api<Page>(path, { params: full ? { limit: 40 } : { after: latest.current } });
+        if (!full && (d.rev || 0) !== rev.current) d = await api<Page>(path, { params: { limit: 40 } });
+        if (stop) return;
+        rev.current = d.rev || 0;
+        if (d.messages.length) { setMsgs(prev => mergeChat(prev, d.messages) as Msg[]); latest.current = Math.max(latest.current, ...d.messages.map(m => m.seq)); }
+        if (d.read_upto !== undefined) setHead(h => (h ? { ...h, read_upto: d.read_upto } : h));
+        setError('');
+      } catch { /* the next look will say */ }
+    };
+    const timer = setInterval(() => { void tick(); }, 6000);
+    return () => { stop = true; clearInterval(timer); };
+  }, [!!head, api, path]);
+
+  // Reading: once someone else's message is on screen the chat is marked read up to it.
+  useEffect(() => {
+    if (!msgs || !head) return;
+    const top = msgs.filter(m => m.sender_id !== head.me && !m.system).reduce((n, m) => Math.max(n, m.seq), 0);
+    if (top <= Math.max(head.last_read_seq, readSent.current)) return;
+    readSent.current = top;
+    api(`/chat/threads/${id}/read`, { method: 'POST', body: { seq: top } }).then(() => changed()).catch(() => { readSent.current = 0; });
+  }, [msgs, head, api, id, changed]);
+
+  const items = useMemo<Item[]>(() => {
+    if (!msgs || !head) return [];
+    const laid = chatItems({ msgs, thread: head.thread, head, me: head.me, divider, now: new Date() }) as Item[];
+    return [...laid, ...waiting.map(e => ({ kind: 'local' as const, key: e.id, e }))];
+  }, [msgs, head, divider, waiting.map(e => `${e.id}:${e.status}`).join()]);
+  useEffect(() => { if (items.length) setTimeout(() => list.current?.scrollToEnd({ animated: false }), 50); }, [items.length]);
+
+  if (state.status !== 'signedIn') return <Redirect href="/" />;
+  const canSend = can(state.me.access, 'chat', 'edit');
+  const sid = sessionId();
+  const photo = (key: string) => ({ uri: `${API_URL}/api/hr/chat/photo?key=${encodeURIComponent(key)}`, headers: sid ? { Authorization: `Bearer ${sid}` } : undefined });
+
+  const older = async () => {
+    if (!msgs?.length) return;
+    try { const d = await api<Page>(path, { params: { before: msgs[0].seq, limit: 40 } }); setMsgs(prev => mergeChat(prev, d.messages) as Msg[]); setMore(d.messages.length >= 40); }
+    catch (e) { setError(e instanceof Error ? e.message : 'Could not load.'); }
+  };
+  const send = async () => {
+    const text = draft.trim();
+    if (!text) return;
+    setBusy(true); setDraft('');
+    try {
+      const r = await offline.submit(chatSendDraft({ threadId: id, text, reply: null, mentionIds: [] }) as Draft);
+      if (r.outcome === 'sent' && r.result?.message) { setMsgs(prev => mergeChat(prev, [r.result.message]) as Msg[]); latest.current = Math.max(latest.current, r.result.message.seq); }
+      else if (r.outcome === 'sent') await open();
+      changed();
+    } catch (e) { setDraft(text); setError(e instanceof Error ? e.message : 'Not sent. Try again.'); }
+    setBusy(false);
+  };
+
+  const bubble = (m: Msg, mine: boolean, showName: boolean, tick: string) => (
+    <View style={[styles.row, mine ? styles.mine : styles.theirs]}>
+      <View style={[styles.bubble, { backgroundColor: mine ? t.accent : t.surface2 }]}>
+        {showName && !mine && <Text style={[styles.from, { color: `hsl(${chatHue(m.sender_id || m.sender_name || '')}, 70%, 72%)` }]}>{m.sender_name || 'Someone'}</Text>}
+        {!!m.reply && <Text style={[styles.quote, { color: t.muted, borderLeftColor: t.line }]} numberOfLines={2}>{m.reply.sender_name ? `${m.reply.sender_name}: ` : ''}{m.reply.deleted ? 'This message was deleted' : m.reply.text || (m.reply.photo ? 'Photo' : m.reply.audio ? 'Voice message' : m.reply.file || '')}</Text>}
+        {m.deleted ? <Text style={[styles.text, { color: t.muted, fontStyle: 'italic' }]}>{chatDeletedText(mine) as string}</Text> : (
+          <>
+            {!!m.photo_key && <Image source={photo(m.photo_key)} style={styles.photo} resizeMode="cover" accessibilityLabel="Photo" />}
+            {!!m.audio_key && <Text style={[styles.text, { color: t.fg }]}>Voice message ({chatSecs(m.audio_secs) as string}). Play it in the browser for now.</Text>}
+            {!!m.file && <Text style={[styles.text, { color: t.fg }]}>{m.file.name} · {chatFileLine(m.file) as string}. Open it in the browser for now.</Text>}
+            {!!m.body && (
+              <Text style={[styles.text, { color: t.fg }]}>
+                {(chatParts(m.body, m.mentions, head?.me) as { text?: string; link?: string; mention?: string; me?: boolean }[]).map((p, i) => p.link
+                  ? <Text key={i} accessibilityRole="link" style={styles.link} onPress={() => { void Linking.openURL(p.link!).catch(() => {}); }}>{p.link}</Text>
+                  : p.mention ? <Text key={i} style={{ fontWeight: '700', color: p.me ? t.warn : t.fg }}>{p.mention}</Text> : p.text)}
+              </Text>
+            )}
+          </>
+        )}
+        {!m.deleted && !!m.reactions?.length && <Text style={[styles.meta, { color: t.fg }]}>{m.reactions.map(r => `${r.emoji}${r.count > 1 ? ` ${r.count}` : ''}`).join('  ')}</Text>}
+        <Text style={[styles.meta, { color: mine ? '#E6E8FF' : t.muted }]}>{chatClock(m.created_at) as string}{mine && !m.deleted ? (tick === 'read' ? ' · Read' : ' · Sent') : ''}</Text>
+      </View>
+    </View>
+  );
+  const local = (e: Entry) => (
+    <View style={[styles.row, styles.mine]}>
+      <View style={[styles.bubble, { backgroundColor: t.accent, opacity: e.status === 'failed' ? 1 : 0.7 }]}>
+        <Text style={[styles.text, { color: t.fg }]}>{e.local_card?.body ?? e.body?.body}</Text>
+        <Text style={[styles.meta, { color: '#E6E8FF' }]}>{e.status === 'failed' ? e.error || 'Not sent' : 'Waiting to send'}</Text>
+      </View>
+      {e.status === 'failed' && (
+        <View style={{ flexDirection: 'row', gap: 16 }}>
+          <Pressable accessibilityRole="button" onPress={() => { offline.retry(e.id); void offline.replay().then(() => open()); }} style={styles.small}><Text style={{ color: t.accent2, fontSize: 15 }}>Retry</Text></Pressable>
+          <Pressable accessibilityRole="button" onPress={() => { offline.discard(e.id); }} style={styles.small}><Text style={{ color: t.danger, fontSize: 15 }}>Delete</Text></Pressable>
+        </View>
+      )}
+    </View>
+  );
+
+  return (
+    <SafeAreaView style={[styles.fill, { backgroundColor: t.bg }]}>
+      <KeyboardAvoidingView style={styles.fill} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+        <View style={[styles.head, { borderBottomColor: t.line, backgroundColor: t.topbar }]}>
+          <Pressable accessibilityRole="button" accessibilityLabel="Back to chats" onPress={() => router.back()} style={styles.back}><Text style={{ color: t.accent2, fontSize: 17 }}>Back</Text></Pressable>
+          <Text accessibilityRole="header" numberOfLines={1} style={[styles.title, { color: t.fg }]}>{head ? (chatName(head.thread) as string) : 'Chat'}</Text>
+        </View>
+        {!!error && <Text accessibilityRole="alert" style={[styles.note, { color: msgs ? t.muted : t.danger }]}>{error}</Text>}
+        {!msgs ? (!error && <Text style={[styles.note, { color: t.muted }]}>Loading…</Text>) : (
+          <FlatList ref={list} data={items} keyExtractor={i => i.key} contentContainerStyle={styles.list} keyboardShouldPersistTaps="handled"
+            ListHeaderComponent={more ? <Pressable accessibilityRole="button" onPress={() => { void older(); }} style={styles.older}><Text style={{ color: t.accent2, fontSize: 15 }}>Earlier messages</Text></Pressable> : undefined}
+            ListEmptyComponent={<Text style={[styles.note, { color: t.muted }]}>{head?.thread.kind === 'office' ? 'Ask the office anything.' : 'No messages yet.'}</Text>}
+            renderItem={({ item }) => item.kind === 'msg' ? bubble(item.m, item.mine, item.showName, item.tick)
+              : item.kind === 'local' ? local(item.e)
+              : <Text style={[styles.chip, { color: item.kind === 'unread' ? t.accent2 : t.muted }]}>{item.text}</Text>} />
+        )}
+        {canSend && !!head && (
+          <View style={[styles.bar, { borderTopColor: t.line, backgroundColor: t.topbar }]}>
+            <TextInput accessibilityLabel="Message" placeholder="Message" placeholderTextColor={t.dim} value={draft} onChangeText={setDraft} multiline
+              style={[styles.box, { color: t.fg, backgroundColor: t.surface2, borderColor: t.line }]} />
+            <Pressable accessibilityRole="button" accessibilityLabel="Send" disabled={busy || !draft.trim()} onPress={() => { void send(); }}
+              style={[styles.send, { backgroundColor: t.accent, opacity: busy || !draft.trim() ? 0.5 : 1 }]}><Text style={{ color: '#FFFFFF', fontSize: 16, fontWeight: '600' }}>Send</Text></Pressable>
+          </View>
+        )}
+      </KeyboardAvoidingView>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  fill: { flex: 1 },
+  head: { flexDirection: 'row', alignItems: 'center', gap: space.md, paddingHorizontal: space.lg, minHeight: TOUCH + 8, borderBottomWidth: 1 },
+  back: { minHeight: TOUCH, justifyContent: 'center' },
+  title: { flex: 1, fontSize: 19, fontWeight: '700' },
+  note: { padding: space.lg, fontSize: 15, textAlign: 'center' },
+  list: { padding: space.md, gap: 6 },
+  older: { minHeight: TOUCH, alignItems: 'center', justifyContent: 'center' },
+  chip: { textAlign: 'center', fontSize: 13, marginVertical: 8 },
+  row: { maxWidth: '86%', gap: 4 },
+  mine: { alignSelf: 'flex-end', alignItems: 'flex-end' },
+  theirs: { alignSelf: 'flex-start', alignItems: 'flex-start' },
+  bubble: { borderRadius: radius.lg, paddingHorizontal: 12, paddingVertical: 8, gap: 4 },
+  from: { fontSize: 13, fontWeight: '700' },
+  quote: { fontSize: 14, borderLeftWidth: 3, paddingLeft: 8 },
+  text: { fontSize: 16, lineHeight: 22 },
+  link: { textDecorationLine: 'underline' },
+  photo: { width: 220, height: 220, borderRadius: radius.md },
+  meta: { fontSize: 12 },
+  small: { minHeight: TOUCH, justifyContent: 'center' },
+  bar: { flexDirection: 'row', alignItems: 'flex-end', gap: space.sm, padding: space.sm, borderTopWidth: 1 },
+  box: { flex: 1, minHeight: TOUCH, maxHeight: 132, borderRadius: radius.md, borderWidth: 1, paddingHorizontal: space.md, paddingVertical: 10, fontSize: 16 },
+  send: { minHeight: TOUCH, borderRadius: radius.md, paddingHorizontal: space.lg, alignItems: 'center', justifyContent: 'center' },
+});
