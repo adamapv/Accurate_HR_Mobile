@@ -9,3 +9,9 @@ export const fmtDate = (iso: string) => parseDay(iso).toLocaleDateString('en-AU'
 export const fmtMins = (m: number) => `${Math.floor(m / 60)}h ${pad2(m % 60)}m`;
 // A moment as a time of day: "9:12 am".
 export const fmtTime = (ms: number) => new Date(ms).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' });
+// A moment the Worker stored ("2026-11-13 04:12:00" in UTC, or an ISO time) as the phone's own date and time: "13 Nov 2026, 3:12 pm". '' for nothing.
+export function fmtDateTime(v: string | null | undefined) {
+  if (!v) return '';
+  const d = new Date(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}/.test(v) ? `${v.replace(' ', 'T')}Z` : v);
+  return Number.isNaN(d.getTime()) ? String(v) : d.toLocaleString('en-AU', { day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' });
+}

@@ -13,10 +13,11 @@ const SESSION_KEY = 'hrhead_session', TENANT_KEY = 'hrhead_tenant', EMAIL_KEY = 
 // What GET /me and a sign-in answer with (AccurateHR's scripts/test-mobile-contract.mjs lists the fields the app may rely on).
 export type Grant = { scope: string; edit: boolean; approve: boolean };
 export type Me = {
-  employee: { id: string; name: string; email: string; role: string; position: string | null; must_change_pin: number; time_source: string };
+  employee: { id: string; name: string; email: string; role: string; position: string | null; must_change_pin: number; time_source: string; employment_type?: string | null };
   access: Record<string, Grant>;
   access_level: string | null;
-  company: { company_name: string; timezone: string | null; zone: string; timesheet_auto_approve: number | null };
+  // `whs` is the company's own regulator and support line (the Worker works it out from the company's state and details); the app never names one itself.
+  company: { company_name: string; timezone: string | null; zone: string; timesheet_auto_approve: number | null; whs: { regulator: string; phone: string | null; tel: string | null; written: string; eap: string | null; set: boolean } };
 };
 type State =
   | { status: 'loading' }

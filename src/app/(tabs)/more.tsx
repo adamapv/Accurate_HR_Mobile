@@ -30,7 +30,7 @@ export default function More() {
       <Button kind="plain" onPress={() => router.push('/assets')}>My assets</Button>
       <Button kind="plain" onPress={() => router.push('/forms')}>My forms</Button>
       <Card>
-        <Body tone="muted">Contracts, scanning a card and reporting an incident are in the Field view in your browser for now. In Chat, photos, voice messages and documents are sent from the browser for now.</Body>
+        <Body tone="muted">Contracts and scanning a card are in the Field view in your browser for now. In Chat, photos, voice messages and documents are sent from the browser for now.</Body>
         <Button kind="plain" onPress={() => { void Linking.openURL(API_URL); }}>Open AccurateHR in the browser</Button>
       </Card>
       {waiting > 0 && <Body tone="danger">{waiting === 1 ? 'One thing saved on your phone has not been sent yet. Signing out now tries once more, then it is lost.' : `${waiting} things saved on your phone have not been sent yet. Signing out now tries once more, then they are lost.`}</Body>}
