@@ -25,7 +25,7 @@ Decisions already taken (13 Nov 2026): a full native app, not a web page in a wr
 
 ## Commands
 
-- `npm run check`: the shared-file check, the type check, and the Node tests (`scripts/test-shared.mjs`, `scripts/test-api.mjs`, `scripts/test-offline.mjs`, `scripts/test-rich.mjs`). Run it before committing. GitHub runs it on every pull request.
+- `npm run check`: the shared-file check, the type check, and the Node tests (`scripts/test-shared.mjs`, `scripts/test-api.mjs`, `scripts/test-offline.mjs`, `scripts/test-rich.mjs`, `scripts/test-lock.mjs`). Run it before committing. GitHub runs it on every pull request.
 - `npm run sync:shared -- <path to AccurateHR>`: copy the shared logic and colours from a clean AccurateHR checkout and record its commit.
 - `npm run check:shared -- <path to AccurateHR>`: also says which shared files have moved on in AccurateHR since the copy.
 - `npx expo export --platform android`: bundles the app; a quick proof that everything imports.
