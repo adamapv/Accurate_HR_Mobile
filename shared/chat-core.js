@@ -175,3 +175,36 @@ export const chatDmDraft = person => ({ kind: 'dm', to_employee_id: person.id })
 export const chatGroupReady = (title, ids) => !!String(title || '').trim() && (ids || []).length > 0;
 export const chatGroupDraft = (title, ids) => ({ kind: 'group', title: String(title).trim(), people_ids: ids });
 export const chatPickToggle = (ids, person) => ids.includes(person.id) ? ids.filter(x => x !== person.id) : [...ids, person.id];
+
+// ---- "@" mentions and sending a document ----
+// What is being typed after an "@" just before the caret (null when the caret is not in a mention): a name, or a first name and the start of a surname.
+export const mentionQuery = (draft, caret) => { const mt = String(draft || '').slice(0, caret).match(/(?:^|\s)@([^\s@]*(?: [^\s@]*)?)$/); return mt ? mt[1] : null; };
+// The people offered for it, out of the chat's own (everyone in the company for the Office): those whose name holds what was typed, a name that starts
+// with it first, four at most.
+export function mentionCandidates(query, people) {
+  if (query === null || query === undefined) return [];
+  const q = String(query).toLowerCase();
+  return (people || []).filter(p => p.name.toLowerCase().includes(q))
+    .sort((a, b) => (b.name.toLowerCase().startsWith(q) - a.name.toLowerCase().startsWith(q)) || a.name.localeCompare(b.name)).slice(0, 4);
+}
+// Picking one: the "@…" being typed becomes "@Their Name " and the caret goes after it. → { draft, caret, mentions }
+export function mentionPick(draft, caret, mentions, person) {
+  const before = String(draft || '').slice(0, caret), at = before.lastIndexOf('@');
+  return { draft: `${before.slice(0, at)}@${person.name} ${String(draft || '').slice(caret)}`, caret: at + person.name.length + 2,
+    mentions: (mentions || []).some(x => x.id === person.id) ? mentions : [...(mentions || []), { id: person.id, name: person.name }] };
+}
+// Who a message really mentions when it is sent: the people picked whose "@Name" is still in the words.
+export const mentionIds = (text, mentions) => (mentions || []).filter(m => String(text || '').includes(`@${m.name}`)).map(m => m.id);
+export const MENTION_LIST = 'Mention someone';
+// A document: what kind it is by its name ('' when a chat does not take it), why it cannot be sent ('' when it can), where it is uploaded and what is sent.
+export const chatFileType = name => CHAT_FILE_TYPES[String(name || '').split('.').pop().toLowerCase()] || '';
+export function chatDocProblem(f, online) {
+  if (online === false) return 'Documents need a signal — try again when you have some';
+  if (!chatFileType(f.name)) return `${f.name || 'That file'} can’t be sent: send a PDF, a Word, Excel or PowerPoint file, a CSV or a text file. A picture goes with the camera button`;
+  if (f.size > CHAT_FILE_MAX) return `${f.name || 'That document'} is over 10 MB, which is the most a chat takes`;
+  return '';
+}
+export const chatDocUploadPath = name => `/chat/file?name=${encodeURIComponent(name)}`;
+export const chatDocDraft = ({ key, name, ref, reply }) => ({ file_key: key, file_name: name, client_ref: ref, ...(reply ? { reply_to_id: reply.id } : {}) });
+export const CHAT_DOC_FAILED = 'Couldn’t upload the document';
+export const CHAT_SEND_DOC = 'Send a document';
