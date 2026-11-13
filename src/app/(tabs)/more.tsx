@@ -9,11 +9,14 @@ import { useSession } from '@/lib/session';
 import { API_URL, APP_BUILD, APP_ENV } from '@/lib/config';
 import { useOutbox } from '@/lib/use-outbox';
 import { useRead } from '@/lib/use-read';
+import { LOCK_WORDS } from '@/lib/lock-core';
+import { useLock } from '@/lock';
 import { Avatar, Body, Button, Card, Heading, List, Notice, Pill, Problem, Row, Screen, Title } from '@/ui';
 
 export default function More() {
   const { state, signOut, api, refreshMe } = useSession();
   const notes = useRead<{ rows: { read_at: string | null }[]; unread: number }>('/notifications');
+  const lock = useLock();
   const [said, setSaid] = useState('');
   const [problem, setProblem] = useState('');
   const waiting = useOutbox().filter(e => e.status === 'pending').length;
@@ -75,6 +78,8 @@ export default function More() {
         {!!me.email_configured && !!me.employee.email && <Row icon="mail-outline" tint="violet" title={emailSw.label} sub={emailOn ? `On, to ${me.employee.email}` : 'Off'} onPress={() => { void toggleEmail(); }} />}
         <Row icon="sunny-outline" tint="teal" title={noteRow.label} sub={noteRow.sub} onPress={() => router.push('/morning-note')} />
         <Row icon="key-outline" tint="amber" title="Change PIN" onPress={() => router.push('/change-pin?own=1')} />
+        <Row icon="lock-closed-outline" tint="green" title={LOCK_WORDS.row} sub={!lock.available ? LOCK_WORDS.rowNone : lock.on ? LOCK_WORDS.rowOn : LOCK_WORDS.rowOff}
+          onPress={lock.available ? () => { setProblem(''); lock.setOn(!lock.on).then(setSaid).catch(e => setProblem(e instanceof Error ? e.message : LOCK_WORDS.failed)); } : undefined} />
         <Row icon="help-circle-outline" tint="violet" title="Help" sub="How to do each thing you can do" onPress={() => router.push('/help')} />
         <Row icon="globe-outline" tint="blue" title="Open in the browser" sub="Printing and a profile photo, for now" onPress={() => { void Linking.openURL(API_URL); }} last />
       </List>

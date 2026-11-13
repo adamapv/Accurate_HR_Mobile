@@ -29,6 +29,8 @@ module.exports = {
       ['expo-image-picker', { cameraPermission: 'AccurateHR uses the camera to take a photo for a checklist item.', photosPermission: false, microphonePermission: false }],
       // The microphone is used only while a voice message is being recorded in a chat; nothing records or plays in the background.
       ['expo-audio', { microphonePermission: 'AccurateHR uses the microphone to record a voice message in a chat.', enableBackgroundRecording: false, enableBackgroundPlayback: false }],
+      // The app lock asks the phone who is holding it; the app never sees a face or a fingerprint.
+      ['expo-local-authentication', { faceIDPermission: 'AccurateHR uses Face ID to unlock the app when you have switched the app lock on.' }],
       ['expo-splash-screen', { backgroundColor: '#0A0A12', image: './assets/images/splash-icon.png', imageWidth: 120 }],
     ],
     extra: { apiUrl: staging ? 'https://staging.accuratehr.co' : 'https://app.accuratehr.co', env: staging ? 'staging' : 'production', build, commit },
