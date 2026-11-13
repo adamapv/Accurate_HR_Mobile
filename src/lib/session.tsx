@@ -20,6 +20,7 @@ export type Me = {
   manager?: { name: string; position: string | null; phone: string | null; email: string | null } | null;
   access: Record<string, Grant>;
   access_level: string | null;
+  card_reader_configured?: boolean;   // whether the company has reading a card's photo switched on
   email_configured?: boolean;   // whether the company's email is set up, so notification emails can be offered
   // `whs` is the company's own regulator and support line (the Worker works it out from the company's state and details); the app never names one itself.
   company: { company_name: string; timezone: string | null; zone: string; timesheet_auto_approve: number | null; whs: { regulator: string; phone: string | null; tel: string | null; written: string; eap: string | null; set: boolean } };
