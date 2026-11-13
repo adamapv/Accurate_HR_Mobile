@@ -2,7 +2,7 @@
 // app's own words (shared/field-core.js). Acknowledging needs signal: the answer is the record.
 import { useState } from 'react';
 import { Redirect, router, useLocalSearchParams } from 'expo-router';
-import { acknowledgedText, confirmNote } from '@shared/field-core.js';
+import { acknowledgedText, CONFIRM_NAME_LABEL, confirmDraft, confirmNote, confirmProblem } from '@shared/field-core.js';
 import { useSession } from '@/lib/session';
 import { useRead } from '@/lib/use-read';
 import { fmtDate } from '@/lib/dates';
@@ -23,10 +23,11 @@ export default function PolicyScreen() {
   if (!policy) return <Redirect href="/" />;
 
   const acknowledge = async () => {
-    if (!name.trim()) return setProblem('Type your full name to confirm');
+    const bad = confirmProblem(name) as string;
+    if (bad) return setProblem(bad);
     setBusy(true); setProblem('');
     try {
-      await api(`/policies/${policy.id}/acknowledge`, { method: 'POST', body: { signature_name: name.trim() } });
+      await api(`/policies/${policy.id}/acknowledge`, { method: 'POST', body: confirmDraft(name) });
       await policies.reload();
       changed();
       router.back();
@@ -39,7 +40,7 @@ export default function PolicyScreen() {
       <Card><RichText value={policy.template_body || 'No content provided.'} /></Card>
       {policy.acknowledged_at ? <Body tone="ok">{acknowledgedText(policy, fmtDate) as string}</Body> : (
         <>
-          <Field label="Type your full name to confirm" value={name} onChangeText={setName} autoCapitalize="words" autoComplete="name" maxLength={120} />
+          <Field label={CONFIRM_NAME_LABEL as string} value={name} onChangeText={setName} autoCapitalize="words" autoComplete="name" maxLength={120} />
           <Body tone="muted">{confirmNote(false) as string}</Body>
           <Problem>{problem}</Problem>
           <Button onPress={acknowledge} busy={busy}>Acknowledge</Button>
