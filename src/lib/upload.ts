@@ -2,8 +2,9 @@
 import type { Api } from './api-core';
 import { API_URL } from './config';
 
-export async function uploadPhoto(api: Api, session: string | null, uri: string, mime = 'image/jpeg'): Promise<string> {
-  const prep = await api<{ upload_path: string; r2_key: string }>('/documents/upload-url', { method: 'POST', body: { filename: 'check.jpg' } });
+// `to` is the route that says where this kind of file goes (a checklist photo by default; '/expense-receipts/upload-url' for a receipt).
+export async function uploadPhoto(api: Api, session: string | null, uri: string, mime = 'image/jpeg', to = '/documents/upload-url', filename = 'check.jpg'): Promise<string> {
+  const prep = await api<{ upload_path: string; r2_key: string }>(to, { method: 'POST', body: { filename } });
   const bytes = await (await fetch(uri)).blob();
   let res: Response;
   try {
