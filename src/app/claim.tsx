@@ -49,9 +49,9 @@ export default function ClaimScreen() {
   useEffect(() => () => {
     const l = latest.current;
     if (!createdHere.current || l.gone || !l.id) return;
-    if (l.description) { void api('/expense-claims', { method: 'PUT', body: { id: l.id, description: l.description, claim_date: l.claim_date } }).then(changed).catch(() => {}); return; }
+    if (l.description) { void api('/expense-claims', { method: 'PUT', body: { id: l.id, description: l.description, claim_date: l.claim_date } }).then(() => changed(true)).catch(() => {}); return; }
     void api<{ claim: { description: string | null }; lines: unknown[] }>(`/expense-claims/${l.id}`)
-      .then(d => claimIsEmpty(d.claim, d.lines) ? api('/expense-claims', { method: 'DELETE', body: { id: l.id } }).then(changed) : undefined).catch(() => {});
+      .then(d => claimIsEmpty(d.claim, d.lines) ? api('/expense-claims', { method: 'DELETE', body: { id: l.id } }).then(() => changed(true)) : undefined).catch(() => {});
   }, [api, changed]);
   if (state.status !== 'signedIn') return <Redirect href="/" />;
 
@@ -60,7 +60,7 @@ export default function ClaimScreen() {
     try { await work(); } catch (e) { setProblem(e instanceof Error ? e.message : 'Something went wrong. Try again.'); }
     setBusy('');
   };
-  const saveHead = (next = head) => { if (id && next) void api('/expense-claims', { method: 'PUT', body: { id, description: next.description, claim_date: next.claim_date } }).then(changed).catch(e => setProblem(e instanceof Error ? e.message : 'Could not save.')); };
+  const saveHead = (next = head) => { if (id && next) void api('/expense-claims', { method: 'PUT', body: { id, description: next.description, claim_date: next.claim_date } }).then(() => changed(true)).catch(e => setProblem(e instanceof Error ? e.message : 'Could not save.')); };
   const confirm = (ask: Ask, then: () => void) => Alert.alert(ask.title, ask.body, [{ text: 'Cancel', style: 'cancel' }, { text: ask.confirmLabel, style: 'destructive', onPress: then }]);
   const deleteLine = (lineId: string) => confirm(LINE_DELETE_CONFIRM as Ask, () => { void run(lineId, async () => { await api('/expense-lines', { method: 'DELETE', body: { id: lineId } }); changed(); }); });
   const deleteClaim = () => confirm(claimDeleteConfirm(lines) as Ask, () => { void run('delete', async () => { await api('/expense-claims', { method: 'DELETE', body: { id } }); latest.current.gone = true; changed(); router.back(); }); });
