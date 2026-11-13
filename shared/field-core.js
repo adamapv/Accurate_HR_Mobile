@@ -928,6 +928,25 @@ export const exitDraft = (form, run) => ({ ...form, run_id: run.id });
 export const exitSubmitLabel = existing => existing ? 'Update feedback' : 'Send feedback';
 export const EXIT_SAID = 'Thank you — your feedback has been recorded.';
 
+// ---- My allowances ----
+// What a person has earned, week by week, from time on jobs that carry their allowances. A row is one of GET allowances/mine.
+export const ALLOWANCES_SUB = 'What you have earned from time on jobs that carry your allowances';
+export const NO_ALLOWANCES = 'Nothing yet. An allowance appears here for a week when you work a job that carries one of yours.';
+export const ALLOWANCE_STATE = { proposed: ['warn', 'Waiting for approval'], auto: ['neutral', 'No approval needed'], approved: ['ok', 'Approved'], rejected: ['danger', 'Declined'], changed: ['warn', 'Time changed: decide again'] };
+export const allowanceState = r => ({ tone: ALLOWANCE_STATE[r.state]?.[0] || 'neutral', label: ALLOWANCE_STATE[r.state]?.[1] || r.state });
+export const allowanceQty = (r, fmtHours) => r.unit === 'hours' ? fmtHours(r.qty / 60) : plural(r.qty, r.frequency === 'week' ? 'week' : 'day');
+export const allowanceRowKey = r => `${r.employee_id}|${r.allowance_id}|${r.week_start}`;
+export const allowanceJobs = r => [...new Set((r.jobs || []).map(j => j.job_label).filter(Boolean))];
+// What it was before the person's time changed, when it has to be decided again.
+export const allowanceWas = (r, fmtHours) => r.state === 'changed' && r.was ? `Was ${allowanceQty({ ...r, qty: r.was.qty }, fmtHours)}, ${r.was.status}` : '';
+export const ALLOWANCE_NO_RATE = { text: 'No rate', why: 'No rate is set for this allowance on that date' };
+export const WEEK_NOT_OVER = 'This week isn’t over yet';
+// One row in words: { key, week, name, what, jobs, was, amount, state: { tone, label }, note, notOver }. amount is null when no rate is set for that date.
+// The client gives its own ways of writing a range of dates, hours, money and a short day.
+export const allowanceRow = (r, { fmtRange, fmtHours, fmtMoney, shortDay }) => ({ key: allowanceRowKey(r), week: fmtRange(r.week_start, r.week_end), name: r.allowance_name,
+  what: [allowanceQty(r, fmtHours), r.days?.length > 0 ? r.days.map(shortDay).join(', ') : ''].filter(Boolean).join(' · '), jobs: allowanceJobs(r).join(', '), was: allowanceWas(r, fmtHours),
+  amount: r.amount_cents == null ? null : fmtMoney(r.amount_cents), state: allowanceState(r), note: r.state === 'rejected' && r.decision_note ? r.decision_note : '', notOver: r.week_over ? '' : WEEK_NOT_OVER });
+
 // ---- the session and links ----
 // The session's fingerprint: the first 8 bytes of SHA-256 over "Bearer <session id>", as 16 hex characters. Everything kept on a device for one session (the outbox,
 // the offline copies) is tagged with it, and the service worker keys its copies with the same value, so one person's never show for the next. '' with no session.
