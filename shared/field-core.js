@@ -349,6 +349,37 @@ export function contactStep(what, d, apple) {
   return { choose: leaders.map(l => ({ id: l.id, name: l.name, phone: l.phone || null, detail: l.phone ? [l.position, l.phone].filter(Boolean).join(' · ') : 'No phone number on their record' })) };
 }
 
+// ---- purchase orders ----
+// A job with one cost centre in all needs no choosing: { section_id, cost_centre_id }, else both empty.
+export const soleCostCentre = j => {
+  const all = (j?.sections || []).flatMap(s => (s.cost_centres || []).map(c => ({ section_id: s.id, cost_centre_id: c.id })));
+  return all.length === 1 ? all[0] : { section_id: '', cost_centre_id: '' };
+};
+export const NOT_READ_YET = 'This job’s cost centres haven’t been read from simPRO yet — try again after tonight’s sync, or ask an admin to refresh it on the Jobs page.';
+export const NO_SUPPLIERS = 'No suppliers yet — they’re copied from simPRO overnight';
+// The Raise PO form after a job is chosen: its company and number, its cost centre when it has only one, and the supplier kept only if it is the same company's
+// (suppliers belong to a company).
+export const poPickJob = (form, j) => ({ ...form, company_id: j?.company_id || '', job_id: j?.id || '', ...soleCostCentre(j), vendor_id: j?.company_id === form.company_id ? form.vendor_id : '' });
+// A PO can be raised once it has a supplier, a job and the job's cost centre.
+export const poReady = form => !!(form.vendor_id && form.job_id && form.section_id && form.cost_centre_id);
+// The suppliers as the box lists them: the person's starred ones under their own heading, then the rest; one list with no heading when none is starred.
+// → [{ key, title, rows: [{ key, title }] }]
+export function supplierGroups(suppliers, starred) {
+  const row = s => ({ key: s.id, title: s.name });
+  const mine = (suppliers || []).filter(s => (starred || []).includes(s.id));
+  return mine.length ? [{ key: 'star', title: 'Your starred suppliers', rows: mine.map(row) }, { key: 'rest', title: 'All suppliers', rows: suppliers.filter(s => !starred.includes(s.id)).map(row) }]
+    : [{ key: 'all', title: null, rows: (suppliers || []).map(row) }];
+}
+// A person's starred suppliers after one is starred or has its star taken off.
+export const starredAfter = (starred, vendorId, on) => on ? [...(starred || []).filter(x => x !== vendorId), vendorId] : (starred || []).filter(x => x !== vendorId);
+// What is said under a PO number once it is raised (POST /purchase-orders → po).
+export const poRaisedText = po => `${po.vendor_name} · ${po.job_label} — ${po.cost_centre_label}. Give this number to the supplier; add the materials in simPRO when the receipt comes in.`;
+// The phone's PO list: what it says it lists (a level with Everyone sees who raised each one), and a PO's lines under its number.
+export const poListSub = everyones => everyones ? 'Every PO raised here, newest first.' : 'The POs you’ve raised, newest first. Tap one to copy its number.';
+export const poJobLine = p => `${p.job_label || ''}${p.cost_centre_label ? ` — ${p.cost_centre_label}` : ''}`;
+export const poMeta = (p, everyones) => [p.reference && `Ref ${p.reference}`, everyones && p.created_by_name && `by ${p.created_by_name}`].filter(Boolean).join(' · ');
+export const poEmptyText = configured => configured ? 'No POs raised yet. Tap Raise a PO when you need a number for a supplier.' : 'simPRO isn’t connected yet — ask the office.';
+
 // ---- policies and documents ----
 // What a person is told as they confirm a policy or document with their typed name: signing it, or acknowledging it.
 export const confirmNote = sign => sign

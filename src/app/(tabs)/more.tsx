@@ -22,8 +22,9 @@ export default function More() {
         <Body tone="muted">{me.company.company_name}{me.access_level ? ` · ${me.access_level}` : ''}</Body>
       </Card>
       {can(me.access, 'chat') && <Button kind="plain" onPress={() => router.push('/chats')}>Chat</Button>}
+      {can(me.access, 'purchase_orders') && <Button kind="plain" onPress={() => router.push('/pos')}>POs</Button>}
       <Card>
-        <Body tone="muted">Leave, expenses, documents, POs and reporting an incident are in the Field view in your browser for now. In Chat, photos, voice messages and documents are sent from the browser for now.</Body>
+        <Body tone="muted">Leave, expenses, documents and reporting an incident are in the Field view in your browser for now. In Chat, photos, voice messages and documents are sent from the browser for now.</Body>
         <Button kind="plain" onPress={() => { void Linking.openURL(API_URL); }}>Open AccurateHR in the browser</Button>
       </Card>
       {waiting > 0 && <Body tone="danger">{waiting === 1 ? 'One thing saved on your phone has not been sent yet. Signing out now tries once more, then it is lost.' : `${waiting} things saved on your phone have not been sent yet. Signing out now tries once more, then they are lost.`}</Body>}
