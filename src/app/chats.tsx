@@ -3,11 +3,12 @@
 import { useEffect, useState } from 'react';
 import { AppState, Pressable, View } from 'react-native';
 import { Redirect, router } from 'expo-router';
-import { chatBadge, chatListTime, chatName, chatPreview, chatRows } from '@shared/chat-core.js';
+import { can } from '@shared/access.js';
+import { CHAT_NEW, chatBadge, chatListTime, chatName, chatPreview, chatRows } from '@shared/chat-core.js';
 import { useSession } from '@/lib/session';
 import { useRead } from '@/lib/use-read';
 import { fmtTime } from '@/lib/dates';
-import { Avatar, Body, Card, Empty, Field, Notice, Pill, Problem, Screen, Title } from '@/ui';
+import { Avatar, Body, Button, Card, Empty, Field, Notice, Pill, Problem, Screen, Title } from '@/ui';
 
 export type ChatThreadRow = { id: string; kind: string; title?: string | null; muted?: boolean; unread: number; mentioned?: boolean; others?: { id: string; name: string }[]; updated_at?: string;
   last?: { sender_id?: string; sender_name?: string; text?: string; created_at?: string; photo?: boolean; audio?: boolean; audio_secs?: number; deleted?: boolean; system?: boolean } | null };
@@ -27,6 +28,7 @@ export default function Chats() {
   return (
     <Screen>
       <Title>Chats</Title>
+      {can(state.me.access, 'chat', 'edit') && <Button kind="plain" icon="create-outline" onPress={() => router.push('/new-chat')}>{(CHAT_NEW as { title: string }).title}</Button>}
       <Field label="Search chats" value={q} onChangeText={setQ} autoCorrect={false} />
       {threads.offlineAt !== null && <Notice tone="warn" icon="cloud-offline-outline">{`No signal. Showing what was saved at ${fmtTime(threads.offlineAt)}.`}</Notice>}
       <Problem>{threads.error}</Problem>
