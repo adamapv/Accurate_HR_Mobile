@@ -1248,6 +1248,45 @@ export const scanSubmitDraft = ({ mode, card, fields, files }) => ({ qualificati
 export const scanSaveLabel = (employee, mode) => employee ? (mode === 'renew' ? 'Renew the card' : 'Add the card') : 'Send for review';
 export const scanSaid = (employee, title) => employee ? `Added ${title}` : `Sent ${title} for review`;
 
+// ---- pay, super, tax and PPE details ----
+// What payroll and the stores need to set someone up, kept on the person's record and filled in by them. `d` is GET employee-details/mine
+// ({ schema: [{ id, label, fields: [{ key, label, kind, options, sensitive, max, help }] }], values, masked, set, unreadable }). The account number and tax
+// file number only ever arrive masked.
+// One field's value as words: a choice as its text, a sensitive one masked unless the full value is in `d.values`.
+export function detailText(f, d) {
+  const v = d.values?.[f.key];
+  if (f.kind === 'choice') return (f.options || []).find(o => o.code === v)?.text || '';
+  if (f.sensitive) return v || d.masked?.[f.key] || '';
+  return v || '';
+}
+export const detailItems = (group, d) => group.fields.map(f => ({ label: f.label, value: detailText(f, d), empty: 'Not on file', span: f.kind === 'textarea' }));
+export const detailGroupsOf = (schema, ids) => (schema || []).filter(g => ids.includes(g.id));
+export const detailsHave = d => Object.keys(d?.set || {}).length > 0;
+// The two cards a person sees on their own page: which groups each holds, what it says with nothing on file, and the note under it.
+export const DETAIL_CARDS = [
+  { key: 'pay', title: 'Pay & super', ids: ['bank', 'super', 'tax'], blank: 'Nothing on file yet. Add your bank account, super fund and tax file number so you are paid correctly.',
+    note: 'Only you and the people who run payroll can see these. Your account number and tax file number are shown masked.' },
+  { key: 'ppe', title: 'PPE & uniform', ids: ['ppe'], blank: 'Nothing on file yet. Add your sizes so your boots, shirts and hi-vis are ready for you.', note: '' }];
+// Whether a card has anything on file, and what its button says.
+export const detailCardHas = (groups, d) => groups.some(g => g.fields.some(f => d?.set?.[f.key]));
+export const detailCardAction = has => has ? 'Edit' : 'Add';
+// The form: every field that is not sensitive opens with what is on file; a sensitive one opens empty and is typed again only to replace it.
+export const detailFormStart = (groups, d) => Object.fromEntries(groups.flatMap(g => g.fields.filter(f => !f.sensitive).map(f => [f.key, d.values?.[f.key] || ''])));
+export const detailDraft = (groups, form) => ({ values: Object.fromEntries(groups.flatMap(g => g.fields).map(f => [f.key, form[f.key] ?? ''])) });
+export const detailPlaceholder = (f, masked) => f.sensitive && masked?.[f.key] ? `On file (${masked[f.key]}): type to replace` : '';
+export const detailHasSensitive = groups => groups.some(g => g.fields.some(f => f.sensitive));
+// The bank named from the BSB. The digits to look up (six, or '' when it is not a whole BSB yet); what the Bank box becomes once the lookup answers (filled, or
+// emptied for a BSB nobody knows, only while it holds nothing or what a lookup put there: `last`); and what the BSB box says underneath.
+export const bsbDigits = form => { const d = String(form?.bank_bsb || '').replace(/[\s-]/g, ''); return /^\d{6}$/.test(d) ? d : ''; };
+export const bankFill = (form, last, bank) => (!String(form.bank_name || '').trim() || form.bank_name === last) ? { ...form, bank_name: bank || '' } : form;
+export const bsbHint = (f, found, form) => f.key !== 'bank_bsb' || !found ? (f.help || '') : !found.bank ? 'Not a BSB we know: type the bank’s name yourself.'
+  : form.bank_name === found.bank ? `${found.bank}: the Bank box is filled in for you.` : `This BSB belongs to ${found.bank}.`;
+export const bsbLookupPath = bsb => `/lookup/bsb?bsb=${encodeURIComponent(bsb)}`;
+export const DETAIL_UNREADABLE = 'Some of what was saved can’t be read any more. Type it again below.';
+export const DETAIL_KEEP_HINT = 'Leave the account number or tax file number blank to keep what is on file.';
+export const DETAIL_CHOOSE = '— choose —';
+export const DETAIL_SAVED = 'Saved';
+
 // ---- the session and links ----
 // The session's fingerprint: the first 8 bytes of SHA-256 over "Bearer <session id>", as 16 hex characters. Everything kept on a device for one session (the outbox,
 // the offline copies) is tagged with it, and the service worker keys its copies with the same value, so one person's never show for the next. '' with no session.

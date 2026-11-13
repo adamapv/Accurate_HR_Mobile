@@ -76,7 +76,7 @@ export default function More() {
         <Row icon="sunny-outline" tint="teal" title={noteRow.label} sub={noteRow.sub} onPress={() => router.push('/morning-note')} />
         <Row icon="key-outline" tint="amber" title="Change PIN" onPress={() => router.push('/change-pin?own=1')} />
         <Row icon="help-circle-outline" tint="violet" title="Help" sub="How to do each thing you can do" onPress={() => router.push('/help')} />
-        <Row icon="globe-outline" tint="blue" title="Open in the browser" sub="Pay and super, PPE sizes and printing, for now" onPress={() => { void Linking.openURL(API_URL); }} last />
+        <Row icon="globe-outline" tint="blue" title="Open in the browser" sub="Printing and a profile photo, for now" onPress={() => { void Linking.openURL(API_URL); }} last />
       </List>
       {!!said && <Notice tone="ok">{said}</Notice>}
       <Problem>{problem}</Problem>

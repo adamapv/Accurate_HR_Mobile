@@ -1,13 +1,15 @@
 // My HR: the person's own profile. How complete it is and what is missing, their personal details and emergency contact (with Edit when their level lets them
 // change their own details), their employment, who they report to (with a call) and how they sign in. Every row, the completeness rule and the words are the
-// web app's own (shared/field-core.js); the screen reads the same answer the app signs in with, so it shows with no signal too.
+// web app's own (shared/field-core.js); the screen reads the same answer the app signs in with, so it shows with no signal too. Pay & super and PPE & uniform
+// are the exception: they are asked for each time and never kept on the phone, so with no signal those two cards say so.
 import { Linking, View } from 'react-native';
 import { Redirect, router } from 'expo-router';
 import { can } from '@shared/access.js';
-import { emergencyCall, emergencyEmpty, emergencyRows, employmentRows, managerRole, NO_MANAGER, personalRows, PIN_CHANGE_NOTE, PROFILE_EDIT, PROFILE_EDIT_OFF, PROFILE_PANELS, profileFacts, profileGaps, profileSummary, profileVerdict, signInRows,
+import { DETAIL_CARDS, detailCardAction, detailCardHas, detailGroupsOf, detailItems, emergencyCall, emergencyEmpty, emergencyRows, employmentRows, managerRole, NO_MANAGER, personalRows, PIN_CHANGE_NOTE, PROFILE_EDIT, PROFILE_EDIT_OFF, PROFILE_PANELS, profileFacts, profileGaps, profileSummary, profileVerdict, signInRows,
   telHref } from '@shared/field-core.js';
 import { useSession } from '@/lib/session';
 import { useRead } from '@/lib/use-read';
+import { useDetails, type DetailGroup } from '@/lib/use-details';
 import { fmtDate, localToday } from '@/lib/dates';
 import { useTheme } from '@/theme';
 import { Avatar, Body, Button, Card, Empty, Heading, Notice, Screen, Title } from '@/ui';
@@ -35,6 +37,7 @@ export default function MyHR() {
   const { state } = useSession();
   const t = useTheme();
   const forms = useRead<{ rows: { submitted: unknown }[] }>('/forms');
+  const details = useDetails();
   if (state.status !== 'signedIn') return <Redirect href="/" />;
   const me = state.me, e = me.employee, p = me.profile || null;
   const canEdit = can(me.access, 'my_details', 'edit') as boolean;
@@ -69,6 +72,19 @@ export default function MyHR() {
       <Heading>{PANELS.emergency}</Heading>
       {emergency ? <Card><Rows rows={emergency.map(r => ({ ...r, tel: undefined }))} />{call && <Button kind="plain" icon="call-outline" onPress={() => ring(call.tel)}>{call.label}</Button>}</Card>
         : <Empty icon="call-outline">{emergencyEmpty(canEdit) as string}</Empty>}
+
+      {(DETAIL_CARDS as { key: string; title: string; ids: string[]; blank: string; note: string }[]).map(c => {
+        const groups = detailGroupsOf(details.data?.schema, c.ids) as DetailGroup[], has = !!details.data && (detailCardHas(groups, details.data) as boolean);
+        return (
+          <View key={c.key} style={{ gap: 10 }}>
+            <Heading right={details.data ? <Button kind="plain" icon="create-outline" onPress={() => router.push(`/pay-details?card=${c.key}`)}>{detailCardAction(has) as string}</Button> : undefined}>{c.title}</Heading>
+            {!details.data ? <Body tone="muted">{details.error || 'Loading…'}</Body>
+              : !has ? <Empty icon={c.key === 'pay' ? 'cash-outline' : 'shirt-outline'}>{c.blank}</Empty>
+              : groups.map(g => <Card key={g.id}>{groups.length > 1 && <Body strong>{g.label}</Body>}<Rows rows={detailItems(g, details.data) as RowT[]} /></Card>)}
+            {has && !!c.note && <Body tone="muted">{c.note}</Body>}
+          </View>
+        );
+      })}
 
       <Heading>{PANELS.employment}</Heading>
       <Card><Rows rows={employmentRows(e, me.company, day) as RowT[]} /></Card>
