@@ -54,6 +54,7 @@ export default function More() {
 
       <Heading>My records</Heading>
       <List>
+        <Row icon="person-outline" tint="blue" title="My HR" sub="Your profile and personal details" onPress={() => router.push('/my-hr')} />
         <Row icon="shield-checkmark-outline" tint="teal" title="My qualifications" sub="Your licences and tickets" onPress={() => router.push('/quals')} />
         {can(me.access, 'documents') && <Row icon="document-text-outline" tint="violet" title="My documents" sub="Sign and open your paperwork" onPress={() => router.push('/documents')} />}
         <Row icon="construct-outline" tint="orange" title="My assets" sub="The tools issued to you" onPress={() => router.push('/assets')} />

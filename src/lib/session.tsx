@@ -13,7 +13,11 @@ const SESSION_KEY = 'hrhead_session', TENANT_KEY = 'hrhead_tenant', EMAIL_KEY = 
 // What GET /me and a sign-in answer with (AccurateHR's scripts/test-mobile-contract.mjs lists the fields the app may rely on).
 export type Grant = { scope: string; edit: boolean; approve: boolean };
 export type Me = {
-  employee: { id: string; name: string; email: string; role: string; position: string | null; must_change_pin: number; time_source: string; employment_type?: string | null; email_notifications?: number | null; day_note_hour?: number | null; day_note_email?: number | null };
+  employee: { id: string; name: string; email: string; role: string; position: string | null; must_change_pin: number; time_source: string; employment_type?: string | null; email_notifications?: number | null; day_note_hour?: number | null; day_note_email?: number | null;
+    phone?: string | null; department?: string | null; start_date?: string | null; expected_weekly_hours?: number | null };
+  // The person's own profile (their details and emergency contact) and who they report to; either can be null.
+  profile?: Record<string, string | null> | null;
+  manager?: { name: string; position: string | null; phone: string | null; email: string | null } | null;
   access: Record<string, Grant>;
   access_level: string | null;
   email_configured?: boolean;   // whether the company's email is set up, so notification emails can be offered

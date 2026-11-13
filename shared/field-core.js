@@ -1079,6 +1079,76 @@ export const SUPPORT_ALLOW = { label: 'Allow access', howLong: 'For how long', s
 export const SUPPORT_WITHDRAW = { label: 'Withdraw access', title: 'Withdraw access?', body: 'AccurateHR support will no longer be able to look at your account for this request.', confirmLabel: 'Withdraw' };
 export const SUPPORT_DAYS_START = 3;
 
+// ---- My HR ----
+// A person's own profile: their details and emergency contact (which they change when their level allows it), their employment, who they report to and
+// how they sign in. `me` is GET me ({ employee, profile, manager, company }). `fmtDate` is the client's.
+export const PROFILE_FIELDS = [
+  { key: 'dob', label: 'Date of birth', type: 'date' },
+  { key: 'aka', label: 'AKA', hint: 'Nicknames, separated by commas.' },
+  { key: 'address_line1', label: 'Address', wide: true, address: true, hint: 'Start typing and pick the address: the suburb, state and postcode fill in.' },
+  { key: 'suburb', label: 'Suburb', group: 'addr' },
+  { key: 'state', label: 'State', group: 'addr' },
+  { key: 'postcode', label: 'Postcode', group: 'addr' },
+  { key: 'emergency_contact_name', label: 'Emergency contact', section: 'Emergency contact', wide: true },
+  { key: 'emergency_contact_phone', label: 'Their phone', type: 'tel', group: 'em' },
+  { key: 'emergency_contact_relationship', label: 'Relationship', group: 'em' },
+];
+// The profile's two halves, for screens that show them in separate panels.
+export const PERSONAL_FIELDS = PROFILE_FIELDS.filter(f => !f.key.startsWith('emergency_'));
+export const EMERGENCY_FIELDS = PROFILE_FIELDS.filter(f => f.key.startsWith('emergency_'));
+export const profileFormStart = profile => ({ ...(profile || {}) });
+// What is saved: every field of the form, an empty one as nothing.
+export const profileDraft = form => Object.fromEntries(PROFILE_FIELDS.map(f => [f.key, form[f.key] ?? null]));
+export const PROFILE_SAVED = 'Profile saved';
+export const PROFILE_EDIT = 'Edit profile';
+export const PROFILE_EDIT_OFF = 'Profile editing is turned off — ask HR to update your details.';
+// How complete the profile is: the checks, what is missing and a percentage. `formRows` is GET forms (left out while it loads). null for someone who can't
+// fill it in themselves. An `href` is one of the app's own addresses.
+export function profileGaps(profile, formRows, canEdit) {
+  if (!canEdit) return null;
+  const p = profile || {};
+  const checks = [
+    { key: 'address', label: 'home address', title: 'Add your home address', ok: !!(p.address_line1 && p.suburb && p.postcode), href: '#/my-hr' },
+    { key: 'emergency', label: 'emergency contact', title: 'Add an emergency contact', ok: !!(p.emergency_contact_name && p.emergency_contact_phone), href: '#/my-hr' },
+  ];
+  if (formRows) {
+    const n = formRows.filter(f => !f.submitted).length;
+    checks.push({ key: 'forms', label: `${plural(n, 'form')} to fill in`, title: `${plural(n, 'form')} to fill in`, ok: n === 0, href: '#/my-forms' });
+  }
+  const missing = checks.filter(c => !c.ok);
+  return { checks, missing, pct: Math.round(((checks.length - missing.length) / checks.length) * 100) };
+}
+// The line under the name: { strong, rest }.
+export const profileVerdict = gaps => gaps.missing.length === 0 ? { strong: 'Your profile is complete', rest: '. Keep it current — these details are what HR and your emergency contact rely on.' }
+  : { strong: `${gaps.pct}% complete`, rest: ` — ${gaps.missing.map(m => m.title).join(' · ')}.` };
+export const profileSummary = gaps => ({ ring: `Profile ${gaps.pct}% complete`, pct: `${gaps.pct}%`, note: gaps.missing.length === 0 ? 'Everything HR needs is on file.' : `${plural(gaps.missing.length, 'thing')} still to add.` });
+// How long someone has been with the company, from their start day to `today` (both 'YYYY-MM-DD'): "2 yrs 3 mths".
+export function tenure(start, today) {
+  const a = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(start || '')), b = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(today || ''));
+  if (!a || !b) return '';
+  const months = (Number(b[1]) - Number(a[1])) * 12 + Number(b[2]) - Number(a[2]) - (Number(b[3]) < Number(a[3]) ? 1 : 0);
+  if (months < 0) return 'starts soon';
+  if (months < 1) return 'under a month';
+  const y = Math.floor(months / 12), m = months % 12;
+  return [y && plural(y, 'yr'), m && plural(m, 'mth')].filter(Boolean).join(' ');
+}
+export const profileFacts = (e, today) => [e.position, e.department, e.employment_type && said(e.employment_type), e.start_date && `With us ${tenure(e.start_date, today)}`].filter(Boolean);
+export const profileAddress = p => [p?.address_line1, [p?.suburb, p?.state, p?.postcode].filter(Boolean).join(' ')].filter(Boolean).join(', ');
+// The panels, each as a heading and its rows: [{ label, value, empty }]. A row with no value shows `empty`, or a dash.
+export const PROFILE_PANELS = { personal: 'Personal details', emergency: 'Emergency contact', employment: 'Employment', reportsTo: 'Reports to', signIn: 'Sign-in & security' };
+export const personalRows = (p, fmtDate) => [{ label: 'Date of birth', value: p?.dob ? fmtDate(p.dob) : '', empty: 'Not on file' }, { label: 'AKA', value: p?.aka || '', empty: 'No nickname' }, { label: 'Home address', value: profileAddress(p), empty: 'Not on file' }];
+// null when there is nobody to call yet (say `emergencyEmpty` instead).
+export const emergencyRows = p => !p?.emergency_contact_name && !p?.emergency_contact_phone ? null
+  : [{ label: 'Name', value: p.emergency_contact_name || '' }, { label: 'Phone', value: p.emergency_contact_phone || '', tel: p.emergency_contact_phone ? telHref(p.emergency_contact_phone) : '' }, { label: 'Relationship', value: p.emergency_contact_relationship || '' }];
+export const emergencyEmpty = canEdit => canEdit ? 'No emergency contact yet. Add one so we know who to call.' : 'No emergency contact on file — ask HR to add one.';
+export const emergencyCall = p => p?.emergency_contact_phone ? { label: `Call ${String(p.emergency_contact_name || '').split(' ')[0] || 'them'}`, tel: telHref(p.emergency_contact_phone) } : null;
+export const employmentRows = (e, company, fmtDate) => [{ label: 'Employee type', value: e.position || '' }, { label: 'Department', value: e.department || '' }, { label: 'Employment type', value: e.employment_type ? said(e.employment_type) : '' },
+  { label: 'Date of commencement', value: e.start_date ? fmtDate(e.start_date) : '' }, { label: 'Company', value: company?.company_name || '' }, e.expected_weekly_hours && { label: 'Expected hours', value: `${e.expected_weekly_hours}h a week` }].filter(Boolean);
+export const NO_MANAGER = 'No manager set.';
+export const managerRole = m => m.position || 'Manager';
+export const signInRows = e => [{ label: 'Sign-in email', value: e.email || '' }, { label: 'Phone', value: e.phone || '' }];
+export const PIN_CHANGE_NOTE = 'Changing your PIN signs out any other device.';
+
 // ---- the session and links ----
 // The session's fingerprint: the first 8 bytes of SHA-256 over "Bearer <session id>", as 16 hex characters. Everything kept on a device for one session (the outbox,
 // the offline copies) is tagged with it, and the service worker keys its copies with the same value, so one person's never show for the next. '' with no session.
