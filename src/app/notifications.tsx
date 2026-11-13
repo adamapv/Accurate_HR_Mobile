@@ -21,7 +21,7 @@ export default function Notifications() {
   const rows = notes.data?.rows, unread = notifUnread(notes.data) as number;
   const open = (n: Note) => {
     setSaid('');
-    if (!n.read_at) api(notifReadPath(n) as string, { method: 'POST', body: {} }).then(changed).catch(() => {});
+    if (!n.read_at) api(notifReadPath(n) as string, { method: 'POST', body: {} }).then(() => changed(true)).catch(() => {});
     const to = screenFor(n.link);
     if (to) router.push(to as Href);
     else setSaid('That one opens in the Field view in your browser for now.');

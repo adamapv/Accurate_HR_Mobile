@@ -4,6 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import * as SecureStore from 'expo-secure-store';
 import { AppState } from 'react-native';
 import { ApiError, createApi, type Api } from './api-core';
+import { feel } from './haptics';
 import { API_URL, APP_VERSION } from './config';
 import { fingerprintOf, makeOffline, onBackOnline } from './offline';
 import type { Offline } from './offline-core';
@@ -35,7 +36,7 @@ type Session = {
   api: Api;
   offline: Offline;        // the outbox and the copies kept for reading with no signal
   refreshed: number;       // goes up each time something waiting on the phone was sent, so screens read again
-  changed: () => void;     // a screen saved something: every screen reads again
+  changed: (quiet?: boolean) => void;     // a screen saved something: every screen reads again, and the phone gives its "saved" feel unless told to stay quiet
   sessionId: () => string | null;   // for an upload, which sends the session itself
   tenantCode: string | null;
   lastEmail: string;
@@ -104,7 +105,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   }, [signedIn, offline]);
 
   const value = useMemo<Session>(() => ({
-    state, api, offline, refreshed, changed: () => setRefreshed(n => n + 1), sessionId: () => sid.current, tenantCode, lastEmail, retry: () => { void load(); },
+    state, api, offline, refreshed, changed: (quiet?: boolean) => { if (!quiet) feel.saved(); setRefreshed(n => n + 1); }, sessionId: () => sid.current, tenantCode, lastEmail, retry: () => { void load(); },
     // A new company code, or none ("Not your company?"): nothing of the last company's is kept.
     async setTenantCode(code) {
       offline.forgetAll();

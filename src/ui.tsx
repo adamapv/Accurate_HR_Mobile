@@ -1,11 +1,12 @@
 // The building blocks every screen uses, in the app's own colours and touch sizes: the screen itself (with its way back), headings, cards, rows with an icon, pills,
 // figures, notices, boxes to type in and buttons.
-import type { ReactNode } from 'react';
+import { useEffect, type ReactNode } from 'react';
 import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View, type TextInputProps } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useSegments } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { radius, space, TOUCH, useTheme } from '@/theme';
+import { feel } from '@/lib/haptics';
 
 export type IconName = keyof typeof Ionicons.glyphMap;
 export type Tone = 'ok' | 'warn' | 'danger' | 'info' | 'neutral';
@@ -85,7 +86,7 @@ export function Row({ icon, tint = 'blue', title, sub, right, onPress, danger, l
     </View>
   );
   if (!onPress) return inner;
-  return <Pressable accessibilityRole="button" accessibilityLabel={sub ? `${title}. ${sub}` : title} onPress={onPress} style={({ pressed }) => pressed && { backgroundColor: t.surface2 }}>{inner}</Pressable>;
+  return <Pressable accessibilityRole="button" accessibilityLabel={sub ? `${title}. ${sub}` : title} onPress={() => { feel.pick(); onPress(); }} style={({ pressed }) => pressed && { backgroundColor: t.surface2 }}>{inner}</Pressable>;
 }
 // Rows kept together in one card.
 export function List({ children }: { children: ReactNode }) {
@@ -144,7 +145,7 @@ export function Button({ children, onPress, kind = 'primary', busy, disabled, ic
   const off = !!busy || !!disabled;
   const fg = kind === 'primary' ? '#FFFFFF' : kind === 'danger' ? t.danger : t.fg;
   return (
-    <Pressable accessibilityRole="button" accessibilityState={{ disabled: off, busy: !!busy }} disabled={off} onPress={onPress}
+    <Pressable accessibilityRole="button" accessibilityState={{ disabled: off, busy: !!busy }} disabled={off} onPress={() => { feel.tap(); onPress(); }}
       style={({ pressed }) => [styles.button, kind === 'primary' ? { backgroundColor: t.accent } : { backgroundColor: t.surface2, borderColor: kind === 'danger' ? wash(t.danger, 0.4) : t.line, borderWidth: 1 }, (pressed || off) && styles.dim]}>
       {busy ? <ActivityIndicator color={fg} /> : (
         <View style={styles.buttonIn}>
@@ -163,7 +164,7 @@ export function Choice<T extends string>({ options, value, onChange, disabled }:
       {options.map(o => {
         const on = o.key === value, c = on && o.tone && o.tone !== 'info' && o.tone !== 'neutral' ? toneOf(t, o.tone) : null;
         return (
-          <Pressable key={o.key} accessibilityRole="radio" accessibilityState={{ selected: on, disabled: !!disabled }} accessibilityLabel={o.label} disabled={disabled} onPress={() => onChange(o.key)}
+          <Pressable key={o.key} accessibilityRole="radio" accessibilityState={{ selected: on, disabled: !!disabled }} accessibilityLabel={o.label} disabled={disabled} onPress={() => { if (!on) feel.pick(); onChange(o.key); }}
             style={({ pressed }) => [styles.choiceItem, on && { backgroundColor: c ? c.bg : t.accent }, pressed && styles.dim]}>
             <Text numberOfLines={2} style={[styles.choiceText, { color: on ? (c ? c.fg : '#FFFFFF') : t.muted }]}>{o.label}</Text>
           </Pressable>
@@ -175,9 +176,12 @@ export function Choice<T extends string>({ options, value, onChange, disabled }:
 // A yes-or-no switch, in the app's colours.
 export function Toggle({ value, onValueChange, accessibilityLabel, disabled }: { value: boolean; onValueChange: (v: boolean) => void; accessibilityLabel?: string; disabled?: boolean }) {
   const t = useTheme();
-  return <Switch accessibilityLabel={accessibilityLabel} value={value} onValueChange={onValueChange} disabled={disabled} trackColor={{ false: t.surface2, true: t.accent }} thumbColor="#FFFFFF" ios_backgroundColor={t.surface2} />;
+  return <Switch accessibilityLabel={accessibilityLabel} value={value} onValueChange={v => { feel.pick(); onValueChange(v); }} disabled={disabled} trackColor={{ false: t.surface2, true: t.accent }} thumbColor="#FFFFFF" ios_backgroundColor={t.surface2} />;
 }
+// Something was refused or went wrong: said in red, and felt once each time the words change.
 export function Problem({ children }: { children: ReactNode }) {
+  const words = typeof children === 'string' ? children : children ? 'x' : '';
+  useEffect(() => { if (words) feel.refused(); }, [words]);
   if (!children) return null;
   return <View accessibilityRole="alert"><Notice tone="danger">{children}</Notice></View>;
 }

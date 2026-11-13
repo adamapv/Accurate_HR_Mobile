@@ -21,6 +21,7 @@ import { useOutbox } from '@/lib/use-outbox';
 import { ApiError } from '@/lib/api-core';
 import { API_URL } from '@/lib/config';
 import { openFile } from '@/lib/open-file';
+import { feel } from '@/lib/haptics';
 import { VOICE_RECORDING, VOICE_TYPE, VoicePlayer } from '@/voice';
 import type { Draft, Entry } from '@/lib/offline-core';
 import { radius, space, TOUCH, useTheme } from '@/theme';
@@ -106,7 +107,7 @@ export default function Chat() {
     const top = msgs.filter(m => m.sender_id !== head.me && !m.system).reduce((n, m) => Math.max(n, m.seq), 0);
     if (top <= Math.max(head.last_read_seq, readSent.current)) return;
     readSent.current = top;
-    api(`/chat/threads/${id}/read`, { method: 'POST', body: { seq: top } }).then(() => changed()).catch(() => { readSent.current = 0; });
+    api(`/chat/threads/${id}/read`, { method: 'POST', body: { seq: top } }).then(() => changed(true)).catch(() => { readSent.current = 0; });
   }, [msgs, head, api, id, changed]);
 
   const items = useMemo<Item[]>(() => {
@@ -228,7 +229,7 @@ export default function Chat() {
     } catch { return setError(VOICE.cantStart); }
     const st = { start: Date.now(), timer: null as ReturnType<typeof setInterval> | null, reply: replyTo, ending: false };
     st.timer = setInterval(() => { const ms = Date.now() - st.start; setRec({ secs: Math.floor(ms / 1000) }); if (voiceFull(ms) as boolean) void finishVoice(true); }, 250);
-    recState.current = st; setRec({ secs: 0 });
+    feel.hold(); recState.current = st; setRec({ secs: 0 });
   };
   // "@": the people of this chat (everyone in the company for the Office), narrowed by what has been typed after it.
   const mentionQ = mentionQuery(draft, Math.min(caret, draft.length)) as string | null;
@@ -282,7 +283,7 @@ export default function Chat() {
   const quoteLine = (q: Quote) => `${q.sender_name ? `${q.sender_name}: ` : ''}${q.deleted ? 'This message was deleted' : q.text || (q.photo ? 'Photo' : q.audio ? 'Voice message' : q.file || '')}`;
 
   const bubble = (m: Msg, mine: boolean, showName: boolean, tick: string) => (
-    <Pressable accessibilityHint="Hold for more" onLongPress={() => { if (!m.deleted) setSheet(m); }} delayLongPress={350} style={[styles.row, mine ? styles.mine : styles.theirs]}>
+    <Pressable accessibilityHint="Hold for more" onLongPress={() => { if (!m.deleted) { feel.hold(); setSheet(m); } }} delayLongPress={350} style={[styles.row, mine ? styles.mine : styles.theirs]}>
       <View style={[styles.bubble, { backgroundColor: mine ? t.accent : t.surface2 }]}>
         {showName && !mine && <Text style={[styles.from, { color: `hsl(${chatHue(m.sender_id || m.sender_name || '')}, 70%, 72%)` }]}>{m.sender_name || 'Someone'}</Text>}
         {!!m.reply && <Text style={[styles.quote, { color: t.muted, borderLeftColor: t.line }]} numberOfLines={2}>{quoteLine(m.reply)}</Text>}

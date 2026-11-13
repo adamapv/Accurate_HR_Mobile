@@ -5,6 +5,7 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { fmtDate, isoLocal, parseDay } from '@/lib/dates';
 import { radius, space, TOUCH, useTheme } from '@/theme';
+import { feel } from '@/lib/haptics';
 
 const pad2 = (n: number) => String(n).padStart(2, '0');
 const atTime = (hm: string) => { const [h, m] = (hm || '07:00').split(':').map(Number); const d = new Date(); d.setHours(h || 0, m || 0, 0, 0); return d; };
@@ -64,7 +65,7 @@ export function ChooseField<T>({ label, value, placeholder, options, search, onC
           <FlatList data={list} keyExtractor={o => o.key} keyboardShouldPersistTaps="handled"
             ListEmptyComponent={<Text style={[styles.empty, { color: t.muted }]}>{query.trim() ? 'Nothing matches.' : 'Nothing to choose from.'}</Text>}
             renderItem={({ item }) => (
-              <Pressable accessibilityRole="button" onPress={() => { setOpen(false); onChoose(item.item); }} style={[styles.row, { borderBottomColor: t.line2 }]}>
+              <Pressable accessibilityRole="button" onPress={() => { feel.pick(); setOpen(false); onChoose(item.item); }} style={[styles.row, { borderBottomColor: t.line2 }]}>
                 <Text style={[styles.value, { color: t.fg }]}>{item.title}</Text>
                 {!!item.detail && <Text numberOfLines={1} style={[styles.detail, { color: t.muted }]}>{item.detail}</Text>}
               </Pressable>
