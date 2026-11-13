@@ -24,6 +24,7 @@ The AccurateHR Field view as a native Android and iPhone app. Built with React N
 - My expenses (from More): the four figures over your claims and the claims themselves. A claim has its date, description and lines; a line is a receipt or amount (with a photo of the receipt) or a distance paid at the company's rate, and can be charged to a job's cost centre. A draft or a claim sent back can be changed, sent or deleted. Needs signal.
 - My qualifications (from More): the four figures over your tickets, what you have sent in for review (Withdraw while it waits), and the tickets on your record with Renew / update. Submit a ticket takes photos of the card with the camera and what is printed on it, and sends it for an admin to check. Needs signal. Scan a card is still to come.
 - My documents (from More, for a level with the Documents area): the three figures over them, the ones waiting on you (Sign or Acknowledge with your typed name), and everything on file, with Open the file where a document has one (it opens in the phone's own app for it and is not kept on the phone). A contract is still read and signed in the browser.
+- My assets (from More): the three figures over what you hold, and each item with Report issue (its condition has changed, it is damaged, lost or stolen, or just a check-in, with the condition it is in now and a note). Needs signal.
 - Home opens with no signal, on the copy kept from last time.
 - Sign out, which forgets everything kept on the phone.
 

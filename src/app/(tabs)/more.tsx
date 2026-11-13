@@ -1,4 +1,4 @@
-// More: who is signed in, this build, and Sign out. Chat, POs, My leave, My expenses, My qualifications and My documents open from here. The rest of the Field view's More (assets, forms, device settings) joins it as it is built.
+// More: who is signed in, this build, and Sign out. Chat, POs, My leave, My expenses, My qualifications, My documents and My assets open from here. The rest of the Field view's More (forms, device settings) joins it as it is built.
 // The sentence that says what is still in the browser is kept in step with what the app has: change it whenever a screen is added.
 import { Linking } from 'react-native';
 import { router } from 'expo-router';
@@ -27,6 +27,7 @@ export default function More() {
       <Button kind="plain" onPress={() => router.push('/expenses')}>My expenses</Button>
       <Button kind="plain" onPress={() => router.push('/quals')}>My qualifications</Button>
       {can(me.access, 'documents') && <Button kind="plain" onPress={() => router.push('/documents')}>My documents</Button>}
+      <Button kind="plain" onPress={() => router.push('/assets')}>My assets</Button>
       <Card>
         <Body tone="muted">Contracts, scanning a card and reporting an incident are in the Field view in your browser for now. In Chat, photos, voice messages and documents are sent from the browser for now.</Body>
         <Button kind="plain" onPress={() => { void Linking.openURL(API_URL); }}>Open AccurateHR in the browser</Button>
