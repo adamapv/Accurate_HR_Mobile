@@ -1,10 +1,12 @@
-// Home. Who is signed in, where the clock stands, and Clock on. The clock is read with the web Field view's own rules (shared/field-core.js) and written through
+// Home. Who is signed in, where the clock stands, Clock on, and the jobs published for the person today and tomorrow. The clock is read with the web Field view's own rules (shared/field-core.js) and written through
 // the outbox (shared/offline-queue.js), so a clock-on with no signal is kept on the phone and sent once when the signal returns.
 import { useEffect, useState } from 'react';
 import { View } from 'react-native';
 import { router } from 'expo-router';
 import { openCardState, restHoldText } from '@shared/field-core.js';
 import { applyToOpenCard, applyToRecent, describe } from '@shared/offline-queue.js';
+import { addDaysIso } from '@shared/pickers-core.js';
+import { JobRow, type SchedRow } from '@/job-row';
 import { useSession, type Me } from '@/lib/session';
 import { useRead } from '@/lib/use-read';
 import { useOutbox } from '@/lib/use-outbox';
@@ -27,6 +29,8 @@ function SignedIn({ me }: { me: Me }) {
   const { offline } = useSession();
   const open = useRead<OpenCard>('/job-cards/open');
   const queued = useOutbox();
+  const day0 = localToday();
+  const sched = useRead<{ rows: SchedRow[] }>(`/schedule/mine?from=${day0}&to=${addDaysIso(day0, 1)}`);
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState('');
   const [, tick] = useState(0);
@@ -99,8 +103,19 @@ function SignedIn({ me }: { me: Me }) {
         </Card>
       )}
 
+      <Body tone="muted">Scheduled today</Body>
+      {!sched.data ? <Body tone="muted">{sched.error || 'Loading…'}</Body>
+        : sched.data.rows.filter(r => r.work_date === today).length === 0 ? <Body tone="muted">Nothing published for you today.</Body>
+        : sched.data.rows.filter(r => r.work_date === today).map(r => <JobRow key={`${r.work_date}:${r.company_id}:${r.job_id}`} row={r} />)}
+      {!!sched.data && sched.data.rows.some(r => r.work_date > today) && (
+        <>
+          <Body tone="muted">Tomorrow</Body>
+          {sched.data.rows.filter(r => r.work_date > today).map(r => <JobRow key={`${r.work_date}:${r.company_id}:${r.job_id}`} row={r} />)}
+        </>
+      )}
+
       <Card>
-        <Body tone="muted">This is an early build of the app. Safety, your week, Chat and the rest are in the Field view in your browser for now.</Body>
+        <Body tone="muted">This is an early build of the app. Starting a job from this list, Safety, your week, Chat and the rest are in the Field view in your browser for now.</Body>
       </Card>
     </Screen>
   );
