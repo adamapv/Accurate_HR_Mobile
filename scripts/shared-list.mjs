@@ -14,4 +14,5 @@ export const SHARED = [
   'swms.js',          // what a SWMS is made of
   'reading.js',       // Reading & focus settings
   'locale.js',        // a company's state, time zone and regulator
+  'help.js',          // the help: its topics, who sees which task, what a search keeps
 ];

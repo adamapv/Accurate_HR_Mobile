@@ -73,6 +73,7 @@ export default function More() {
         {!!me.email_configured && !!me.employee.email && <Row icon="mail-outline" tint="violet" title={emailSw.label} sub={emailOn ? `On, to ${me.employee.email}` : 'Off'} onPress={() => { void toggleEmail(); }} />}
         <Row icon="sunny-outline" tint="teal" title={noteRow.label} sub={noteRow.sub} onPress={() => router.push('/morning-note')} />
         <Row icon="key-outline" tint="amber" title="Change PIN" onPress={() => router.push('/change-pin?own=1')} />
+        <Row icon="help-circle-outline" tint="violet" title="Help" sub="How to do each thing you can do" onPress={() => router.push('/help')} />
         <Row icon="globe-outline" tint="blue" title="Open in the browser" sub="Contracts and Scan a card, for now" onPress={() => { void Linking.openURL(API_URL); }} last />
       </List>
       {!!said && <Notice tone="ok">{said}</Notice>}

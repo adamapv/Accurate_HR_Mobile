@@ -1,0 +1,1090 @@
+// The help content: what staff, managers and admins can do in each part of AccurateHR, with a
+// link to a step-by-step Scribe guide for each task. Shown in the app at #/help and on the public
+// page at /help (public/help.html), both from this one file.
+//
+// It is keyed to the Feature codex (src/codex.mjs, which is the operator's own reference and is not served to
+// browsers): `id` is a codex module id, and each topic carries its own `name`, `group`, `status` and `screens`, copied
+// from the module so that this file can be public without the codex. This file holds only plain-language wording, so
+// it has no tables, routes or function names in it. `node scripts/check-help.mjs` keeps the two in step, and fails on
+// a technical name in any wording shown to the public.
+//
+// Each topic is told in four parts: `overview` (what it does and who uses it, in a few plain sentences), `intro`
+// (the one line above its tasks), `tasks` (what to do, with a Scribe guide) and `good` (rules worth knowing, in plain
+// words). The public page shows a topic only when its `status` is live; partial and off ones are not advertised.
+//
+// To add a guide: make it in Scribe, then paste its share link into that task's `guide`.
+// A task with an empty `guide` is listed without a link until you do.
+//
+// `for` says who the task is for, by role:
+//   everyone  every signed-in person
+//   manager   managers, admins and owners
+//   workshop  mechanics, admins and owners
+//   admin     admins and owners
+// The public page has no one signed in, so it shows every task, under a heading for who it is for.
+//
+// `area` and `need` say which part of a person's access level (public/access.js) decides a task: the
+// area is one of its ids (hiring, company_setup, leave...) and the need is what the task takes there,
+// `view` (any access to the area), `edit` (the Can change tick) or `approve` (the Can approve tick).
+// Write such a task with at(area, need, ...) instead of t(...). The in-app page shows a task whose area
+// is live by what the signed-in person's level allows there, whatever their role, so someone whose
+// level gives them Hiring sees the Hire board help without being an admin, and an admin whose
+// level withholds it does not. A task with no area, or one whose area a level does not decide (it still follows the role), is shown by
+// `for` and the person's role. Every task keeps its `for` for the public page's headings.
+//
+// Nothing here may be specific to one customer: the public page is the same for every company.
+
+import { AREA_BY_KEY, can } from './access.js';
+
+// Shown at the top of the help page, above the topics. Leave empty until you have one.
+export const ALL_GUIDES_URL = '';
+
+// The areas the topics sit under (the codex's groups): the page draws each in its colour.
+export const GROUPS = [
+  { id: 'people', label: 'People & HR', tint: 'blue' },
+  { id: 'hiring', label: 'Hiring & onboarding', tint: 'green' },
+  { id: 'time', label: 'Time & pay', tint: 'teal' },
+  { id: 'ops', label: 'Operations', tint: 'orange' },
+  { id: 'integrations', label: 'Integrations', tint: 'violet' },
+  { id: 'platform', label: 'Platform', tint: 'slate' },
+];
+
+export const FOR = [
+  { id: 'everyone', label: 'Everyone' },
+  { id: 'manager', label: 'Managers' },
+  { id: 'workshop', label: 'Workshop' },
+  { id: 'admin', label: 'Admins' },
+];
+
+export const ROLES = [
+  ['Employee', 'Sees their own pay, leave, documents and records, and can report safety issues.'],
+  ['Manager', 'Does everything an employee does, and approves leave, timesheets and expenses for their team.'],
+  ['Mechanic', 'Does everything an employee does, and can open the workshop screens.'],
+  ['Admin', 'Sets up the company and sees everyone. Only an owner can make someone an admin, or take Admin away.'],
+  ['Owner', 'The first person to set up the company. Can do everything an admin can. An admin cannot reset an owner’s PIN, change their sign-in or role, or deactivate or delete them.'],
+];
+
+// Codex modules with no help of their own: they run behind the scenes.
+export const NO_HELP = ['jobs-link', 'cron'];
+
+// Who can do a task, given the signed-in role. `role` is employee, manager, mechanic, admin or owner.
+export function canSee(forWho, role) {
+  if (forWho === 'everyone') return true;
+  const admin = role === 'admin' || role === 'owner';
+  if (forWho === 'manager') return admin || role === 'manager';
+  if (forWho === 'workshop') return admin || role === 'mechanic';
+  return admin;
+}
+
+// Whether the in-app page shows a task to a signed-in person: by their grant in the task's area when that area is
+// live (`access` is their grants, area by area), otherwise by their role and the task's `for`.
+export function showTask(task, role, access) {
+  if (task.area && AREA_BY_KEY[task.area]?.live && access) return can(access, task.area, task.need || 'view');
+  return canSee(task.for, role);
+}
+
+const t = (title, forWho, about, guide = '') => ({ title, for: forWho, about, guide });
+// A task decided by an access level's area (see the top of this file).
+const at = (area, need, title, forWho, about, guide = '') => ({ ...t(title, forWho, about, guide), area, need });
+
+export const TOPICS = [
+  {
+    id: 'auth',
+    name: 'Sign-in & roles', group: 'platform', status: 'live',
+    screens: [['my-hr', 'My HR']],
+    intro: 'Sign in with your email and a PIN of 4 to 8 digits (6 to 8 for admins and owners). Your company can give you a company code the first time.',
+    overview: 'Everyone signs in with their email and a PIN of 4 to 8 digits (an admin or owner needs 6 to 8, and nobody can choose an easy one like 1234 or 0000), or with Face ID or a fingerprint once it is set up on their phone. The first time on a device, the sign-in screen asks for your company code, which the device then remembers. Your admin’s email has a Sign in button that fills the code in for you. You can change your own PIN from the account menu, and an admin can reset it if you forget it.',
+    good: [
+      'The fifth wrong PIN in a row pauses sign-in for 15 minutes, however quickly the tries come. A failed Face ID or fingerprint attempt counts the same way. While it is paused the screen says the same thing as for a wrong PIN, and an admin can unlock you sooner.',
+      'A PIN an admin made, reset or emailed for you is only good for signing in once: before anything else the app asks you to choose your own. The new PIN is in the email, and is shown to the admin only when the email could not be sent.',
+      'A PIN cannot be the same digit repeated (0000), a run (1234 or 4321), a steady step (2580) or a short block said twice (1212). A new PIN made for you, such as after a reset, is six digits.',
+      'You stay signed in for 30 days, and the clock restarts while you keep using the app. Signing out ends it straight away.',
+      'A Face ID or fingerprint passkey belongs to that device and to your face or finger, so nobody else can use it. You can list your devices and remove any of them.',
+      'Your PIN is never stored in a readable form, and an email address can only be used once within a company.',
+    ],
+    tasks: [
+      t('Sign in for the first time', 'everyone', 'Open the email your admin sent and tap Sign in: the screen opens with your company code already filled in, so you only enter your email and the PIN from the email. If you type the address yourself instead, the email also lists your company code. The first time on a new device is the only time it asks.'),
+      t('Reset a forgotten PIN', 'everyone', 'Ask your manager or an HR admin to reset it. You will get a new PIN to sign in with (emailed to you if email is set up), and the app asks you to choose your own the first time. Only an owner can reset another owner’s PIN, so an owner who forgets theirs asks the other owner or the AccurateHR team.'),
+      t('Unlock someone who has been locked out', 'admin', 'Open their record from People: a red notice says they are locked out after five wrong PINs, and Unlock sign-in lets them straight back in with the PIN they already have. It clears itself after 15 minutes anyway.'),
+      t('Understand the roles', 'everyone', 'Employee, manager, mechanic, admin and owner each see different screens. The list is on this page.'),
+    ],
+  },
+  {
+    id: 'access',
+    name: 'Access levels', group: 'platform', status: 'live',
+    screens: [['access-levels', 'Access levels']],
+    intro: 'Decide what each kind of person can see and do. You make a level, choose what it allows in each area, then give it to an employee type: everyone who has that type has that level.',
+    overview: 'Access levels decide what each kind of person can see and do. A level lists the areas of the app, such as leave, pay cycles or integrations, and for each one allows no access, a person’s own records, their team’s or everyone’s, with a choice of whether they can also change or approve things. You give a level to an employee type, and everyone with that type has that level. Admins and owners set this up, and everyone else simply finds that some screens are there or not.',
+    good: [
+      'Five levels come built in, one for each role: Employee, Mechanic, Manager, Admin and Owner. A company that changes nothing sees no difference.',
+      'Nobody can give more than they hold. A level you make or change cannot allow more than you can do yourself, and it cannot be based on a higher role than yours.',
+      'Each level has a Sensitive data tab for bank accounts, super, tax file numbers, pay rates, dates of birth, and addresses and emergency contacts. A hidden item is blanked out on every screen, and account and tax file numbers stay masked until someone shows them in full, which is logged. Everyone always sees their own.',
+      'Before a level is given to an employee type, the app lists anyone whose role would change and asks you to confirm.',
+      'The built-in levels can be adjusted and put back to standard, but not renamed or deleted. The Owner level cannot be changed or given to a type, and a level that an employee type uses cannot be deleted.',
+    ],
+    tasks: [
+      at('access', 'edit', 'Make a level from an existing one', 'admin', 'On the Levels tab press Duplicate on any level except Owner. The copy starts with the same access in every area, for you to change and save under a new name. You can only give a level what you have yourself.'),
+      at('access', 'edit', 'Make an access level', 'admin', 'Settings → Access levels → New level. Name it, choose the role it is based on (it works like that role wherever the list says Follows role), then choose what it allows in each area you can set, such as Leave, Employee documents, Purchase orders, Schedule, Pay cycles, Integrations, Company setup or Hiring. You can never give a level more than you have yourself.'),
+      at('access', 'edit', 'Choose what staff can do for themselves', 'admin', 'Open the Employee level under Settings → Access levels. Own details says whether they can change their own profile; Leave whose leave they see (their own or their team’s, which opens the team calendar), whether they can request it and whether they can approve it; Employee documents whether they see their own and can upload; Purchase orders whether they see their own and can raise one. Everyone on the standard Employee level follows it; make another level for a type that should differ.'),
+      at('access', 'edit', 'Let someone keep the company setup or the hiring without being an admin', 'admin', 'Make a level that allows Company setup (company details, imports, announcements, categories, policies, forms, contract templates) or Hiring (the Hire board, employee types, starter packs and the onboarding and offboarding templates), and give it to their employee type. Hiring does not yet include adding a new hire, starting an onboarding, offers or pay details: those stay with admins. Nobody with either can lift a person above their own level, or change someone with more access than they have.'),
+      at('access', 'edit', 'Decide who sees bank accounts, super, tax file numbers, pay rates, dates of birth and addresses', 'admin', 'Open a level and its Sensitive data tab. Each kind is Hidden, Can see, or Can see with Can change, and applies to other people’s records among the people that level already reaches: it blanks the part out of every screen without closing the screen. Account numbers and tax file numbers stay masked until shown in full, which is logged. Everyone always sees their own. Admins start with all of it; managers see only a report’s date of birth; employees see none of other people’s.'),
+      at('access', 'edit', 'Give a level to an employee type', 'admin', 'On the Employee types tab, choose a level beside each type. The app lists who would change role and asks you to confirm; everyone who has the type takes the level. A type with no level leaves each person with the access their role has always had.'),
+      at('access', 'view', 'See who has which level', 'admin', 'The Levels tab shows how many people have each level and which employee types use it. In Edit employee, a person whose type has a level shows that level in place of their role.'),
+    ],
+  },
+  {
+    id: 'dashboard',
+    name: 'Dashboard & to-dos', group: 'platform', status: 'live',
+    screens: [['dashboard', 'Dashboard'], ['field', 'Home'], ['field/jobcard', 'Job card'], ['field/safety', 'Safety'], ['field/week', 'My week'], ['field/more', 'More']],
+    intro: 'Your dashboard is your starting point: what needs you now, the key figures for your role, who is off, and a card for each part of the business.',
+    overview: 'The dashboard is everyone’s starting point. It shows what needs you now, the key figures for your role, who is off and what is on today, and a card for each part of the business you can open. The Me tab is your own space, with your week day by day, a one-tap submit for each day you finish, and the things waiting on you. On a phone, people on the tools get the Field view, a field app with Home, Job card, Safety, My week and More along the bottom and Chat at the top; managers and office staff get the full app laid out for a small screen. Which one a person gets is set on their access level.',
+    good: [
+      'What you see depends on your role: an employee sees their own figures, a manager their team’s pending approvals, and an admin the whole company’s expiring tickets, overdue safety actions, plant due and open reviews.',
+      'The Field view is for people on the tools, so planning the week and the hubs are not in it: they are in the full app, which a phone shows too. A leading hand is the exception for approving: if their level can approve and uses the Field view, Home has a To approve block with the leave, time and expenses waiting for their decision. Any device can switch between the two under More or the account menu.',
+      'Every card can be hidden or reordered with Customise, and reset to the default. You can pin up to six screens under your name as shortcuts.',
+      'In the Field view, clocking on and off and adding or changing job cards works with no signal. Everything is saved on the phone and sent in order when you are back in range, and the screen says when you are looking at an offline copy.',
+      'The Field view sends reminders at 6 pm if you are still on the clock or have nothing logged against a job published for you, and on weekdays at 6 pm if you have days with hours that you have not submitted.',
+      'Sunlight mode gives a light, high-contrast look for bright sun. Each device switches it on for itself.',
+      'Reading & focus settings make the app easier to read for you: a dyslexia-friendly or easy-to-read font, bigger text, more space between lines and words, one thing at a time on the dashboard, the Me tab and Home, softer colours, a calmer screen with nothing moving, and a reading guide that follows your mouse on a computer. They are saved with you, so they are the same on your phone and at the office; nobody else sees them.',
+    ],
+    tasks: [
+      t('Use your to-do list', 'everyone', 'Each item is something waiting on you, such as a policy to read or a request to approve. Tap it to go straight there.'),
+      t('Add a photo and pin shortcuts', 'everyone', 'On the Me tab, tap the camera on your picture to add a photo only you can see, and use Pin screens to keep your favourite pages one tap away under your name.'),
+      t('Submit your day from the Me tab', 'everyone', 'The My week card shows your hours day by day. When you have finished a day and are clocked off, tap Submit day.'),
+      t('Switch on Sunlight mode in bright sun', 'everyone', 'Under More → This device (or your account menu) tap Sunlight mode for a light, high-contrast look that is easier to read outdoors. It stays on for this device until you tap it again; it does not follow your phone’s own dark or light setting, so you can flip it in the sun and back in the ute.'),
+      t('Make the app easier to read', 'everyone', 'Under More → This device (or your account menu) tap Reading & focus. Choose a font (Standard, Easy to read, or Dyslexia-friendly), a text size (Normal, Larger, Largest) and spacing (Normal or Spread out), and tick One thing at a time, Softer colours, Calmer screen or Reading guide if they help. The sample on the right changes as you choose, every change is kept at once, and Back to standard undoes the lot. The settings follow you to every device you sign in on, unlike Sunlight mode, which stays with the device.'),
+      t('See one thing at a time', 'everyone', 'Tick One thing at a time under Reading & focus. The dashboard and the Me tab then open on a single card: the one item most in need of you (anything overdue comes first, the most overdue of all at the front), with how many are behind it, Done or Open, and Skip for now to put it to the back for this visit (it is still waiting, and is at the front again next time). On the phone, Home shows the clock, the job you are on (or your first job today) and the same card. Show everything brings the usual page back for this visit, and Back to one thing folds it away again. The quick-action chips under the greeting go while it is on; Jump to and Customise stay.'),
+      t('Sign in with Face ID or your fingerprint', 'everyone', 'After you sign in with your PIN on a phone, the app offers to use Face ID or your fingerprint next time; you can also turn it on under More → This device (or your account menu) → Face ID / fingerprint sign-in. From then on the sign-in screen has an Unlock button above the PIN box; your PIN still works. The same screen lists the devices you have set up and lets you remove one. Nobody else can use your passkey: it is tied to this app’s address and to your face or finger on that device.'),
+      t('Work with no signal', 'everyone', 'Clock on, clock off, add time, change or delete a card as usual: with no signal it is saved on your phone (the screen says so) and sent, in order, as soon as you have signal again, or when you next open the app. Hours still waiting count in your week, but the week cannot be sent until they have gone. If the server refuses something when it is sent (for example you were already clocked on from another phone), it shows under the clock on Home with the reason and Retry or Discard. Signing out deletes anything that has not been sent, and warns you first.'),
+      t('Get to a job and ring the people who run it', 'everyone', 'On a job on the Field view’s Home screen, tap Navigate to open the site in your maps app. Call PM rings the job’s project manager. Call team leaders rings the job’s team leader, or lists them to choose from when the job has more than one. The numbers are the ones on those people’s records. If the job has no project manager or team leader set, or the person has no number, the app says so. The customer’s number is not shown: people on site ring the office’s people, not the customer.'),
+      t('See your day on one bar', 'everyone', 'Under the clock on Home, each job card of the day is a block on a bar from 6 am to 6 pm, with a red line at now and the open card running up to it. Tap a block to open that card.'),
+      t('Use the Field view on your phone', 'everyone', 'If your access level uses the Field view, your phone opens the field app. Home has a big Clock on / Clock off button, the jobs published for you today with a Start button that clocks you on to that job (with the statements to sign on to and the checklists to tick under each), the day on one bar, this week’s schedule day by day, this week’s hours and what is waiting on you (for a leading hand whose level can approve, a To approve block too: the leave, days of time and expense claims waiting for their decision, each opening its approvals screen inside the Field view). Job card is one day’s time: Add time to a job (with its cost centre) or an activity, or clock on (the form opens in place under the button, not as a pop-up), see the day’s cards and Edit one, and Submit day when it is done; go back a day to fix an earlier one. Safety is the SWMS to sign on to and the checklists to tick on today’s jobs, the company policies to read, and reporting an incident, damage or a hazard. My week is the week’s days with what has been submitted, your hours, how many statements you signed on to and checklists you ticked, and your leave with Request leave. More is everything else, this device and Sign out. Chat is the speech bubble at the top. Today’s schedule and your week still show when you have no signal, and the screen says “Offline copy from 9:12 am” when that is what you are looking at (“Updated 2 min ago” otherwise); pull down to refresh, or swipe sideways to move between the tabs. When you are on the clock, every tab but Home shows a strip above the bar with since when and a Clock off button. A number on Home is how many things are waiting on you; a dot on Job card means a day needs submitting; a number on Safety is what is still to sign on to, tick or read. On an iPhone, tap Share in Safari and then Add to Home Screen so it opens full screen like an app (the hint is also under More, This device). To use the full app on your phone instead, open More and tap Use the full app on this device (or the same item in your account menu to come back); a manager whose level does not use the Field view can switch to it the same way.'),
+      t('Use lists on your phone', 'everyone', 'On a phone every list shows as cards instead of a table. Search at the top, tap Filter to tick what you want to see and choose a sort, and tap the × on a filter chip to drop it. Tap More on a card for the rest of its details. Where a list has bulk actions, tap Select, tick the cards and use the bar at the bottom; Export is in the Filter sheet and that bar.'),
+      t('Make your Me tab yours', 'everyone', 'The Me tab opens with your name and your week, then your everyday jobs, your records and your growth. Choose Customise at the top to hide a section or change their order.'),
+      t('Make the dashboard yours', 'everyone', 'Choose Customise at the top to hide the sections you do not use and put the rest in the order you like. Reset to default brings everything back.'),
+      t('Work through the getting-started list', 'admin', 'A new company’s dashboard opens with a Getting started card: add your company details (ABN and address), add your people, one at a time or from a CSV file, then email them their logins. The card ticks each step by itself as it happens, shows a progress bar, and goes away on its own once all three are done. Face ID or fingerprint sign-in, checking your leave types and connecting Xero or Dropbox are listed as Optional and never keep it on screen. Choose Hide if you would rather not see it; it does not come back. Companies that were already running when it was added do not get it.'),
+      t('Move between pages in a tab', 'everyone', 'Inside a tab such as Team, Operations or Settings, a menu down the left lists that tab’s pages, so you can jump sideways without going back. Press Hide menu at the top of it for more room; the page then uses the full width, and the small Menu button at the top left brings it back. Your choice is remembered on that device. The phone view has its own layout and does not use it.'),
+      t('Find a page or person fast', 'everyone', 'Press Ctrl+K, or tap the search icon, to jump to any page you can open. Managers and admins can search for people too.'),
+    ],
+  },
+  {
+    id: 'people',
+    name: 'People & Employee 360', group: 'people', status: 'live',
+    screens: [['people', 'People'], ['my-hr', 'My HR']],
+    intro: 'The directory of everyone in the company, and one full profile page for each person.',
+    overview: 'People holds one record for every person in the company, and a full profile page for each one. The profile pulls together their leave, time, documents, licences and tickets, assets, forms, contracts and reviews. Managers see their direct reports and admins see everyone. Each person sees, and where the company allows it changes, their own details under My HR.',
+    good: [
+      'Who reports to whom decides what a manager can see and approve. A person can have extra managers when they are shared across jobs.',
+      'Works on, on the record, is the days of the week a person works (blank is Monday to Friday). The scheduling board greys the other days and warns when they are planned on one, a leave request is counted over the days they work, and a timesheet is never flagged for a day they do not work.',
+      'A person’s company decides which simPRO and which Xero organisation their records go to, and their details are sent to simPRO when you save.',
+      'Job costing figures for a person, such as hourly cost and sell price, show only to access levels that are allowed to see pay rates, and they appear in no report.',
+      'When you type a street address, the app searches as you go. Pick a match and the suburb, state and postcode fill in, or type the whole address yourself.',
+      'From a person’s page an admin can send login details, reset a PIN or deactivate them. None of that can be done to an owner by an admin. Only an owner can make someone an admin, whether by their role, their employee type or an import, and only an owner can demote, deactivate, archive, delete or start the departure of an admin. An owner who forgets their PIN is reset by another owner, so it is worth having two.',
+    ],
+    tasks: [
+      at('my_details', 'edit', 'Update your own details', 'everyone', 'Open My HR to see your profile, emergency contact and address, and change what your company lets you change.'),
+      t('Open someone’s full profile', 'manager', 'People lists your direct reports (admins see everyone). Tap a person to see their leave, time, documents, qualifications, assets and reviews together.'),
+      t('Move several people to another company at once', 'admin', 'Where the account has more than one company, tick the people in the People list and choose Change company in the bar at the bottom. That company is where their time, leave and jobs go by default. They keep their staff ID. Their accounting link belongs to the old company, so it is cleared and they need linking again in the new one.'),
+      t('Add or change an employee', 'admin', 'Edit employee has four tabs: Details (name, email, phone, employee type, role, department, date of commencement), Reporting (manager, extra managers, what their schedule and timesheets follow, where job time comes from, and whether they are kept off the scheduling board), Pay & simPRO (company, expected hours, timesheet profile, simPRO ID and the buttons that send them to simPRO) and Job costing. What you type on one tab is kept when you move to another, and Save saves them all. Send login details, Reset PIN and Deactivate stay at the bottom.'),
+      t('Change someone’s email, phone, address or uniform details', 'admin', 'On a person’s page, press Edit on the Contact & personal card. Personal details has their sign-in email, phone, date of birth, nickname, address and emergency contact, and Uniform last ordered: the day their uniform was last ordered. The card shows that day and how long ago it was, so you can see when a uniform is due again. The email is what they sign in with, so each person needs their own.'),
+      t('Send a login or reset a PIN', 'admin', 'From a person’s page, send them a new login or reset their PIN. The new PIN is in the email and is shown to you only if the email could not go. They choose their own PIN the first time they sign in.'),
+      t('Give a person more than one manager', 'admin', 'Add extra managers for someone shared across jobs. They all see the person in their team and can approve for them.'),
+      t('Group someone by their jobs', 'admin', 'For a person who works for several team leaders, set “Schedule, hours and timesheets follow” to Their jobs on their record. Each leader then sees them only on that leader’s jobs and approves their timesheet; their manager still handles leave, expenses and reviews. To switch several people at once, tick them on the People list and use Group by.'),
+      t('Move someone to AccurateJobs job cards', 'admin', 'Set “Job time comes from” to AccurateJobs on their record (or choose Job time from on the People list for several at once) and pick the Monday it starts. From that day they add and submit their job cards in AccurateJobs, a manager approves them there, and the approved hours come here for pay; they no longer clock on or submit days of time in this app. It is refused while they have AccurateHR time on or after that Monday or are still clocked on, because it would be paid twice. Moving them back to AccurateHR is always allowed.'),
+      t('Choose who leads a job', 'admin', 'In Operations → Jobs open a job and choose Team leaders. The simPRO project manager leads it unless you ignore them; add anyone else who should. To set the same leaders on many jobs, tick them on the Jobs list and use Team leaders.'),
+    ],
+  },
+  {
+    id: 'reports',
+    name: 'Reports', group: 'people', status: 'live',
+    screens: [['reports', 'Reports']],
+    intro: 'Pick a report, then a period and a grouping. Managers see themselves and their team; admins see the whole company.',
+    overview: 'Reports is a catalogue of ready-made reports covering people, leave, time and labour, and compliance, safety and plant. Each report has a period, a grouping where it makes sense, key figures, a chart and a table. Admins and owners see the whole company, and managers see themselves and their team. Employees do not have reports.',
+    good: [
+      'Periods include presets such as this month and the Australian financial year, or you can choose custom dates.',
+      'Expense, incident and corrective-action reports are for admins only, and the plant reports need workshop access.',
+      'Leave balances are always reported in hours, never dollars. The job-costing rates on a person appear in no report.',
+    ],
+    tasks: [
+      t('Open a report', 'manager', 'Team → Reports, then choose a card. Change the period (this month, the financial year, custom dates) and the grouping at the top; the tiles, chart and table follow.'),
+      t('Export or print a report', 'manager', 'Export downloads what is showing as a spreadsheet. Print opens a print-ready page with the company name, the period and the table.'),
+      t('Money, safety and plant reports', 'admin', 'Expense and safety reports are for admins. Plant status, cost and downtime need workshop access.'),
+      t('See who worked a public holiday', 'manager', 'Open Public holidays worked (in time and labour) and pick a period, by default this financial year. Each public holiday in it lists who worked (the jobs and the hours), who had it off and who was on leave; group it by holiday or by person. A manager sees their own team, an admin everyone.'),
+    ],
+  },
+  {
+    id: 'recharges',
+    name: 'Intercompany recharges', group: 'time', status: 'live',
+    screens: [['recharges', 'Intercompany recharges']],
+    intro: 'When your staff work on another company’s jobs, the company that pays them bills the other company for those hours.',
+    overview: 'When someone employed by one of your companies works on another of your companies’ jobs, the company that pays them bills the job’s company for those hours. Intercompany recharges works out the hours at a billable rate, and posts the sales invoice and the matching bill to the two companies’ Xero as drafts. It is used by admins and owners in a group that runs more than one company.',
+    good: [
+      'Each hour is billed at the rate that applied on the day it was worked.',
+      'Only hours on approved days are billed. Activity time stays with the person’s own company.',
+      'Invoices are numbered RC-0001 onward, and the hours they cover are marked so nothing is billed twice. Voiding an invoice releases the hours and deletes or voids the Xero documents, though a paid one stays.',
+      'Invoices and bills arrive in Xero as drafts, so your accounts team can check and approve them.',
+      'If Xero was connected before recharges existed, reconnect it once to allow invoices.',
+    ],
+    tasks: [
+      at('recharges', 'edit', 'Set billable rates', 'admin', 'Team → Intercompany recharges → Rates. Add a rate for everyone, then a rate for anyone who is billed differently. Each rate applies from its date.'),
+      at('recharges', 'view', 'See what is ready to invoice', 'admin', 'The Tally tab shows, for each pair of companies and each person, the approved hours ready to bill, the hours still waiting on a day’s approval, and any with no rate.'),
+      at('recharges', 'edit', 'Raise an invoice and post it to Xero', 'admin', 'Choose the period, press Create invoice on the pair, check the lines, then Post to Xero. The sales invoice arrives as a draft in the billing company’s Xero, and the matching bill as a draft in the job company’s Xero, for accounts to approve.'),
+      at('recharges', 'edit', 'Set each company’s Xero accounts and contact', 'admin', 'Settings tab: the revenue account code and tax type for the recharges a company raises, the expense account code for the recharges it receives, and the contact name it is billed as. If Xero was connected before this feature, reconnect it once to grant invoice access.'),
+    ],
+  },
+  {
+    id: 'leave',
+    name: 'Leave', group: 'people', status: 'live',
+    screens: [['my-leave', 'My leave'], ['approvals', 'Leave approvals'], ['leave-types', 'Leave types']],
+    intro: 'Request leave, see your balances, and get it approved by your manager.',
+    overview: 'Leave covers leave types, balances, requests, approvals and a team calendar. Staff request leave in My leave, and their manager approves or declines it in Leave approvals, with an optional comment. Everyone whose access level allows it can request, managers and admins approve, and admins set up the leave types.',
+    good: [
+      'A new company starts with five leave types: Annual, Personal/Sick, Unpaid, Long Service and Parental. The last three build up nothing until you set a rate.',
+      'Balances build up every night. A part-timer builds up in proportion to their expected weekly hours, a casual builds up nothing, no one builds up before they start or after they leave, and a leave type’s maximum balance stops it. Approving leave takes the hours off straight away, and cancelling puts them back, once, however many people click at the same time.',
+      'Leave hours have to be more than nothing and no more than the working days you pick hold. Leave them blank and the app works them out from the days, without weekends and public holidays.',
+      'As you pick the dates on a request, the form shows the hours, what your balance will be after it, any leave you already have on those days and, if your level shows the team calendar, who else is off. It never stops you sending: your manager decides, and can go below a zero balance.',
+      'A leave type linked to Xero is not built up in the app. Xero keeps that balance, and the app reads it back after each pay cycle is sent.',
+      'Approved leave is booked into simPRO as a leave activity, so the schedule there shows the person away. Cancelling it removes the booking.',
+      'Approved leave and public holidays count as hours in pay cycles. Nobody approves their own leave, except the owner.',
+    ],
+    tasks: [
+      at('leave', 'edit', 'Request leave', 'everyone', 'In My leave, pick the type and dates and check the summary the form shows, then submit. Your manager is told which days and what kind, and you are told when they decide.'),
+      at('leave', 'edit', 'Cancel a leave request', 'everyone', 'Open the request in My leave and cancel it. Once the leave has started only your manager can cancel it, because it is already in your pay.'),
+      at('company_setup', 'edit', 'Add your public holidays', 'admin', 'Under Settings, in Pay and time, open Public holidays and choose the year. If your state is set you are offered its usual days: tick the ones that apply to you and press Add. Days that move to a weekday, or that are for one area only, are marked, and days your state announces each year (such as a Grand Final Friday) are added by hand once the date is known. Check the list against your state’s government page each year. Leave and timesheets use this list: a public holiday is skipped by leave and paid at the Public holiday rate. On the same screen, under On the schedule, choose the simPRO activity a public holiday is (one named Public Holiday is chosen for you once your activities have been read) and tick the employee types that have public holidays off: the scheduling board then names each holiday, warns when someone is put on a job that day, and can put everyone with the day off onto the holiday in one step. A public holiday is planned, never logged as time, and counts as leave for pay and hours.'),
+      at('company_setup', 'edit', 'Add your RDOs', 'admin', 'Under Settings, in Pay and time, open RDOs. Add each rostered day off with its date and a name if it helps, year by year (nothing is suggested: your RDO calendar is your own). Under On the schedule, choose the simPRO activity an RDO is (one named RDO is chosen for you once your activities have been read) and tick the employee types that have RDOs off. The schedule and the calendar then show each RDO in pink, apart from the amber of a public holiday; the board warns when one of those people is put on a job that day and can put everyone with the day off onto the RDO in one step; the Today screen tells each of them it is their RDO. An RDO is planned, never logged as time, and it is not a day of leave: it is paid a day at its own earnings rate (chosen under Settings → Xero, in the Public holidays and RDOs card, for the same employment types as a public holiday not worked), and a leave request over it, the leave report and the expected hours skip it for the people who have it off. Everyone else works an RDO as a normal day.'),
+      at('leave', 'view', 'See who is away', 'everyone', 'The team leave calendar shows leave and public holidays, if your company has turned it on for you.'),
+      at('leave', 'approve', 'Approve or decline leave', 'manager', 'Leave approvals lists requests waiting on you, with the balance each will leave and how many others on the team are off then. A notification opens the request. You can add a comment with your decision. Approving also puts the person on the schedule board for each day of the leave, on a row named for the leave, and takes them off whatever they were planned on those days. If they were planned on something, you are told what and asked to confirm before the leave is approved.'),
+      at('schedule', 'edit', 'Move a day of approved leave on the schedule board', 'manager', 'A day of approved leave on the board carries a padlock: it cannot be dragged, swapped or taken off, so nobody plans over someone’s leave by accident. To change one day, open the person’s menu on that day and choose Unlock this leave day. It asks first, and the day then behaves like any other booking. The leave itself stays approved. To change the leave, cancel it under Leave: its days come off the board.'),
+      at('company_setup', 'edit', 'Set up leave types', 'admin', 'Choose the kinds of leave staff can request, how each one builds up, and whether it needs approval. Leave a type that is linked to a simPRO activity and needs no approval (a toolbox meeting, say) unticked: staff then log it on their timesheet as an activity instead of asking for it.'),
+    ],
+  },
+  {
+    id: 'documents',
+    name: 'Documents & policies', group: 'people', status: 'live',
+    screens: [['my-documents', 'My documents'], ['policies', 'Company policies'], ['manage-policies', 'Manage policies']],
+    intro: 'Your personnel documents, and the company policies you need to read and acknowledge.',
+    overview: 'Documents and policies keeps personnel documents such as contracts, certificates and letters for each person, with an expiry date and a sign or acknowledge step. It also holds a company policy library, where every employee reads and acknowledges the same copy. Staff see their own documents and the policies. Admins upload documents and write policies, and so can anyone whose access level includes Company setup.',
+    good: [
+      'Expiring documents and policies you have not yet read show up in your to-do list and on the dashboard.',
+      'Your access level decides whether you can see your own documents and upload them. The standard Employee level can see them but not upload.',
+      'A published policy appears for every employee until they acknowledge it, and admins can see who has and who has not. Publishing can tell everyone in the bell menu (or by push and email), and the notice opens the policy.',
+      'Changing a policy tells nobody unless you choose to, so a typo fix does not send a notice. Acknowledgements already given stay.',
+      'A policy can be added to an onboarding template, so new hires acknowledge it in their first weeks.',
+      'When you write a policy, pasting from Word or Google Docs brings the headings, bold, lists and tables with it.',
+    ],
+    tasks: [
+      at('company_setup', 'edit', 'Copy a policy', 'admin', 'On Manage policies press Duplicate to start a new policy from an existing one. The original is not changed, and the copy is only there for staff once you publish it.'),
+      at('documents', 'view', 'Read and sign a document', 'everyone', 'My documents lists what is waiting for you to sign or acknowledge.'),
+      t('Acknowledge a company policy', 'everyone', 'Company policies lists the policies to read. Acknowledging tells HR you have read it.'),
+      at('documents', 'edit', 'Upload a document for someone', 'admin', 'Attach a document to a person and set an expiry date if it has one.'),
+      at('company_setup', 'edit', 'Write and publish a policy', 'admin', 'Manage policies is the policy library. Choose whether to tell people when you publish it. You can see who has acknowledged each one.'),
+      at('company_setup', 'edit', 'Remind people to acknowledge a policy', 'admin', 'On Manage policies, press Remind on a policy. Everyone employed who has not acknowledged it yet gets a reminder in the bell menu, or by push and email if you choose. Nobody is reminded twice within three days.'),
+      at('company_setup', 'edit', 'Format a policy or a contract', 'admin', 'The bar above the text sets headings, bold, italic, underline, text colour (Automatic goes back to the normal colour), bullet and numbered lists, indents, links and tables. Indent moves a paragraph in a level at a time (Tab at the start of a line does the same, Shift+Tab moves it back); in a list it moves the item under the one before. Insert a table asks for its size; while the caret is in one, the Table bar adds and deletes rows and columns, Tab goes to the next cell, and Tab in the last cell adds a row. Paste from Word or Google Docs and the headings, bold, italic, underline, links, bullets, indents and tables come with it. The numbers you see in Word (1., 7.1, (a)) come across as typed text, so they stay as they are. Text colours do not come across yet.'),
+    ],
+  },
+  {
+    id: 'chat',
+    name: 'Chat', group: 'people', status: 'live',
+    screens: [['chat', 'Chat'], ['field/chat', 'Chat']],
+    intro: 'Message the office, a colleague or your crew, with photos, from your phone or a computer.',
+    overview: 'Chat is for the quick questions that would otherwise be a phone call. There is one chat for the whole company, called the Office, a one-to-one chat with anyone, and small groups for a crew or a job. A message can be text, a photo with a caption, a document, a voice message, or a reply that quotes another message, and you can react to it with an emoji, mention a colleague by name, search for anything said before and (for people allowed to) save any of it to a job. Each message shows a tick when it has gone and two when it has been read. It works like the messaging app you already use: a list of chats, swipe a message to reply, press and hold for the menu.',
+    good: [
+      'A private one-to-one chat is read only by the two people in it. Nobody else can read it, not even an admin. The Office is the one everybody can read.',
+      'New messages come as a notification on your phone, one for each chat, and the speech bubble at the top of the screen shows how many are waiting. While the app is open, a message in a chat you are not looking at also pops up on screen, for example “Adam: Running late”; tap it to open the chat. They never go by email.',
+      'The Office starts muted for staff who are not managers or admins, so you are not buzzed all day, but you are still told when someone answers after you have spoken in it, or when someone mentions you by name. A chat you muted yourself stays quiet, even for a mention.',
+      'Saving a chat to a job needs your company’s simPRO to be connected. It makes a Word document in the job’s attachments in simPRO (with the photos beside it), in a folder called AccurateHR chat. Everyone who can see that job in simPRO can read it, and a line in the chat tells everyone in it that you saved it. It is never shared with the customer. Managers, admins and owners can do it to start with; staff ask someone in the chat who can, or an admin can give their level Save chats to jobs.',
+      'The copy of a saved chat that AccurateHR keeps is removed 30 days after it reached simPRO. The file stays on the job.',
+      'Searching finds only what you are allowed to read: your own chats and the Office. Someone else’s private chat never turns up.',
+      'A message you write with no signal waits on your phone with a clock beside it and goes once when the signal comes back. A photo or a voice message needs a signal.',
+      'A voice message can be up to five minutes. If you switch to another app or a call comes in while you are recording, the recording is thrown away, so nothing goes that you did not send.',
+      'Anyone you add to a group can read what was said before they joined. Messages and photos are kept for a year.',
+    ],
+    tasks: [
+      at('chat', 'view', 'Open Chat', 'everyone', 'Tap the speech bubble at the top of the screen, in the Field view or on a computer (on a computer it is also under Me → Chat). The Office is always first in the list, and a round count shows how many messages are waiting in a chat.'),
+      at('chat', 'edit', 'Send a message', 'everyone', 'Type in the message box and tap the arrow. On a computer, or a phone with a keyboard, press Enter to send and Shift+Enter for a new line; on a phone Enter starts a new line and the arrow sends.'),
+      at('chat', 'edit', 'Ask the office a question', 'everyone', 'Open Chat and tap the Office. Write your question and tap the arrow. Everyone in the company can read it, and the office is told. If you have no signal it is sent when you get some.'),
+      at('chat', 'edit', 'Message a colleague', 'everyone', 'Tap the round new-chat button at the bottom right, then their name (search for it if the list is long). The chat opens, and the next time it is in your list.'),
+      at('chat', 'edit', 'Send a voice message', 'everyone', 'Tap the microphone beside the message box (allow the microphone if your phone asks). Speak, then tap the arrow to send, or the bin to throw it away. It needs a signal.'),
+      at('chat', 'view', 'Play a voice message', 'everyone', 'Tap the play button in the message. The bars fill as it plays; tap them to jump, and tap 1× to play it faster. If your phone cannot play it, tap Save it to keep the file.'),
+      at('chat', 'edit', 'Send a photo', 'everyone', 'In a chat tap the camera. Take a photo or choose one, add a caption if you like and tap the arrow. It needs a signal, and shows in the chat as a picture you can tap to see full screen. On a computer you can also paste a screenshot with Ctrl+V, or drag a picture onto the chat (see Paste a screenshot or drag in a file).'),
+      at('chat', 'edit', 'Reply to a message', 'everyone', 'Swipe the message to the right, or press and hold it and tap Reply. Your message shows the one it answers, and tapping that jumps back to it.'),
+      at('chat', 'edit', 'Delete a message you sent', 'everyone', 'Press and hold it and tap Delete for everyone. It stays in the chat as “This message was deleted” for everybody.'),
+      at('chat', 'edit', 'React to a message', 'everyone', 'Press and hold the message and tap one of the six emoji along the top. Tap the same one again to take it back. Tap the little emoji under a message to see who reacted. A reaction does not buzz anyone’s phone.'),
+      at('chat', 'edit', 'Rename a group', 'everyone', 'Anyone in a group who can send messages can rename it. On a computer, use Rename in the bar above the chat. On a phone, open the group’s menu and choose Rename group, or use Rename group in Group info. The new name shows for everyone in the group.'),
+      t('Use chat on a computer', 'everyone', 'On a computer the chat list has a New chat button at the top, and the bar above a chat has Group info, Rename and Mute. Right-click a message for its menu: react, reply, copy, select or delete. Menus open where you click, and Escape closes them. Press Enter to send and Shift and Enter for a new line.'),
+      at('chat', 'edit', 'Send a document', 'everyone', 'Tap the document button beside the camera in the message box and choose the file: a PDF, a Word, Excel or PowerPoint file, a CSV or a text file, up to 10 MB. It is sent as a message with its name and size, and anyone in the chat can tap it to download it. Only the people in that chat can open it. Deleting the message deletes the document. It needs a signal.'),
+      at('chat', 'edit', 'Paste a screenshot or drag in a file', 'everyone', 'On a computer, take a screenshot and press Ctrl+V (Cmd+V on a Mac) with a chat open: the picture comes up with a box for a caption, press Enter to send it. You do not have to save it first. You can also drag a picture or a document from your desktop or a folder onto the chat, and the whole chat lights up with Drop to send. One picture opens the same caption screen as the camera button; documents and several pictures go straight away, up to five files at a time. The same rules apply as for the buttons: pictures and a PDF, a Word, Excel or PowerPoint file, a CSV or a text file, up to 10 MB, and a signal. Anything else is refused with the reason. Text you paste still pastes as text, and in a chat you can only read, nothing is sent.'),
+      at('chat_groups', 'edit', 'Take someone out of a chat group', 'manager', 'Open the group, tap its name, and choose Take out beside the person. Your level needs Manage chat groups (managers, admins and owners have it to start with), and you need to be in the group. They stop getting its messages; what they said stays, and they can be added again. Anyone with Chat can still start a group, rename it and add people, and anyone can leave one.'),
+      at('chat', 'edit', 'Mention a colleague', 'everyone', 'Type @ in the message box and the first letters of their name, then tap their name in the list that opens. Their name is shown in bold in your message and they are told, even if they have the chat switched off by default. In a group, only people in the group are listed; in the Office, anyone in the company.'),
+      at('chat', 'view', 'Search old messages', 'everyone', 'Type two or more letters in the search box at the top of the chat list. Messages that match appear below the chats; tap one to open that chat at that message, then tap the arrow at the bottom to go back to the newest.'),
+      at('chat_save', 'edit', 'Save a chat to a job', 'manager', 'You need to be in the chat, and your level needs Save chats to jobs (managers, admins and owners have it to start with). To save some messages, press and hold one, tap Select messages, tick the others and tap Save to job. To save the last day or the whole chat, tap the three dots at the top and choose Save chat to a job. Choose the job, leave Include the photos ticked if you want them, and tap Save to job. A Word document of the conversation goes to that job’s attachments in simPRO, in a folder called AccurateHR chat.'),
+      at('chat', 'view', 'See what was saved, and send it again', 'everyone', 'Tap the three dots at the top of the chat and choose Saved to jobs. Each save shows its job, how many messages, and whether simPRO has it. Tap Download for the Word file for 30 days after it was sent, or Send again (if you may save chats) when it did not get there.'),
+      at('chat', 'edit', 'Start a group', 'everyone', 'Tap the new-chat button, then New group. Name it, tick the people and tap Create group. Tap the group’s name at the top of the chat to see who is in it, add people or leave.'),
+      at('chat', 'view', 'Turn a chat’s notifications off', 'everyone', 'Open the chat, tap the three dots at the top right and choose Mute notifications. A muted chat tells you nothing and is left out of the count, but still shows how many messages are waiting inside it.'),
+      at('chat', 'view', 'Know what the ticks mean', 'everyone', 'A clock means it is still being sent, one tick means it has gone, and two blue ticks mean they have read it. In a group two blue ticks mean everyone has read it. The Office shows no read ticks.'),
+      at('chat', 'approve', 'Remove a message from the Office or a group', 'admin', 'A level with Can moderate can press and hold anyone’s message in the Office or a group and choose Delete for everyone. A private one-to-one chat can never be moderated, because nobody outside it can open it.'),
+      at('access', 'edit', 'Choose who can save chats to jobs', 'admin', 'Settings → Access levels: open a level and set Save chats to jobs to Yes. Managers, admins and owners have it to start with and staff do not. A person also needs Chat, and has to be in the chat they save.'),
+      at('access', 'edit', 'Choose who can use chat', 'admin', 'Settings → Access levels: open a level and set Chat to No access to turn it off for that kind of person, or take away Can send so they can read chats but not write. Everyone starts with chat on.'),
+    ],
+  },
+  {
+    id: 'calendar',
+    name: 'Company calendar', group: 'ops', status: 'live',
+    screens: [['calendar', 'Calendar']],
+    intro: 'One calendar for the company: who is away, the public holidays and RDOs, who is on which job each day, people milestones, due dates and company events, by month, week or day, or as a list; and a Today panel on the dashboard and Me tab. You see what the rest of the app already lets you see.',
+    overview: 'The calendar puts the company’s days in one place: who is away, the public holidays and RDOs, who is on which job each day, people’s first days, work anniversaries and birthdays, what is coming due (reviews, 1:1s, licence expiries, plant services, open safety actions) and company events such as a toolbox talk or a shutdown. You can see it by month, week or day, or as a list of the next thirty days, and the dashboard and the Me tab each have a Today panel with what is on today and tomorrow. Everyone can open it, and each part shows only what that person’s access level already lets them see elsewhere in the app, for example leave at their Leave access and jobs at their Schedule access. A person can also turn on a morning note that sends their day at an hour they choose.',
+    good: [
+      'The jobs on a day come from the planning board in AccurateHR (Schedule), not from simPRO’s own schedule, so a company that plans its jobs in simPRO sees none on the calendar. The morning note is off until a person turns it on.',
+      'The calendar adds no access of its own: leave, jobs, milestones and due dates each follow the access level for the part of the app they come from, so the leave of a colleague who is not one of your people shows only as Away.',
+    ],
+    tasks: [
+      t('See what is on', 'everyone', 'Operations → Calendar (staff: Me → Calendar). Month shows the month, with leave over several days as a bar across the week and the day’s jobs as chips; Week shows a column per day with who is away under each date; Day is the day in full; Agenda is the next thirty days as a list. Use the arrows or Today to move, the date box to jump, and the chips under the title to switch a layer off (each says how many are in view). Click anything for its details and an Open link to the screen it came from.'),
+      t('Find a person, a job or a department', 'everyone', 'Type in Find a person or job to keep only the items that name them, or pick a department. With more than one company, pick a company. The view, the date and the switched-off layers are kept in the address, so you can send someone the link and they see the same picture.'),
+      t('Know what you can see', 'everyone', 'The calendar follows your access level: leave at your level’s Leave scope and jobs at its Schedule scope (Their own, Their team or Everyone), and the public holidays for all. On the standard Employee level that is your own leave and your own published jobs; on the standard Manager level your people’s leave with its kind (a colleague who is not one of yours shows only as Away) and every job on the board, including days still in draft, drawn dashed; on the Admin level everyone’s. A level set to Their team for Schedule sees the jobs its team and the jobs it leads are on. A line under the chips says which it is.'),
+      t('Read the day', 'everyone', 'The Day view starts with how many are away, how many jobs are on, the milestones and what is due, then a panel for each: the people on leave with the kind of leave, each job with its customer, site, address, crew, plant and notes, the milestones, and the due dates with their time where they have one. At the bottom, tomorrow at a glance. On a phone the calendar opens on the Day view.'),
+      t('See milestones and due dates', 'everyone', 'The People layer shows first days, last days, work anniversaries and birthdays (the day and month only, never the year, and only your own unless your level may see dates of birth). The Due layer shows 1:1s with their time, review cycles opening and closing, licences and tickets expiring or booked for renewal, plant due for service, rego or inspection, scheduled work orders, open safety actions and announcements going out or ending, each only as far as that part of the app lets you see. Overdue things are red, things due within a fortnight orange.'),
+      t('Add a company event', 'admin', 'A level that can change Company setup presses Add event on the calendar (or opens a day and presses it there): what it is, the kind (meeting, training, toolbox talk, social, shutdown or other) and a colour if you want one other than the kind’s, the dates, All day or a start and end time, where, notes, and who it is for: everyone, departments or picked people. Choose whether to tell them (nothing is sent unless you do: in the bell menu, or bell menu, push and email). The event appears on the calendar of everyone it is for, and in their Today panel on the day.'),
+      t('Add an event for your team', 'manager', 'A level whose People scope is Their team can add an event for the people it manages (pick them) or for its own department: a toolbox talk, a crew catch-up, a site shutdown. You cannot aim one at everyone; that takes Company setup. Only you, or someone with Company setup, can change or remove it.'),
+      t('Change or remove an event', 'manager', 'Click the event and press Edit. Change anything, and choose whether to tell the people again (they are told it changed). Remove takes it off everyone’s calendar; nobody is told about a removal.'),
+      t('Get your day each morning', 'everyone', 'Open My morning note (under your name at the top right, the Morning note button on the calendar, or More on the phone), turn on Send me my day each morning and pick the hour, 5 to 9 am. From then on, at that hour, a short note arrives in the bell menu (and on a phone that has notifications on): the jobs you are on with who is with you, events, who is away, milestones, what is due, and tomorrow in a line; it says only what the calendar shows you. Tick Also email it if you want it in your inbox too; nothing is emailed otherwise. It is off unless you turn it on, and a morning with nothing on sends nothing.'),
+      t('Use the Today panel', 'everyone', 'The dashboard’s Today panel (where Who’s off used to be; Customise can move or hide it) and the Me tab’s say in a sentence what is on today, list a few rows for each kind of thing, then tomorrow in a sentence and anything later this week. Tap a row for its details, or Calendar to open the day in full. Staff still see their leave balances on it.'),
+    ],
+  },
+  {
+    id: 'hires',
+    name: 'Hire board', group: 'hiring', status: 'live',
+    screens: [['hires', 'Hire board']],
+    intro: 'Everyone on their way in, as cards on a board you drag between columns, kept out of the People list until they start.',
+    overview: 'The Hire board is a board of cards for people who haven’t started yet, so they stay out of your People list until they do. Each card sits in a column: Setting up, Offer sent, Accepted, Onboarding, Started or Declined. It is used by admins and anyone whose access level includes Hiring.',
+    good: [
+      'People in Setting up, Offer sent and Accepted are left out of the People list and the headcount, and People shows a note saying how many are on the board.',
+      'Sending, accepting, declining or withdrawing an offer moves the card for you. Dropping a card in Onboarding starts their onboarding from the template you pick.',
+      'Cards in the first three columns show how many things are done before the first day, such as 3 of 8, or Ready to start when nothing is left. Opening a card also shows what has already been emailed or asked for, and when.',
+      'Once an Accepted person’s date of commencement arrives, they count as started and appear in People, even if nobody moved the card.',
+      'Started cards leave the board after 14 days and Declined cards after 60. Nobody is deleted.',
+    ],
+    tasks: [
+      at('hiring', 'view', 'Use the Hire board', 'admin', 'Hire → Hire board shows the jobs you have advertised (Open vacancies) and everyone on their way in as cards in columns: Setting up, Offer sent, Accepted, Onboarding, Started and Declined. Dropping a card in Onboarding starts their onboarding (you pick the template), and dropping it from there in Started completes it. Drag a card to move it (or open it and use Move to). Sending, accepting, declining or withdrawing an offer moves the card for you. People on the board are left out of the People list until they start: drop their card in Started, or their date of commencement arrives. Add a hire starts a new card, and an admin can move someone who works here onto the board from their page.'),
+      at('hiring', 'edit', 'Add someone to the board', 'admin', 'Hire → Hire board → Add a hire, or People → Add new hire with Put them on the Hire board until they start ticked (it is ticked for you when their date of commencement is still ahead or an offer goes with them). The card starts in Setting up. Someone who already works here can be moved onto the board from their page.'),
+      at('hiring', 'view', 'See what is left before someone starts', 'admin', 'Each card in Setting up, Offer sent and Accepted on the Hire board shows how many things are done before their first day, such as 3 of 8, or Ready to start when nothing is left. Open the card for the list: offer accepted, date, manager, email, login details sent, bank and super, PPE sizes, required licences, onboarding planned, and (if connected) in simPRO and set up in Xero. Each one that is not done says what is missing and has a button for the next step. If something has already been emailed or asked for, the line says when, by whom and to what address, and whether they have opened or started it, so anyone opening the card can see it; the button then reads Ask again or Email again.'),
+      at('hiring', 'edit', 'Move a card', 'admin', 'Drag a card to another column, or inside a column to put it in a different order. Open a card and use Move to for the same thing on a phone or with the keyboard. You cannot drag a card into or out of Declined (reactivate the person from their page instead), and a running onboarding cannot be dragged back to an earlier column: complete it or cancel it from the card.'),
+      at('hiring', 'edit', 'Know what happens when a card is dropped in Started', 'admin', 'The person goes into the People list, and today becomes their date of commencement if it was empty or still ahead. An Accepted card whose date of commencement arrives counts as started by itself, so a card nobody moved never hides someone who is working. Started cards leave the board after 14 days and Declined cards after 60; nobody is deleted.'),
+    ],
+  },
+  {
+    id: 'vacancies',
+    name: 'Vacancies', group: 'hiring', status: 'live',
+    screens: [['hires', 'Hire board']],
+    intro: 'The jobs you have advertised, kept as the first column of the Hire board so a hire can say which ad they came from.',
+    overview: 'Vacancies keeps the jobs you have advertised in the first column of the Hire board, Open vacancies, so a hire can say which ad they came from. You paste in the ad’s link and its text, and the app fills in the details for you to check. It is used by admins and anyone whose access level includes Hiring.',
+    good: [
+      'The app never opens the ad’s page by itself. It keeps your link and the text you pasted, so the details are still there after the ad comes down.',
+      'A vacancy stays open until every opening has a hire or you close it. If a hire declines their offer, the vacancy opens again.',
+      'A vacancy open for more than 30 days is flagged, because nothing tells the app when an ad comes down.',
+      'Only the person you hire is kept here. Everyone else who applied stays on the job site.',
+      'If the ad is changed or removed on the job site, change or close the vacancy here yourself.',
+    ],
+    tasks: [
+      at('hiring', 'edit', 'Add a job you have advertised', 'admin', 'On Hire → Hire board, the first column is Open vacancies: the jobs you have advertised. Press + Add a vacancy, paste the ad’s link (from the address bar on SEEK or any job site) and, if you like, the ad’s text (open the ad, select all, copy, paste). Read the ad fills in the job title, place, state, pay, kind of work, how many people you want and the employee type it looks like, and you check each box. The state (VIC, NSW, QLD, SA, WA, TAS, NT or ACT) shows as a small tag on the vacancy, so you can see where each job is advertised; set or change it with Change on the vacancy, and leave it blank if it doesn’t matter. The app never opens the ad’s page: it keeps the link so you can get back to it, and keeps the pasted text so the details are still here after the ad comes down. A vacancy stays in the column until every opening has a hire, or you close it. One open more than 30 days is flagged, because nothing tells the app when an ad comes down.'),
+      at('hiring', 'edit', 'Add the person you hired for a vacancy', 'admin', 'Click the vacancy on the Hire board, then Add the successful candidate. A new person opens the Add a hire steps with the vacancy’s employee type and kind of work already filled in, so they get that type’s onboarding, contract and starter pack, and their card says From: the vacancy. Someone already on the board or in People can be named instead. Each hire uses up an opening, and when none are left the vacancy is Filled and leaves the column. If a hire declines their offer it opens again. Close without hiring is for an ad that came down with nobody hired; Reopen undoes it. Only the person you hired is kept here: everyone else who applied stays in SEEK.'),
+      at('hiring', 'edit', 'Close or reopen a vacancy', 'admin', 'Open the vacancy and choose Close without hiring when the ad came down with nobody hired; you can say why, and Reopen undoes it. A vacancy can only be removed if nobody was hired from it. Show filled and closed lists the past ones under the open ones.'),
+    ],
+  },
+  {
+    id: 'contracts',
+    name: 'Contracts', group: 'hiring', status: 'live',
+    screens: [['contract-templates', 'Contract templates'], ['contract', 'Contract']],
+    intro: 'Send a contract, have it signed with a typed name, and keep the signed copy on the person’s page.',
+    overview: 'Contracts are made from a template, sent to the person, signed in the app with a typed name, and kept on their record as the signed copy. Admins make and send them, and the person reads and signs. Anyone whose access level includes Company setup can keep the templates.',
+    good: [
+      'Once a contract is sent, its wording can’t change. You can withdraw it until it is signed, and a signed one stays on the person’s page as the record.',
+      'A contract can be made an offer of employment. When they accept, the onboarding you chose starts that moment. If they decline, the offer stops, they are archived and any onboarding is cancelled.',
+      'A contract you send is emailed to the person by default (a box you can untick), with a button to a personal page where they read and sign it with no login. You are told straight away whether the email went, and if it didn’t, press Resend on the contract. An offer is only emailed if you tick it; you can also add reminders, and send their login details when they accept.',
+      'You are told in the bell menu when an offer is still unanswered after 3 and 7 days, is about to end, or has ended.',
+      'If a template uses a field that isn’t on the person’s record, you are asked for it when you make the contract.',
+      'A template can also fill in your company’s own name, ABN, address, phone, email and website, from Company details. A printed contract has your logo and details across the top.',
+    ],
+    tasks: [
+      at('company_setup', 'edit', 'Copy a contract template', 'admin', 'Hire → Contract templates → Duplicate starts a new template with the same wording and fields, for you to change. Nothing is saved until you press Save template.'),
+      t('Read and sign your contract', 'everyone', 'Open it from My documents, your onboarding or the link you were sent. Read all of it, tick the box, type your full name and sign. You can print it afterwards.'),
+      at('contracts', 'edit', 'Fill in a contract’s job details (salary, award, hours, place of work, who they report to, states)', 'admin', 'A template can use {{salary}}, {{award}}, {{hours}}, {{work_address}}, {{reports_to}} and {{work_states}}. In New contract they are filled in from the person’s record (the company’s hours, address and state where theirs are blank, and their manager for who they report to) and you can change any of them for this contract; Save these to their record is ticked so the next contract starts from them. The award is a picker (Professional Employees Award 2020, Plumbing and Fire Sprinklers Award 2020, Not applicable – high income guarantee, or Other to type one), and it warns you if you choose the high income guarantee for a salary below the current threshold of $190,100 a year (from 1 July 2026). The award, hours, place of work and states are on the Contract details part of the person’s editor, and the annual salary is on its Job costing tab. The salary is only filled in and saved for someone whose level includes Pay rates and job costing; for anyone else it is left for you to type.'),
+      at('company_setup', 'edit', 'Add a page break to a contract', 'admin', 'In the template or the draft, put the cursor in the paragraph the page should end after and press Page break in the editor’s bar (the two pages with a dotted line between them). What follows starts a new page when the contract is printed or saved as a PDF. Click the dashed line, then press Delete, to take it out. Page breaks pasted from Word come across too.'),
+      at('company_setup', 'edit', 'Preview a contract template', 'admin', 'In the template (or on a draft) press Preview to see it page by page, as it will read and print, with a page for each page break. For a template you pick whose details to fill it in with, or leave it on a made-up person; anything still blank is highlighted. Print or save as PDF opens the printed copy. Nothing is saved or sent.'),
+      at('company_setup', 'edit', 'Set up a contract template', 'admin', 'Hire → Contract templates. Paste in your usual contract and put {{first_name}}, {{commencement_date}}, {{full_address}} and the like where it changes from person to person. The Insert field menu above the text lists them all. {{pay_rate}} is their hourly pay rate (like $45.00) from their pay rates: it is only filled in for someone whose access level includes Pay rates and job costing, and is left for you to type otherwise.'),
+      t('Make and send a contract', 'admin', 'On the person’s page, Contracts → New contract. Check and edit the draft, then Review and send: you sign for the company by typing a name. The Email box is ticked for you, and you are told whether the email went. If they have no email address on their record, nothing can be emailed, so add one first or copy them a signing link.'),
+      t('Resend a contract', 'admin', 'On the person’s page, Contracts → Resend (it says Email it if it has never been emailed) sends them the contract or offer again, with a new link. The link in any email they were sent before stops working, so a lost email is easy to replace. If the email can’t go you are told why.'),
+      t('Send an offer of employment', 'admin', 'In Add new hire’s Contract step (or New contract on their page), tick Make it an offer of employment and send it. They accept by signing, or decline. When they accept, the onboarding you chose starts the moment they sign, counted from their date of commencement, and you are told in the bell menu. If they decline, they are archived, the offer stops and any onboarding is cancelled. Their page and the people list show Offer sent, Offer accepted and Starts 3 Nov until that day.'),
+      t('Email an offer and chase it', 'admin', 'When you send an offer, tick Email them the offer: they get an email with a button to a personal page where they read it and accept by signing, or decline, with no login. You can also press Resend on the offer (or open Signing link and press Email it to them or Resend the email: it replaces the link they had). Tick Remind them by email too to have the app email them if they haven’t answered after 3 and 7 days and just before it ends. Whether or not you do, you are told in the bell menu when an offer is still unanswered after 3 and 7 days, is about to end, or has ended; the Hire board card shows Offer sent, not opened or Opened, not answered. Tick When they accept, email them their login details and a new PIN is emailed the moment they sign. Nothing is emailed unless you tick it.'),
+      t('Accept or decline an offer', 'everyone', 'Open the offer from your link or My documents and read all of it. Sign to accept it, or choose Decline the offer (you can say why). Declining ends the offer and archives your record.'),
+      t('Send a signing link', 'admin', 'Once a contract is sent, Signing link makes a link they can use without signing in. Copy it and send it yourself, for example by text, if you would rather not email it.'),
+      at('records_delete', 'view', 'Delete a contract or offer', 'admin', 'On the person’s page, Contracts → Delete (on a withdrawn, declined or sent one; a draft has its own Delete). It warns you first, and takes it off their documents if it was sent. A signed or accepted contract is the record and is kept: it can’t be deleted.'),
+      t('Withdraw a contract', 'admin', 'A sent contract that has not been signed can be withdrawn. A signed one stays on the person’s page as the record.'),
+    ],
+  },
+  {
+    id: 'starter-pack',
+    name: 'Starter pack link', group: 'hiring', status: 'live',
+    screens: [['hires', 'Hire board'], ['pay-details', 'Pay & PPE details']],
+    intro: 'A personal link, with no login, where a new hire adds their address, emergency contact, bank, super, tax file number and PPE sizes before their first day.',
+    overview: 'The starter pack is a personal link, with no login, where a new hire adds their address, emergency contact, bank, super, tax file number and PPE sizes before their first day. You send it from their card on the Hire board, or have it go out automatically when they accept an offer. It is set up by admins, and filled in by the new hire on their phone.',
+    good: [
+      'What the link asks for comes from the person’s employee type, on its Before they start tab. You can still change it for one person’s link.',
+      'Everything they add goes on their record just as if they had typed it under My HR, with the same checks.',
+      'A link works for 30 days, and a new link replaces the one before. It only lets them add their own details.',
+      'A link can also carry forms, policies to read and agree to, and checklist items for them to tick.',
+      'Whoever made the link is told in the bell menu when the person finishes. Nothing is sent unless you choose to send it.',
+    ],
+    tasks: [
+      t('Fill in your starter pack', 'everyone', 'Open the link you were sent on your phone. Add what you can: Save keeps it so you can come back later, and Save and finish tells the office you are done. Everything you add goes on your record exactly as if you had typed it under My HR. If the link asks for photos of your licences, Add photos of my licences takes you to the photo page.'),
+      at('hiring', 'edit', 'Ask a new hire for their details', 'admin', 'On their Hire board card (or their page), Ask for their details makes a personal link. Choose what to ask for: their address and emergency contact; bank, super and tax file number; PPE sizes; and, if you like, photos of particular licences and tickets. Then Email it to them, or Make a link to copy and send it yourself, for example by text. Nothing is sent unless you press it. A new link replaces the one before, and a link works for 30 days.'),
+      at('hiring', 'edit', 'Send the pack when an offer is accepted', 'admin', 'When you send an offer, tick When they accept, email them a link to fill in their details. The moment they accept, they are emailed the link and the thank-you page offers it as a button too. What it asks for is the starter pack of their employee type, set on the type’s Before they start tab.'),
+      at('hiring', 'edit', 'Add forms, policies and a checklist to a link', 'admin', 'Besides the details, a link can carry forms (answered the same way as under My forms, except questions that need a photo), policies to read and agree to by typing their name, and checklist items you write for them to tick. Their card shows how far through they are.'),
+      at('hiring', 'view', 'See when they have finished', 'admin', 'Whoever made the link is told in the bell menu when the person finishes, never by email. The card shows what they got through, and their bank and super and PPE sizes count towards Ready to start.'),
+    ],
+  },
+  {
+    id: 'quals',
+    name: 'Qualifications & compliance', group: 'people', status: 'live',
+    screens: [['my-qualifications', 'My qualifications'], ['compliance', 'Compliance']],
+    intro: 'Licences, tickets and certifications, with their expiry dates.',
+    overview: 'Qualifications keeps every licence, ticket and certification on file for each person, with its photo and expiry date. Staff see their own under My qualifications and can send in a new or renewed card. Managers see their team, and admins review what is sent in and see the whole company on Compliance.',
+    good: [
+      'A new or renewed card waits in the review queue until an admin approves it. The old card is kept as history.',
+      'Download on a card saves its scan under a filing name: expiry date, licence, person.',
+      'Scan a card reads the number and dates off a photo for you to check. Nothing is saved until you confirm it, and a card in someone else’s name needs a deliberate tick.',
+      'Expiry reminders are off until an admin turns them on. Once on, the person is reminded before their card expires and when it has, and their manager and admins get summaries.',
+      'The link you email for photos of missing licences works for 14 days, and a newer link switches the old one off.',
+      'Anything sent in through that link waits for your review. Nothing goes on their record until you approve it.',
+    ],
+    tasks: [
+      t('See your licences and tickets', 'everyone', 'My qualifications lists everything on file, with photos or scans, and when each expires.'),
+      t('Send in a new or renewed ticket', 'everyone', 'Add the new card with a photo. An admin checks it before it replaces the old one.'),
+      t('Scan a card instead of typing it', 'everyone', 'If Scan a card is there, pick which ticket it is and take or choose a photo of the card (and the back, if it has the number or date). The number and dates are read for you to check and fix, then sent in for review. Nothing is sent until you say so.'),
+      t('Scan a new starter’s card', 'admin', 'On their profile, Licences & tickets → Scan a card (or from the Licences & tickets screen, which asks who it is for). Pick the ticket, add the photo, check the number and expiry beside it, and add it. A card in someone else’s name needs a deliberate tick, and a card for a ticket they already hold renews it (the old one is kept as history).'),
+      t('Email someone about the licences they are missing', 'admin', 'On their profile, Licences & tickets → Email about licences (it shows once email is set up and they have an address). Tick the licences to ask for: the ones they have to hold and have none on file for are ticked already, and anything else can be ticked. Read the email on the right, then send it. Their email has a button that opens a page just for them, with no sign-in, where they add a photo of each licence. What they send waits under Review for you to check; nothing goes on their record until you approve it. The link works for 14 days, a new email switches the old link off, and “switch it off now” in the pop-up stops it straight away.'),
+      t('See what is expiring across the company', 'admin', 'Compliance shows every licence and ticket by expiry status.'),
+      t('Review submitted tickets', 'admin', 'Approve or reject what staff send in. The old card is kept as history.'),
+      t('Download a licence for filing', 'manager', 'On the person’s page, each card under Licences & tickets has a Download button once it has a scan. The file is named for filing: the expiry date as year.month.day, then the licence, then the person, for example “2027.03.14 - Plumbing Registration - Sam Taylor”. A card with no expiry starts with the licence. If the card has more than one scan (front and back, say), they come together in one zip under that name. A ticket someone sent in can be downloaded once it is approved and on their record. Download all, at the top of the same section, saves every scan on their record in one zip, each file named the same way.'),
+    ],
+  },
+  {
+    id: 'tickets',
+    name: 'Licences & tickets', group: 'ops', status: 'live',
+    screens: [['licences-tickets', 'Licences & tickets']],
+    intro: 'Which tickets each role must hold, who actually holds them, and reminders before they expire.',
+    overview: 'Licences & tickets shows which tickets each role must hold, who actually holds them, and where the gaps are. Admins set the ticket types and requirements, and use the who-holds-what grid to see what is missing or about to expire.',
+    good: [
+      'A requirement can be for a role, a department or a single person, and gaps show up as soon as you add it.',
+      'The grid’s filters work together, so Plumbing and Expired lists the plumbers with an expired card. They only change what is on screen, and the figures above the grid still count everyone.',
+      'Ticket types can have other names they are known by, so free-text names on older records match the right type.',
+      'Duplicate on a ticket type copies its category and who must hold it, but leaves out what the original also counts as, so two types never claim the same cards.',
+    ],
+    tasks: [
+      t('Copy a ticket type', 'admin', 'On the Ticket types tab press Duplicate to start a new type with the same category and the same people required to hold it. What the original also counts as is left out, so two types never claim the same cards.'),
+      t('See who holds which ticket', 'admin', 'Licences & tickets shows the gaps and the cards about to expire.'),
+      t('Narrow down the who-holds-what grid', 'admin', 'Above the grid, search by name and pick a department, an employee type, a kind of ticket, one ticket, or a status (Missing, Expired, Expiring soon, Renewal booked, Current). They work together: Plumbing and Expired lists the plumbers with an expired card. With a status picked, the other cards in each row fade so the matching ones stand out. “Only people with a gap” shows people missing a ticket they must hold, and Clear filters puts everyone back.'),
+      t('Set which tickets a role must hold', 'admin', 'Add a requirement for a role, department or person, and the gaps show up straight away.'),
+    ],
+  },
+  {
+    id: 'forms',
+    name: 'Forms', group: 'people', status: 'live',
+    screens: [['forms', 'Forms'], ['my-forms', 'My forms']],
+    intro: 'Forms for details like banking, super and licences, filled in on the app.',
+    overview: 'Forms lets you build your own forms with fields, sections and file uploads, which staff fill in under My forms. It is built by admins, or anyone whose access level includes Company setup, and filled in by staff. The answers people give are shown to admins.',
+    good: [
+      'Every new company starts with three forms: Banking and super, PPE and uniform sizes, and Licence details.',
+      'A question can also save to a person’s record, such as their bank account number, tax file number or boot size, so payroll and the stores find it there.',
+      'For a bank account number or tax file number, the form keeps only a note that it is saved, so the number isn’t held in two places.',
+      'A mistyped BSB or account number is refused when they save, with the question named.',
+      'Add a form to an onboarding template so every new hire fills it in, or share it under My forms.',
+    ],
+    tasks: [
+      at('company_setup', 'edit', 'Copy a form', 'admin', 'On the Forms screen press Duplicate on a form. A copy opens with the same questions, named “Copy of …”, for you to change. Nothing is saved until you press Create. In the builder, the copy button on a question adds another like it underneath.'),
+      t('Fill in a form', 'everyone', 'My forms lists the forms waiting for you.'),
+      at('company_setup', 'edit', 'Build a form', 'admin', 'Add fields and sections, then share it under My forms or add it to onboarding. A text question can also save to a person’s record (their bank account, super, tax file number or PPE size): choose it in the box on the right of the question.'),
+      at('company_setup', 'view', 'See who has filled a form in', 'admin', 'On the Forms screen press Responses on a form to see who has answered it, then View answers for each person. Answers to bank account number and tax file number questions are not repeated there: they are on the person’s Pay & PPE details.'),
+    ],
+  },
+  {
+    id: 'pay-details',
+    name: 'Pay & PPE details', group: 'hiring', status: 'live',
+    screens: [['pay-details', 'Pay & PPE details'], ['my-hr', 'My HR'], ['hires', 'Hire board']],
+    intro: 'Bank, super, tax file number and PPE sizes, kept on each person’s record for setting them up in Xero and giving them their gear. Who may see or change each part is the Sensitive data tab of their access level.',
+    overview: 'Pay & PPE details keeps what payroll and the stores need in one place on each person’s record: their bank account, super, tax file number and PPE and uniform sizes. People add their own under My HR, or through a form in their onboarding. Admins see everyone’s on Hire → Pay & PPE details, according to the Sensitive data tab of their access level.',
+    good: [
+      'Account numbers and tax file numbers show masked everywhere, even to the person who typed them. Showing one in full is logged, but the number itself is never recorded in the log.',
+      'Leave the account number or tax file number blank when you edit to keep what is saved. A blank ordinary field clears it.',
+      'A BSB must be 6 digits, an account number 5 to 10, and a tax file number 8 or 9. The bank is filled in for you once the BSB is typed.',
+      'If someone’s bank, super or tax file number changes after you ticked them off, the tick comes off so you set them up in Xero again.',
+      'Mark as set up in Xero is a note to yourselves. Nothing is sent to Xero.',
+    ],
+    tasks: [
+      t('Add my bank, super and PPE details', 'everyone', 'My HR has a Pay & super card and a PPE & uniform card: press Add (or Edit). Only you and the people who run payroll can see them, and your account number and tax file number show masked. Leave either blank when you edit to keep what is saved. The same questions are on the Banking & super and PPE & uniform sizes forms in your onboarding.'),
+      t('Set people up in Xero', 'admin', 'Hire → Pay & PPE details lists who has handed in their details; Waiting for Xero is the ones not ticked off yet. Open someone, press Show account number and tax file number in full (that is logged), copy each value with its Copy button, then press Mark as set up in Xero. You can tick several people at once. If their bank, super or tax file number changes later, the tick comes off so you do it again.'),
+      at('hiring', 'edit', 'Ask a new hire for their details', 'admin', 'Open their card on the Hire board and press Ask for their details (or use Ask for details on their page). Tick what you need: their address and emergency contact; bank, super and tax file number; PPE sizes; photos of licences and tickets. Then Email it to them, or Make a link to copy and send it yourself. They open it on their phone with no login, add what they can, and can save and come back. What they add goes straight on their record, and you are told in the bell menu when they finish. A new link replaces the one before.'),
+      t('Send the link automatically when they accept', 'admin', 'When you send an offer, tick When they accept, email them a link to fill in their details. The moment they accept they are emailed the link and the thank-you page offers it too. Nothing is emailed unless you tick it.'),
+      t('Bring in answers from before', 'admin', 'If people filled in the banking or super form before details were kept on their record, a message on Pay & PPE details offers to bring those answers across. Account numbers and tax file numbers are then sealed, and the form keeps only a note.'),
+      t('See or fix a person’s details', 'admin', 'Open a person from Pay & PPE details, or use the Pay, super & PPE card on their page. Edit changes anything; leave the account number or tax file number blank to keep it.'),
+    ],
+  },
+  {
+    id: 'employee-types',
+    name: 'Employee types', group: 'hiring', status: 'live',
+    screens: [['employee-types', 'Employee types']],
+    intro: 'The kinds of person you hire. A type replaces Position and decides which templates they start from.',
+    overview: 'An employee type is a named bundle for each kind of person you hire, such as a permanent full-time plumber or an apprentice. It names the onboarding template, offboarding template, contract template and timesheet profile that kind of person gets, so the right ones are picked for you. It replaces Position. Admins, and anyone whose access level includes Hiring, make and change types, and admins choose one for each person.',
+    good: [
+      'The type’s name is the person’s Position, so it is what simPRO shows and what fills in the position on a contract.',
+      'Renaming a type renames the Position of everyone who has it. Retiring a type keeps it on the people who have it and stops it being offered for anyone new, and you can bring it back.',
+      'Changing someone’s type later does not change anything already started: a running onboarding keeps its template.',
+      'Each type can have a starter pack that says what someone of that type is asked for before their first day. Leave it off and they are asked for the three standard sections.',
+      'A Position that comes in from simPRO or an import and matches a type’s name links the person to that type.',
+    ],
+    tasks: [
+      at('hiring', 'edit', 'Copy an employee type', 'admin', 'Press Duplicate on a type to start a new one with the same templates, timesheet profile and starter pack. It does not copy who has the type or its access level: tick the people on its People tab, and give it a level under Access levels.'),
+      at('hiring', 'edit', 'Make an employee type', 'admin', 'Hire → Employee types → New type. Name it (for example “Plumber – permanent full-time”) and choose the onboarding template, offboarding template, contract template and timesheet profile for that kind of person. All four are optional.'),
+      at('hiring', 'edit', 'Choose someone’s type', 'admin', 'In Add new hire, pick their Employee type: it picks their onboarding template, contract template and timesheet profile (change any of them if you like). On an existing person, Edit employee has the same menu. Their type’s name is their Position in simPRO and in contracts.'),
+      at('hiring', 'view', 'See the templates picked for you', 'admin', 'When you start onboarding or offboarding for someone, or make their contract or offer, the template of their type is already chosen. People with no type fall back to the old guess from their kind of work.'),
+      at('hiring', 'edit', 'Add or remove people from a type', 'admin', 'Open a type (Edit) and use its People tab: tick the people who have it, search by name, or switch on Only ticked to see who has it now. Ticking someone moves them off any other type; unticking leaves them with no type and their Position as it was. Press Save to apply it. This also works when you make a new type.'),
+      at('hiring', 'edit', 'Change several types at once', 'admin', 'On Hire → Employee types, tick the types (or the box in the header for all of them; the filters find, for example, the ones with no onboarding template yet) and use the bar that appears. Set templates changes only what you choose (onboarding, offboarding, contract, timesheet profile) on all of them. Merge into one type moves everyone with the ticked types, including people who have left, onto the one you choose, which keeps its own templates and takes the old ones’ for any it had none of; the others are removed, which can’t be undone. Retire and Bring back work on the ticked types too. Show retired reveals the retired ones.'),
+      at('hiring', 'edit', 'Say what a type is asked for before it starts', 'admin', 'Open the type and use its Before they start tab. Tick Set up a starter pack for this type, then choose which details to ask for, which forms they must fill in, which policies to read and agree to, which licences and tickets to ask photos of, and add checklist items of your own. An office starter needn’t be asked for a plumbing licence. Ask for their details on a hire’s card starts from this, and so does the link an offer sends when it is accepted. Leave it off and they are asked for the three standard sections; tick nothing and no starter pack is sent for that type.'),
+      at('hiring', 'edit', 'Rename or retire a type', 'admin', 'Renaming a type renames the Position of everyone who has it (and any ticket required for it). Retiring one keeps it on the people who have it and stops it being offered for anyone new; you can bring it back.'),
+    ],
+  },
+  {
+    id: 'onboarding',
+    name: 'Onboarding & induction', group: 'hiring', status: 'live',
+    screens: [['onboarding', 'Onboarding templates'], ['hires', 'Hire board'], ['induction-modules', 'Induction modules'], ['my-onboarding', 'My onboarding']],
+    intro: 'A checklist of tasks, induction modules, forms and policies for each new hire.',
+    overview: 'Onboarding gives every new hire a guided first few weeks: tasks, induction modules to read, forms to fill in, documents to sign and policies to agree to, all on one timeline counted from their start date. The new hire works through My onboarding. The office builds the templates and watches each new starter’s progress in the Onboarding column of the Hire board. Managers get the tasks assigned to them.',
+    good: [
+      'A template puts everything on one timeline by due day, where day 0 is their first day. Starting onboarding copies the template with real dates, one run at a time per person.',
+      'Every task has an owner: the new hire, their manager, a particular person, or the office. Whoever has a task is told about it in the bell menu, and a task is never left with nobody.',
+      'Nothing is emailed unless you choose it. Reminders go to the bell menu, with email as an option.',
+      'Cancelled the wrong onboarding? Press Enrol in onboarding on the person’s Hire card and pick the right template. You can enrol someone ahead of their first day.',
+      'Every new company starts with a New starter template that you can change as you like.',
+    ],
+    tasks: [
+      at('hiring', 'edit', 'Copy an onboarding template', 'admin', 'On Hire → Onboarding templates press Duplicate. The copy has the same tasks, induction modules, forms and policies on the same days, ready to change before you save it as a new template. The copy button on a task adds another task like it.'),
+      t('Work through your onboarding', 'everyone', 'My onboarding shows what to do next, then everything else in the order it is due: tasks, induction modules, forms, documents to sign and policies. It is on your dashboard and your phone’s Today screen until you are done.'),
+      at('hiring', 'edit', 'Add a new hire', 'admin', 'People → Add new hire. Fill in who they are, pick their onboarding template to see what happens and when, optionally make their contract, then Add. You get their PIN on the last screen. Add now, beside Next, adds them with what is filled in without the steps still to come, and Add another starts again with the same employee type, manager, start date and company. Their login details are emailed when they have an email address and email is set up (you can untick it on the last step); nothing else is emailed unless you tick it.'),
+      at('hiring', 'edit', 'Enrol someone in onboarding, or swap the template', 'admin', 'Open their Hire card, or their page, and press Enrol in onboarding. Pick the template and the day it starts: someone who has not started yet is set up ahead of their first day. Picked the wrong template? Press Cancel onboarding on the card, then enrol them again with the right one.'),
+      at('hiring', 'edit', 'Start onboarding for a new hire', 'admin', 'Pick the person and a template; the start date comes from their record, and deadlines count from it. Nothing is emailed unless you choose it: the bell menu is the default.'),
+      at('hiring', 'view', 'See how your new starters are going', 'admin', 'The Onboarding column of Hire → Hire board shows a card for each person who has started and is being onboarded: what day they are on, how far along they are, what is overdue (and anything past its finish date) and, when you open the card, who it is waiting on (them, their manager or the office). Open the checklist from the card to see every task, or use Nudge, Complete onboarding or Cancel onboarding. Drop a card in Onboarding to start someone’s onboarding (you pick the template), or use + Start onboarding for someone here.'),
+      at('company_setup', 'edit', 'Choose who has the office’s tasks', 'admin', 'At the top of Hire → Onboarding templates, pick who “Tasks for the office go to” (for example whoever runs payroll). They get every task a template leaves to the office, and a manager’s task for a new starter with no manager, and are told in the bell menu. If nobody is chosen, those tasks go to whoever starts the onboarding (or sent the offer), so none is left with nobody.'),
+      at('hiring', 'edit', 'Give a task to a particular person', 'admin', 'In an onboarding template, set a task’s “Who does it” to A particular person… and choose them, for example the storeperson for “Order their uniform”. If that person leaves, the task goes to the person who has the office’s tasks instead.'),
+      at('hiring', 'edit', 'Nudge a new starter', 'admin', 'Press Nudge on their card. It reminds them what is left, and anyone who has a task for them. It only goes to the bell menu unless you choose email as well.'),
+      at('hiring', 'edit', 'Finish someone’s onboarding', 'admin', 'When everything is done their card says so. Press Complete onboarding (or use the … menu to complete or cancel it at any time).'),
+      at('hiring', 'edit', 'Build an onboarding template', 'admin', 'Hire → Onboarding templates. Everything is on one timeline in the order it falls due: add tasks, pick induction modules, forms and policies from their libraries (or write a new module right there), and give each a day. Day 0 is their first day. New companies start with a “New starter” template you can change.'),
+      at('hiring', 'edit', 'Write an induction module', 'admin', 'Start a line with # for a heading or - for a bullet, put **stars** around bold words, and paste a web address to make a link. “How it looks” previews it, and the new hire sees how long it should take.'),
+    ],
+  },
+  {
+    id: 'offboarding',
+    name: 'Offboarding', group: 'hiring', status: 'live',
+    screens: [['offboarding', 'Offboarding'], ['my-departure', 'My departure']],
+    intro: 'A checklist for people leaving, including returning gear and an exit interview.',
+    overview: 'Offboarding is the mirror of onboarding for people who are leaving. A template lists the tasks, such as returning gear, removing access and final pay, and each leaver gets their own run with tasks for them and for their manager, plus an exit interview. Admins and managers run it, anyone whose access level includes Hiring can keep the templates, and the leaver sees their list in My departure.',
+    good: [
+      'Start offboarding for the person and pick a template. The leaver and their manager get their tasks in their to-do lists.',
+      'The exit interview is recorded against the leaver’s offboarding.',
+      'An employee type can name the offboarding template for that kind of person, so the right one is already chosen when you start.',
+      'Duplicate on a template starts a new one with the same tasks and days, so you can adjust it for a different kind of leaver.',
+    ],
+    tasks: [
+      at('hiring', 'edit', 'Copy an offboarding template', 'admin', 'On the Templates tab press Duplicate. The copy has the same tasks and days. Nothing is saved until you press Create.'),
+      t('See your departure tasks', 'everyone', 'If you are leaving, My departure lists what to do and your exit interview.'),
+      at('hiring', 'edit', 'Start offboarding for a leaver', 'admin', 'Pick a template. The leaver and their manager get their tasks.'),
+    ],
+  },
+  {
+    id: 'performance',
+    name: 'Performance', group: 'people', status: 'live',
+    screens: [['reviews', 'Performance reviews'], ['my-performance', 'My performance'], ['team', 'Team']],
+    intro: 'Review cycles, goals and one-on-ones.',
+    overview: 'Performance keeps review cycles, goals and one-on-one notes in one place, with each person’s history on one page. Each review has a self-assessment from the person and a review from their manager. Managers use it for their direct reports, and staff use it for their own reviews and goals.',
+    good: [
+      'An admin opens a review cycle with a start and end date. Each person completes their self-assessment under My performance, and their manager completes theirs under Performance reviews.',
+      'Goals and one-on-one notes are kept between review cycles, so the history stays on the person’s page.',
+      'You do not see what your manager has written about you until they have finished it. Your manager’s comments and rating on your review stay hidden, on your page as well as under My performance, until the review is complete. The same goes for the notes on a one-on-one: you can add to the agenda, and the notes are yours to read once your manager has marked it completed.',
+      'A person’s own page never shows the HR notes of their offboarding, such as the reason or whether they could be rehired. Those stay with admins.',
+      'The Team tab shows a manager’s people with their approvals, timesheets, leave and tickets, plus two weekly productivity figures.',
+      'Job % is the hours on productive jobs divided by all hours logged. Utilisation is the hours logged divided by the hours the person was expected to work.',
+    ],
+    tasks: [
+      t('Complete your self-assessment', 'everyone', 'My performance shows your goals, reviews and one-on-ones.'),
+      t('Review your team', 'manager', 'Performance reviews has the review cycles. Team gives you your direct reports on one page.'),
+    ],
+  },
+  {
+    id: 'timesheets',
+    name: 'Timesheets & time entries', group: 'time', status: 'live',
+    screens: [['my-timesheet', 'Timesheet'], ['timesheet-approvals', 'Timesheet approvals'], ['timesheet-hub', 'Timesheet hub'], ['timesheet-profiles', 'Timesheet profiles']],
+    intro: 'Clock on, log your hours, then submit each day for approval.',
+    overview: 'Staff record their time as job cards, by clocking on and off against a job or adding time by hand, and as activities such as training, toolbox meetings or yard time. They then submit each day for approval. Managers approve it a day at a time, or the company can approve days automatically, and admins can see every submitted day for a week in the Timesheet hub. Admins set up timesheet profiles, which split each day into ordinary time and overtime at the right rates.',
+    good: [
+      'Before you submit a day, the Submit card lists what an approver would query: a day over 12 hours, a long card with no lunch, a weekday with nothing logged, or a day well away from the simPRO schedule.',
+      'Your approver is one of your managers or, if you are grouped by jobs, the leaders of the jobs you worked that day. A company can also switch on automatic approval, so a day is approved the moment you submit it.',
+      'Submitting or approving a day does not lock it. Add a job in the afternoon or fix a card after it has gone to simPRO and the day goes through again: with automatic approval the change goes straight to simPRO, otherwise it goes back to your manager. Time is only locked once your pay has been sent to Xero. Submitted it too soon? Pull back takes it out of approvals until you submit it again.',
+      'On approval, the day is split into ordinary and overtime by the person’s timesheet profile and sent to simPRO. A later change to a profile does not rewrite time already sent.',
+      'A timesheet profile has a rule for weekdays, Saturday, Sunday and public holidays, and its screen previews exactly what simPRO will get. Anyone without a profile uses the default one.',
+      'A profile can also pay night shifts. A shift that starts inside the night window (for example 6pm to 4am) is paid by the time of day and by how long the shift has run, and it can run past midnight: its time after midnight goes on the next date, and Submit day sends both dates together. Shifts that start at other times are paid by the day rules, and time that comes from AccurateJobs job cards cannot run past midnight.',
+      'After a night shift the profile can set a rest period. Until it is over, Start and Clock on are held on the phone with the time you can start again (this works with no signal too), and the app refuses a clock-on that gets past it. Time added by hand is still allowed, because the hours were worked, but whoever approves the day is shown that it started inside the rest.',
+    ],
+    tasks: [
+      t('Clock on and off', 'everyone', 'Use Timesheet to start and stop the clock, or add time by hand.'),
+      t('Clock off a night shift', 'everyone', 'A shift that started in the evening is still the same shift after midnight: Home shows it live, with the hours so far. Clock off when you finish and the time after midnight goes on the next day, with the rest on the day you started. Only a profile that pays night shifts lets a shift run past midnight.'),
+      t('Copy yesterday or last week', 'everyone', 'Copy a day or a week of job cards instead of typing them again.'),
+      t('Choose a job', 'everyone', 'Click or tap the job box to open the list of jobs: a drop-down on a computer, a sheet from the bottom on a phone. Each job shows its number and name, then who it is for and where. Type in the search box to narrow it down (a number, a word of the name, the customer or the site), then click a job, or use the arrow keys and Enter, to pick it. Clear job takes it off.'),
+      t('Pick the same cost centre again', 'everyone', 'The section and cost centre are one box: tap it and the list shows each of the job’s sections with its cost centres under it, and one tap on a cost centre chooses both. A job with several opens on the one you put time on last, and says so; tap another if this time was different, or Split across cost centres when the time was on more than one.'),
+      t('Star the cost centres you work on', 'everyone', 'In the list, tap the star at the end of a cost centre to keep it near the top. Your starred cost centres for that job show first, under their own heading, and as buttons above the box, so the areas you work on most are one tap away. A star belongs to that job’s cost centre and to you: nobody else sees your stars, and a new job starts with none. The same stars show when you edit a time entry, charge an expense line to a job, or raise a purchase order. Tap the star again to take it off.'),
+      t('Log an activity', 'everyone', 'Training, a toolbox meeting or yard time that is not on a job: Add time, then Activity, then pick it. Add one card for that stretch of the day (a toolbox from 6 to 7), then your job card from 7. If it says it needs approval, request it as leave instead.'),
+      t('Log a public holiday or an RDO', 'everyone', 'Every day is logged, a day off included. On a public holiday, or on an RDO for you, Home and the job card name the day and offer Log as public holiday or Log as RDO: one tap picks it as the day’s activity, then Add time. If you worked, log your hours instead; they go at the public holiday rate. A day logged as a day off counts as leave, is paid by the company’s public holiday or RDO rule, and is booked in simPRO from the schedule board, not from your timesheet. The RDO is also in the Activity list on any day, so you can log one whenever the company lets people timesheet an RDO (its leave type does not need approval); if it does need approval, you ask for it under My leave, and can only log it on an RDO that is yours.'),
+      t('Start from your last day', 'everyone', 'Add time opens with the start, finish and lunch of your last day with time (or 7:00 to 3:30 with lunch). If one job is published for you that day it is picked for you; the jobs published for you head the job list and sit above it as chips, so changing to one of them is a tap. Tap Use <day>’s times in the form to start from that day’s start, finish, lunch and job, or Same as <day> on Today to copy that day’s cards as they were.'),
+      t('Finish your day', 'everyone', 'When you clock off, or add a finished card (Add time, or Start with a clock off typed in), a short review shows the day’s job cards, the hours, lunch, and any job on your schedule with no time against it. Add time from there, then tap Submit day, or tap Not yet. Until the day is sent, Today shows a Submit row under the clock.'),
+      t('Check your days before you submit them', 'everyone', 'The Submit card and the My week card list what an approver would query — a long day, a day with nothing logged, no lunch on a long card, a difference from the simPRO schedule — and wait while you are clocked on or time saved on your phone is still sending.'),
+      t('Submit a day, or several', 'everyone', 'Submit day on a day sends just that day. The Submit card at the bottom sends every finished day you have not submitted yet. You can still add or change time on a day after it is submitted.'),
+      t('Pull a submitted day back', 'everyone', 'Submitted it too soon? Pull back takes the day out of your manager’s approvals until you submit it again, and your manager is told. Once it is approved, ask your manager to reopen it instead.'),
+      t('Fix a day that was sent back', 'everyone', 'A day your manager rejects comes back to you with their reason. Change the time, then submit the day again.'),
+      t('Approve your team’s days', 'manager', 'Timesheet approvals lists each day waiting on you, with flags for a long day, no lunch and differences from the schedule. Open a day to see its time, then approve or reject it with a reason. Tick several to decide them together.'),
+      t('Approve every day with nothing to check', 'manager', 'On Timesheet approvals, Approve all without flags approves every waiting day whose Check column is empty, after asking you. Days with something to check stay for a closer look, and each person is told as if you had approved them one by one.'),
+      t('Reopen an approved day', 'manager', 'On the All days tab, Reopen on an approved day takes its time back out of simPRO and sends the day back to the person to fix and submit again. It is not possible once the pay period has been approved for payroll.'),
+      t('See every submitted day for a week', 'manager', 'The Timesheet hub, under Operations, lists the week’s submitted days with who is waiting on approval, who is approved, and the hours. Admins see the whole company; managers see their team.'),
+      t('Decide what happens to time that did not reach simPRO', 'manager', 'When approved time is refused by simPRO, it is listed at the top of the Timesheet hub under Not in simPRO, for whoever can approve that person’s day: their manager, the leader of a job they worked on, or an admin. Fix shows why it was not sent and what simPRO holds for that person on that day, read from simPRO there and then. From there you can Send again (after unlocking the schedule in simPRO, or linking the person), choose It’s already in simPRO to record the time against the schedule simPRO already has without sending anything, or choose Don’t send it and say why. Time that was set aside stays listed under Show set aside and can be sent after all. Its hours still count for pay. Every choice is recorded with who made it.'),
+      at('records_delete', 'view', 'Delete a day of time', 'admin', 'A day entered by mistake, or in training, can be deleted from the Timesheet hub or from Timesheet approvals (All days): Delete on the day, or tick several days and press Delete. It tells you what goes with the day (its time and job cards) and asks before anything is removed. Time that was sent to simPRO from AccurateHR is deleted from simPRO first, so nothing is left there to get in the way of a new entry that day; if simPRO can’t be reached the day is kept and you can try again. Time that came from an AccurateJobs card and is already in simPRO keeps the day, and so does a day whose pay period has been sent to Xero. Everything deleted is listed under Deleted.'),
+      at('company_setup', 'edit', 'Set up timesheet profiles', 'admin', 'Profiles decide ordinary hours and overtime, and which rates each person’s time goes at.'),
+      at('company_setup', 'edit', 'Set up night shifts', 'admin', 'Open a timesheet profile and choose its Night shift tab. Switch it on, then set the times a night shift starts between, the hours of rest before the next shift, and the rates. Each rate line can be for a time of day (it can run past midnight) and for after a number of hours worked in the shift; the first line that fits each minute is used, and the last line takes everything else. Try a shift in the box underneath before you save. Then match each new rate to a Xero pay rate under Xero, so a pay run knows what to pay it as.'),
+    ],
+  },
+  {
+    id: 'expenses',
+    name: 'Expenses', group: 'time', status: 'live',
+    screens: [['my-expenses', 'My expenses'], ['expense-approvals', 'Expense approvals'], ['expense-categories', 'Expense categories']],
+    intro: 'Claim fuel, materials and travel, with receipts.',
+    overview: 'Expenses lets staff claim fuel, materials and travel in one claim with several lines. Each line can carry a receipt photo, and mileage is claimed at the company’s rate per kilometre. Managers and admins approve claims and mark approved claims as paid. A line can be charged to a job, so its cost is recorded on that job’s cost centre in simPRO.',
+    good: [
+      'Each category carries a code for your accounts system and its own receipt rules, and says whether a manager has to approve claims in it. A claim none of whose lines need a manager is approved as it is sent, and goes straight to ready to pay.',
+      'For each line you choose whether it is charged to a job. If it is, you pick the job, the section and the cost centre, and once the claim is approved the cost (without GST) is recorded there in simPRO. It is not billable, so it never reaches the customer’s invoice.',
+      'The mileage rate has an effective date, so older claims keep the rate of their day.',
+      'Submitting a claim and deciding on it both send a notification, and pending claims show on the dashboard.',
+      'Claims are recorded and marked paid in AccurateHR only. Nothing is sent to Xero, so you pay them through your usual payroll or accounts process. Lines charged to a job are the one thing that goes elsewhere: they are recorded on that job in simPRO, and if simPRO refuses one the claim says why.',
+      'Expense reports and totals are for admins only.',
+    ],
+    tasks: [
+      t('Make an expense claim', 'everyone', 'In My expenses, add lines with a receipt photo, or mileage at the company rate. Say whether each line is charged to a job, then submit.'),
+      t('Approve and pay claims', 'manager', 'Expense approvals lists claims waiting on you, and approved claims ready to pay.'),
+      at('company_setup', 'edit', 'Set up expense categories and the mileage rate', 'admin', 'Choose the categories, their codes, receipt rules, whether a manager has to approve and the rate per kilometre.'),
+    ],
+  },
+  {
+    id: 'allowances',
+    name: 'Allowances', group: 'time', status: 'live',
+    screens: [['allowances', 'Allowances'], ['my-allowances', 'My allowances'], ['allowance-approvals', 'Allowance approvals']],
+    intro: 'Living away from home, meals and other allowances, paid for time on the jobs that carry them.',
+    overview: 'Allowances pays what goes with the work: living away from home, meals, PPE. An allowance is paid when a person who has it works on a job that has it too, so nobody types it in. When the week is over a manager approves it (if it needs approval), it is paid through the pay cycle, and its cost is recorded on the job in simPRO so the job’s profit is right.',
+    good: [
+      'An allowance only counts for time actually worked on a job. A daily allowance is paid once a day however many matching jobs there were, a weekly one once a week (Monday to Sunday), and an hourly one by the hours on matching jobs.',
+      'A weekly allowance can name a daily one to pay instead in a part week, for each day worked.',
+      'Rates have a start date, so a new rate from 1 July does not change a week already approved. A week is paid at the rate on its last day worked.',
+      'A week can be decided once it is over. If the time changes after it was approved it shows as changed and needs deciding again. Nobody approves their own.',
+      'An allowance can be set to need no approval. Those weeks are written up overnight.',
+      'Each allowance is matched to an earnings rate in Xero, set up there as paid per unit. Without one, that person’s pay cannot be approved. Xero works out the dollars, so the amount there has to match the one here.',
+      'Its cost goes onto the job’s cost centre in simPRO as a one-off cost that never reaches the customer’s invoice.',
+    ],
+    tasks: [
+      at('allowances', 'view', 'See your allowances', 'everyone', 'My allowances lists each week’s allowances, what earned them and whether they are approved.'),
+      at('allowances', 'approve', 'Approve your team’s allowances', 'manager', 'Allowance approvals lists the weeks that are over and waiting on you. Approve or decline one, or many at once.'),
+      at('company_setup', 'edit', 'Set up the allowances and their rates', 'admin', 'Under Settings → Allowances, choose how each is paid, whether a manager approves it and its rate, adding a new rate from the date it starts.'),
+      at('allowances', 'edit', 'Choose who has an allowance and which jobs do', 'admin', 'Tick the allowances on a person’s page, or choose people for an allowance; tick them on a job on the Jobs screen, or for many jobs at once.'),
+      at('integrations', 'edit', 'Match each allowance to a Xero earnings rate', 'admin', 'Under Settings → Xero, choose the earnings rate each allowance is sent as.'),
+    ],
+  },
+  {
+    id: 'paycycles',
+    name: 'Pay cycles', group: 'time', status: 'live',
+    screens: [['pay-cycles', 'Pay cycles']],
+    intro: 'Each pay period’s hours, split by earnings rate, approved and sent to payroll.',
+    overview: 'Pay cycles runs one pay period at a time. Everyone’s hours for the period are rolled up by earnings rate, with ordinary time first, then overtime, then leave, and any hours on days that have not been approved yet are listed by date. You check them, adjust them, approve them, then send them to Xero Payroll as timesheets and leave applications. Admins and owners use it.',
+    good: [
+      'Approving a person freezes the hours shown and locks their leave and allowances for the period. Their time and job cards stay editable until you send them to Xero, which is when they lock.',
+      'If someone’s time changed after you approved them, the send does not pay the old hours: they go back to Not approved, the send tells you, and you check their hours and approve them again.',
+      'Each part of the hours is paid at the Xero earnings rate mapped to its schedule rate. Anything not mapped blocks approval until it is.',
+      'Leave approved in AccurateHR goes to Xero as a leave application, so do not also enter it in Xero.',
+      'If Xero turns someone down, their row says Send failed with Xero’s reason. Fix it and send again.',
+      'Sending again updates the timesheet in Xero instead of duplicating it, unless it is already in a posted pay run. Reopen unlocks a person who has already been sent.',
+      'If a person’s live hours no longer match what you approved, their row says Changed since. Unapprove and approve again to pick up the change.',
+    ],
+    tasks: [
+      at('pay_cycles', 'edit', 'Run a pay cycle', 'admin', 'Review everyone’s hours, make adjustments, approve and lock the cycle, then send it to Xero.'),
+      at('pay_cycles', 'edit', 'Move hours between earnings rates', 'admin', 'Add an adjustment, for example less ordinary and more overtime, without changing the person’s time.'),
+    ],
+  },
+  {
+    id: 'whs',
+    name: 'WHS (safety)', group: 'ops', status: 'live',
+    screens: [['whs', 'Safety & WHS']],
+    intro: 'Report anything that went wrong or could, as soon as you can.',
+    overview: 'Safety (WHS) keeps hazard and incident registers with photos, a risk rating, corrective actions with owners and due dates, and investigation follow-up. Anyone can report an incident, property damage or a hazard from Safety & WHS. Managers and admins rate the risk, investigate and close it out.',
+    good: [
+      'The risk band is the likelihood rating multiplied by the consequence rating on a 5 by 5 matrix: low under 5, medium from 5, high from 10 and extreme from 16.',
+      'When a report is made, admins are notified straight away.',
+      'Marking an incident notifiable tells admins that your state’s regulator must be rung immediately, the site preserved and written notice sent where the law asks for it. The regulator, its number and the law named start from your company’s state, and an admin can correct them under Company details. Until a state is set there is no number to ring on the screens.',
+      'Overdue corrective actions show on the dashboard and as a to-do for their owner.',
+      'Incident and corrective-action reports are in Reports, for admins.',
+    ],
+    tasks: [
+      t('Report an incident, damage or hazard', 'everyone', 'Open Safety & WHS and choose what you are reporting. You can add photos. A new incident report starts with you as the person involved (change it if it was someone else), and picking the job fills in the site address when it is known.'),
+      t('Investigate and close out a report', 'manager', 'Rate the risk, add corrective actions with owners and due dates, and follow the investigation through.'),
+    ],
+  },
+  {
+    id: 'assets',
+    name: 'Assets & plant', group: 'ops', status: 'live',
+    screens: [['assets', 'Assets'], ['plant-equipment', 'Plant & equipment'], ['ute-checks', 'Ute checks'], ['maintenance-matrix', 'Maintenance matrix'], ['work-orders', 'Work orders'], ['defects', 'Defects'], ['parts', 'Parts & service kits'], ['workshop-reports', 'Workshop reports'], ['plant-checkout', 'Plant check-out'], ['my-assets', 'My assets'], ['asset-categories', 'Asset categories'], ['ute-checklists', 'Ute checklists']],
+    intro: 'Tools, vehicles and plant: who has what, whether it is safe to use, and when it is next serviced.',
+    overview: 'Assets & plant is a register of your tools, vehicles and plant: what you have, who has it, whether it is safe to use, and when it is next due for a service, registration, inspection or test and tag. It also includes a workshop, with daily pre-starts, a defect list, work orders with parts, service history and maintenance reports. Staff check plant out and back in and see the tools issued to them, mechanics and admins run the workshop, and admins keep the register and categories.',
+    good: [
+      'Plant cannot be checked out while it is out of service or non-compliant.',
+      'A failed pre-start marks the item out of service and raises a defect for the workshop. Handing plant back with a defect reported does the same.',
+      'Finishing a service moves the next due date forward, and the service history keeps the cost, supplier and invoices.',
+      'Every night, admins and mechanics are reminded as registration, test and tag, inspections and services come due.',
+      'Every assignment and return is kept in an audit log, including when several assets are changed at once from the Assets screen.',
+    ],
+    tasks: [
+      t('Start a service kit from another one', 'workshop', 'Under Parts & service kits, open a kit and use Start from another kit to copy the parts of a similar kind of plant, then change what is different.'),
+      t('Take a truck, machine or trailer', 'everyone', 'Plant check-out does the daily pre-start. A failed check marks the item out of service. Where it is going starts with the job you are scheduled on today (or the job the plant is planned onto); change it if it is going somewhere else.'),
+      t('Hand plant back', 'everyone', 'Return it in Plant check-out and report any defect.'),
+      t('See the tools issued to you', 'everyone', 'My assets lists what you have been given.'),
+      t('Tell the office a tool is damaged or lost', 'everyone', 'On My assets, Report issue says what happened and the condition the tool is in now. The office sees it on the asset’s history.'),
+      t('Book and finish a service', 'workshop', 'Work orders are job cards for services and repairs. Finishing a service moves the next due date forward.'),
+      t('Triage a defect', 'workshop', 'Defects reported from pre-starts and returns can be turned into work orders and closed out.'),
+      t('Check what is due', 'workshop', 'The maintenance matrix shows services, registration and inspections by month for every piece of plant.'),
+      t('Manage the asset register', 'admin', 'Add assets, set categories and pre-start checks, and assign or return them.'),
+      t('Change several assets at once', 'admin', 'Under Assets, tick the items (or Select all) and use the bar at the bottom: assign them to someone, return them, move them to another simPRO company, set their category or condition, set the ute checklist, tag plant out of or back in service, or archive them. Each item is written exactly as if done one at a time, and anything the action does not apply to is left alone.'),
+      at('assets', 'view', 'Check what is on your ute', 'everyone', 'Under Plant check-out, Check ute walks you through the tools your ute should carry: Yes, No or N/A each, with the asset number of a laser, press tool or welder. Anything short is sent to the workshop; the ute stays in service.'),
+      at('workshop', 'view', 'See which utes are short', 'workshop', 'Ute checks shows every ute down the side and its tools across, from its latest check: green on board, red short, grey not applicable, with a Count short row. Tap a ute for its history or to check it yourself.'),
+      at('company_setup', 'edit', 'Set up the ute checklists', 'admin', 'Under Ute checklists, make one per kind of ute (above ground, below ground, both, office vehicle) with the tools it should carry, ticking the ones that carry an asset number; then choose it on each ute’s Ute checklist tab, or import the office spreadsheet under Import data.'),
+    ],
+  },
+  {
+    id: 'jobs',
+    name: 'Jobs & purchase orders', group: 'ops', status: 'partial',
+    screens: [['jobs', 'Jobs'], ['purchase-orders', 'Purchase orders'], ['field/pos', 'POs']],
+    intro: 'The company’s open jobs, and purchase orders raised against them.',
+    good: [
+      'Jobs are copied from simPRO, not typed here. They are read again every hour from 6 am to 6 pm, Monday to Saturday, on the company’s own clock, and once more overnight, so a job made in simPRO shows up here within the hour. Anyone in the Field view can bring them up to date at once with the sync button at the top of the screen.',
+    ],
+    tasks: [
+      t('Find a job', 'manager', 'Jobs lists open jobs with their sections and cost centres, their project manager (simPRO’s, or the one set here) and team leaders.'),
+      at('jobs', 'edit', 'Set a job’s project manager', 'admin', 'Open the job and tap Project manager, or tick several jobs and choose Project manager from the bar, or right-click the job’s heading on the Schedule board and choose Project manager, then pick a Manager or Admin. They take simPRO’s project manager’s place for that job: shown as its PM, grouped by on the schedule board, and leading it (they see its crew and hours and approve the timesheets of people whose schedule follows their jobs). Choose simPRO’s to go back. Nothing is written to simPRO.'),
+      at('purchase_orders', 'edit', 'Raise a purchase order', 'manager', 'Choose the job, then the supplier and the cost centre, to get a PO number. The cost centre box lists each section with its cost centres under it, and one tap chooses both; the cost centres you have starred on that job come first. You can add a reference, or a note for the office: the note stays with the PO in simPRO and the supplier does not see it.'),
+      at('purchase_orders', 'edit', 'Star the suppliers you use', 'everyone', 'When you choose a supplier, tap the star at the end of its row. Your starred suppliers show first in the list and as buttons above the supplier box, so the ones you use all the time are one tap away. The stars are yours: nobody else sees them, and they are not shared with the rest of the company. Tap a star again to take it off.'),
+      at('purchase_orders', 'edit', 'Raise a PO from your phone', 'everyone', 'In the Field view, tap Raise a PO under the clock on Home (or open More → Purchase orders, or tap Raise PO on a job on Home to start with that job), then pick the job, the supplier and the cost centre: tap a box and tap your choice in the list that opens. The PO number comes back straight away; tap it to copy it for the supplier. You see the POs you raised. If Purchase orders is missing, your access level does not include purchase orders: ask an admin.'),
+      t('Sync jobs from simPRO', 'everyone', 'In the Field view, tap the round sync button at the top right of any screen, beside Chat. It reads the company’s open jobs from simPRO again and says what it found, such as two new jobs, so a job made in simPRO a minute ago is there to pick for a job card or a PO. It needs signal, and it is for everyone whatever their access level. If someone has just done it, it says so and you can try again in a couple of minutes. It is only there when the company’s simPRO is connected.'),
+    ],
+  },
+  {
+    id: 'schedule',
+    name: 'Scheduling', group: 'ops', status: 'partial',
+    screens: [['schedule', 'Schedule'], ['my-schedule', 'My schedule']],
+    intro: 'Plan who and what is on each job, day by day, and let staff see it in the app instead of a pasted message.',
+    tasks: [
+      t('Plan a week', 'manager', 'Open Schedule, press Add and tick the jobs you need (as many as you like, then Add puts them all on the board), then drag people and plant onto the days. On a tablet, tap a person or machine and then tap the day, or press and hold a name for a moment and then drag it (a quick swipe still scrolls). While you hold someone a bar at the bottom of the screen says who, with Cancel (and Take off for a name picked up from a job); the board itself does not move. Hold Shift while dropping (or tapping the day) to book them Mon–Fri. While you hold someone, the mouse wheel or trackpad scrolls the board as usual, up, down or sideways, so you can carry them to a day or job that is off the edge; or keep hold and drag towards that edge and the board scrolls itself until it is in view. Escape puts them back. Every change can be undone from the message that follows it. Right-click someone on a job (or use the ⋯ beside the ×) to also add them Mon–Fri, move them to another day, swap them with someone on another job that day, or take them off for the rest of the week; a job row can copy its week onto next week. Before you publish, the board says how many people will be told. If another planner changes the board while you are looking, it updates itself and tells you. In Filters, Hide Sat–Sun shows just Mon–Fri (it says how many bookings sit on the weekend, and Friday’s Copy then copies onto Monday), and Just my jobs keeps only the jobs you lead or your team is on. Ctrl-click (or Cmd-click) several names in the list, or switch on Pick several, then tap a day to place them all at once with one Undo. The seven dots under a name open that person’s week: set a free day to a job, move or clear a booked day, or fill Mon–Fri. Each day’s heading has Publish all when the day needs it and a ⋯ with the rest: Publish just mine, Copy onto the next day, and Print. Above the board is one row: the week on the left (the arrows step a week, and its dates open a calendar where one click on any day picks that week), Portrait or Landscape, and Filters; at the right edge, Add (a job or an activity) and Publish, which says how many days it would put out and whose arrow also offers Publish just mine, Publish one day and Copy this week to next week. The totals sit under the buttons. Filters holds the rest of how the board is drawn: Group by, the chip size, Trades, the stage and tag filter, the Hide Sat–Sun and Just my jobs switches, Saved views and the keyboard shortcuts, with a number on the button for how many are set, and Reset to put them back. Right-click anywhere in a day’s heading, a job’s or activity’s heading, or an empty spot in a cell, and one menu comes up at the pointer with everything that box can do: the day’s publish, copy and print; the job’s fold, move, pin, lock to everyone’s board, tags, needs, publish and copy of its week; and the cell’s publish, needs, copy of its crew onto the next day and Take everyone off (it asks first, and one Undo brings them back). The buttons stay where they were. Right-click on a name still opens that person’s own menu. The line under the bar says how many people are booked, how much plant is on jobs, how many days are waiting to be published and how many things there are to check (tap it for the list). Escape closes a menu, or puts down whoever you have picked up. A week with nothing planned still shows its days, with any public holiday or RDO named, so you can see them before you add a job. When the whole company is on the Public Holiday or RDO row, that row folds by itself into one count a day: click the count to see who is on it by trade, take one name or everyone off, publish that job for the day, or open the row with the arrow in its heading (any row can be folded the same way). The count turns yellow while its day is a draft or has changed since it was published. People who are only on a day off show as off, not booked, in the line of totals and in the dots. The day headings stay in view as you scroll a busy board, and so does a job’s heading on Portrait while its row is taller than the screen. A thin line separates the columns, the arrow in a heading points the way it folds (left on Landscape, down on Portrait) and is always shown, and the arrows that move a job appear when you point at its heading. In Filters, Chips: Compact puts each person on one line, and Trades shows only the types of people you tick (Plumbers, Apprentices…) in the list and on every job without changing what is published. On Compact a job’s heading also puts away Tags, Needs, Copy this job’s week and Take everyone off (they are in its right-click menu) and shows Publish job as a small button beside the pin. Each day’s heading says how many people are working, off, on leave and free. A day someone does not usually work (set on their record under Works on) is dashed in the dots under their name and counted as off, and the board warns if you plan them on one. Say how many people a job needs on a day with + Need under its names (or Needs… on its heading for a whole week): the board then reads, for example, “3 of 4” in amber with “1 short”, the line of totals lists everything that is short, and staff never see the number. The same pop-up has a line for each trade (Plumber, Apprentice…): say how many of each the job needs and the board reads, say, “3 of 4 · 1 apprentice short” even when the headcount is met by the wrong trades; leave the trades at nought and it is a plain headcount as before. Right-click a day on a job and choose Nearest free people to see who is free that day with how far they live from the site, nearest first, and Place to put one on; it needs the site’s position from your job system (or just its address, which is then located) and home addresses on record (located when the list is opened, which works through the people on it for up to about twenty seconds and fills in the kilometres as it goes, or overnight), and a job or a person without one is simply listed by name. Someone with no distance says why in grey (no home address on record, still being located, or an address the map could not find), and a line above the list counts them. The pin beside a job’s number keeps that job on your board in every week, even with nobody on it, until you unpin it; pins are your own. The padlock beside the pin locks the job to everyone’s board: it turns green and the job stays in every week on every planner’s board until someone unlocks it, so one person can set the board up for everyone instead of each planner pinning it. Only someone who plans everyone can lock or unlock it; everyone else sees the green padlock, cannot take the job off their board, and can fold the row to a count if they do not want to see it (the fold is their own). Your own pin and the padlock are separate: the job stays while either is on. Unlocking asks first when machines are locked to the job by planners who have not pinned it themselves, because they are sent back. Each job’s heading shows its simPRO stage and your own tags (a name and a colour, such as Quote, In progress or Variation); use Tags… on the heading to tick them or make a new one, and the first tag colours the heading’s edge. Stage and tags, in Filters, shows only the jobs in some stages or with some tags. Saved views, in Filters, keep the way the board is set up (grouping, Portrait or Landscape, the week or one day, chip size, the trades shown, Hide Sat–Sun, Just my jobs) under a name such as “Just plumbers”: pick one to switch to it, save the board as it is now, and share a view with every planner if you like; each person’s views follow them to any computer. Hover a name on a job and drag the small square on its edge along the job’s other days to add them on all of those days in one go (one Undo takes them off); a day they are on leave or on another job lights up amber but is still added, and Escape lets go. You can run the board from the keyboard: Tab reaches a name, the arrow keys walk to the next one, Alt with an arrow moves it a day, Alt and Shift with an arrow adds it on the next day, Delete takes it off, and Ctrl+Z (Cmd+Z on a Mac) undoes the last change while Shift+Ctrl+Z does it again; press ? (or open Filters and choose Keyboard shortcuts) to see the list. The Portrait | Landscape switch beside the week turns the board on its side: Portrait has the jobs down the side and the days across the top, Landscape has the jobs across the top and the days down the side. Everything works the same in both, and each computer remembers its own choice. On Landscape a folded group shrinks sideways into a narrow strip with its name down it, and the groups after it slide left; click the strip to open it again. The Week | Day switch beside the week shows one day at a time, drawn Portrait (jobs down the side) or Landscape (jobs across the top) like the week, and each computer remembers its choice: the arrows step a day (over the weekend when Hide Sat–Sun is on), its date opens a calendar that picks a day, and the people list shows where each person stands that day in the colour of their initials (green when everything they are on is published, yellow when any of it is booked but not published yet, red when they have no booking; a day off and leave keep their own colour), under their name as before, and All, Free, Booked, Off and Away narrow it; free people drag onto a job as usual. Every job planned that week is listed, so a job with no one on it on a working day is hatched and marked, on every layout, and the line under the buttons counts those jobs and lists them when you tap it. In the Day layout Publish and the totals speak of that day, while the week is still read, published and copied whole. Sheet, beside Landscape, is the whole day on one screen, like a labour sheet: a narrow column for each job with its site and number at the top (a green dot when it is published, amber when it is not yet), first names one under another (a nickname if the person has one, with the last initial where two would read the same), an A for an apprentice, the first words of a booking’s note, the plant after the names and the headcount at the foot. The columns widen to fill the screen and it scrolls sideways only when there are too many jobs to read. Drag, tap to place and right-click work as on the other layouts; a job’s ⋯ (or a right-click on its heading) holds what the Sheet leaves out, such as tags, needs, pinning and publishing the job. The People button beside Filters puts the people list away for more room, and a Saved view can be the Sheet. Run sheet, beside Sheet, is the same day read out: one job a line in columns, with its site, number and headcount, the names running along it (the same short names), the plant as small tags at the end of the line and “Nobody booked” where a job has no one. It is for the morning meeting and for printing (Print is in the day’s ⋯). It is still the board: drag a name from the list onto a job, or tap a name and then a job, and right-click a name or a job’s heading for their menus. To shorten a long job name, right-click its heading (or use its ⋯) and choose Name on the board…: the board and the phone planner then call the job that, on every look, while simPRO keeps its own name, and staff’s own schedule and timesheets keep the real one. Leave it blank to go back to simPRO’s. A job you have folded on Landscape is headed with this name (cut off to fit the narrow strip, with the job number and simPRO’s name when you hover). It is for someone who plans everyone.'),
+      t('Leave a note on a booking', 'manager', 'Right-click someone on a job (or use the ⋯ beside the ×), then Add a note: a few words for them, such as what to bring or where to meet. They see it under the job on My schedule. If their day is already published they are told straight away; if not, it goes out with the day. A booking keeps its note when you move it, and one with a note is marked on the board: hover over it to read the note. On a phone, tap the person on the card to see or change it. A note on plant is just for the planners.'),
+      t('Plan a public holiday', 'manager', 'A public holiday from your list is named under its date on the board, and its column is shaded; on a phone the day is marked on the week strip. Anyone you put on a job that day carries a warning naming the holiday, so booking someone to work it is a choice, not a slip. Under the day’s ⋯ (More on a phone), Put everyone on Public Holiday places everyone whose employee type has the day off onto the holiday in one step, leaving anyone already on a job or on leave as they are, with Undo; it is switched on once the holiday activity and the employee types are set under Settings → Public holidays. Publish the day as usual and those people see the holiday on their schedule. Once the day is published, everyone on the holiday is booked in simPRO as that day’s activity too (and taken out again if you take them off); under Settings → simPRO, Leave, Sync holidays and RDOs books them now.'),
+      t('Plan an RDO', 'manager', 'An RDO from your list (Settings → RDOs) shows the same way, in pink so it reads apart from a public holiday: named under its date, the column shaded, the day marked on a phone. Only the people whose employee type has RDOs off are warned when they are put on a job that day; everyone else works an RDO as usual. Put everyone on RDO, under the day’s ⋯ (More on a phone), places everyone of those types who is free that day onto the RDO in one step, with Undo, once the RDO activity and the employee types are set. A day can be both a public holiday and an RDO, each with its own step. A company with more than one simPRO company has one RDO row, whoever made it: any planner can put anyone on it, whichever of the companies they belong to themselves, and the same goes for every other activity row on the board.'),
+      t('See four weeks at a glance', 'manager', 'On Schedule, choose Four weeks beside Portrait and Landscape. People shows a row for each person in their trades, with a coloured block each day naming the job (the same job is always the same colour), 2 jobs when they are on more than one, amber Off for a public holiday, pink RDO, red Leave and a dash for a free weekday. Jobs shows a row for each job with how many people are on it each day, darker when busier and ringed in amber when it has fewer than it needs. Hide Sat–Sun, the trades, Just my jobs and the stage and tag filter in Filters apply. It is only for looking: click a day, or a week’s heading, to open that week on the board and make changes there. On a narrower screen it scrolls sideways with the names and headings held.'),
+      t('Lock a machine to a job', 'manager', 'When plant goes to site and stays there, add it to the job from the list as usual and the board asks how: Lock to job board puts it on that job every working day from that day, Monday to Friday, until you release it or unpin the job, without anyone adding it day by day (Daily schedule is just that day, as before). It pins the job to your board if it was not pinned (a job locked to everyone’s board is pinned already, and the machine then stays with that padlock). A machine already on the board can be locked the same way from its menu (right-click it or use the ⋯), Lock to job board, or weekends too for every day. The board puts it down eight weeks ahead and keeps going each night, and a small padlock on the machine’s icon shows the days it made. A locked machine is held where it is: it cannot be dragged, picked up, taken off, swapped or moved, and Take everyone off leaves it; its menu has a note and Release from this job, which keeps it on the job that day and takes it off every day after (the days up to and including that day stay). Public holidays are left out. If the machine is needed on another job on a day, add it to that job from the list on that day: it leaves the lock for that day only and the lock carries on the next day. Unpinning the job asks first, and if you agree the machines you locked to it go back: they stay on today and come off from tomorrow, free to use elsewhere. Locking a machine to a different job takes it off the first from that day. Locking and releasing have Undo. It needs a level that can change the board; on a phone you see a locked machine but lock and release from the desktop board.'),
+      t('Lock a person to a job', 'manager', 'When someone is on the same job for weeks, right-click their name on the job (or use the ⋯) and choose Lock to job board: they are put on that job every working day from that day, Monday to Friday, until you release them or unpin the job, without anyone dragging them each week (Lock to job board, weekends too is every day). Public holidays and days they are on approved leave are left out, a day they are already on another job is left as it is, and it pins the job to your board if it was not pinned. The board puts the days down eight weeks ahead and keeps going each night. They are ordinary bookings, so the person is told when you publish the day or the job, and a day already published reads Changed until you publish again. A locked person wears a small padlock and is held where they are: they cannot be dragged, taken off, swapped or moved, and Take everyone off leaves them; their menu has a note and Release from this job, which keeps them on the job that day and takes them off it every day after (the days up to and including that day stay). If they are needed on another job for a day, add them to that job from the list on that day: they leave the lock for that day only and it carries on the next day. Unpinning the job asks first, and if you agree the people you locked to it go back: they stay on today and come off from tomorrow. A person has one lock: locking them to a different job takes them off the first from that day. Locking and releasing have Undo. It needs a level that can change the board, for someone you may plan; on a phone you see a locked person but lock and release from the desktop board.'),
+      t('See who lives near a job', 'manager', 'In Filters, under Show, switch on Home suburbs: each person’s home suburb appears after their trade on the board and in the people list (beside the name when chips are Compact), and pointing at a name says where they live. Only the suburb is shown, never the street. The switch is there only if your access level includes Address and emergency contact; if you cannot see it, ask whoever looks after access levels. It is off until you turn it on, and the board remembers your choice on that computer.'),
+      t('Print the day', 'manager', 'Print this day, under the ⋯ in a day’s heading, prints that day on your letterhead: each job in the board’s order with the people and plant on it and their notes, then who is on leave and who is not placed. With Just my jobs on, only your jobs are printed.'),
+      t('Take a lot of people off at once', 'manager', 'A job’s or activity’s heading has Take everyone off…, which takes everyone and everything off it on the days shown; a cell’s menu (right-click it) has Take everyone off that day, and from that day to the end of the week; and the ⋯ in a day’s heading has Take everyone off…, which lists each job or activity with someone on it that day. Each asks first with the numbers, says if a day is already published (it then reads Changed until you publish again), and is one change you can undo in one go. People stay anywhere else they are planned.'),
+      t('Print the week', 'manager', 'Print the week, in the Publish button’s menu and under the ⋯ in a day’s heading, prints the whole week on one landscape page on your letterhead: the jobs down the side in the board’s order, a column for each day, the people and plant under each, a public holiday or RDO as a single line, and who is on leave along the bottom. It follows what the board is showing: Hide Sat–Sun, Just my jobs and the types of people you have picked in Filters. Where a job has twelve people or more on a day it shows a count for each type instead of every name. Choose Save as PDF in the print box to send it on.'),
+      t('Plan from your phone', 'manager', 'In the full app on your phone (what a manager’s level opens; the Field view has no planner), open Operations → Schedule. You see one day at a time: tap a day along the top, and each job is a card with the people and plant on it. Tap Add on a card to choose people or plant for that day. Those who are free come first, then those already on another job (choosing them moves them, unless you switch on keeping them on their other job too), then those on leave, which you can still choose, and which is flagged. Tap someone on a card to move them to another job or take them off the day; each change has an Undo. The button under the week lists what needs checking. Publish the day from the bar at the bottom, either all of it or just your own jobs; the three dots publish the week or copy a day or the week forward. Swipe sideways across the day to go to the day before or after. If another planner changes the board while you are looking, it updates itself and tells you (while a sheet is open it waits until you close it). Planning needs a connection, so with no signal everything is switched off until it returns. A job pinned to your board, or padlocked to everyone’s, is a card on your phone in every week too, with a small pin or green padlock beside its number; pinning and unlocking are done on the desktop board. On the Add sheet, Nearest first sorts the free people by how far they live from the site, with the distance beside each name.'),
+      t('Plan the week from your phone', 'manager', 'An add can cover more than one day: the seven days sit along the bottom of the Add sheet, with Mon–Fri and Rest of week at a tap, and the button says how many people and days it adds. Tap someone on a card to move them to another day, add them to more days, swap them with someone on another job that day, or take them off the job for the rest of the week. Their week shows one person’s seven days: set a free day to a job, move or clear a booked day, or put them on the same job Mon–Fri. Every change is one step with Undo. Tapping someone on a card also shows the note on their booking, with Add a note or Change the note. Before you publish, the sheet says how many people will be told.'),
+      t('See who is free on your phone', 'manager', 'Under the week, switch from Jobs to People to see everyone for the day: grouped by trade, each with their week as seven dots and what they are on that day. Tap Free, Booked or On leave to see only those, or search a name or trade. The + beside a free person puts them on a job for the day in one tap; tap the row for their week. Plant has its own tab, with Out of service in place of On leave. The choice of Jobs or People stays on your phone.'),
+      t('Publish a day or a week', 'manager', 'Days start as drafts that staff can’t see. Publish a day, or the whole week, and the people on it are told: every job on the day goes out, including any you add later. If you change a published day, publish it again to tell the people affected.'),
+      t('Publish all, or just mine', 'manager', 'When you publish a day you can put out everything, or only your own part. Publish all puts out every job on the day, including other planners’ and any you add later. Publish just mine puts out only the jobs you lead and the jobs your own team is on that day; it says how many are waiting, and if you have none it is switched off. On the board each day’s heading has Publish all, with Publish just mine under its ⋯, and the Publish button’s menu has both for the whole week; on a phone the Publish sheet has both buttons. The people on a job that goes out are told, including anyone from another team on it.'),
+      t('Publish just one job', 'manager', 'A job can go out on its own while the rest of the day stays a draft. On the board each day’s cell has Publish for its job, and each job has Publish job for the whole week; on a phone each job card has its own Publish. Only the people on that job see it and are told. A job shows as a draft, published, or changed since it was published, and a day with some jobs out and some not reads Part published. Publish the day later to put out the rest.'),
+      t('Copy a day or a week', 'manager', 'Copy this week to next week is in the Publish button’s menu, and Copy onto the next day is under the ⋯ in a day’s heading (with Sat–Sun hidden, Friday copies onto next Monday). To copy a day onto any other day, choose Copy onto another day… from the same ⋯ (in a day’s right-click menu, and in the bar above the Sheet and the Run sheet, too; in the Day, Sheet and Run sheet layouts it is also under the arrow beside Publish), or from the ⋯ at the bottom of the phone planner. It opens on the same day next week; pick the day you want and press Copy, and everyone and everything planned on the day goes onto it, an earlier day or one months away. People and plant already on a job that day stay where they are, approved leave isn’t copied, anyone already on approved leave on the day it lands on is left as they are (the message says how many bookings were left out), and the copy starts as a draft, so nobody is told until you publish. The message afterwards can take you to the day. It is part of Can change on the Schedule area. Then adjust what is different.'),
+      t('Group the jobs on the board', 'manager', 'Group by, in Filters, puts the jobs under their project manager, team leader or customer, with a heading and a count for each; Job number is the plain list. Each chip on the board shows the person’s employee type after their name, and the full name and type when you hover over it.'),
+      t('Fold a trade in the people list', 'manager', 'Each trade in the people list, and each type in the plant list, has an arrow: tap it to fold that group out of the way, and again to open it. A search shows everyone who matches, folded or not. With a grouping on, the headings on the board fold the same way, so a project manager’s jobs can be tucked away while you plan another’s. The board remembers your grouping and which groups are folded on this device.'),
+      t('Put the trades in your order', 'manager', 'Drag a trade’s heading in the people list (or a type’s in the plant list) up or down to put the groups in the order you work in, such as plumbers first. The order is kept for everyone who plans. A trade not yet placed sits after the rest, alphabetically.'),
+      t('Put the jobs in your order', 'manager', 'Drag a job (its cell on the left) up or down the board, or use the small arrows that appear on it, and it stays there for everyone who plans. A job added later goes at the end in job-number order until you move it. With a grouping on, the arrows move a job within its group.'),
+      t('Keep office staff off the board', 'admin', 'On a person’s record, Reporting tab, tick Not on the scheduling board. They leave the people list on the board; anyone already on a job stays there until taken off.'),
+      t('Plan someone onto an activity', 'manager', 'Add an activity (trade school, a toolbox day, the yard: the activities simPRO lists for your company) puts it on the board as a row of its own, and you drag people onto it like a job. Plant stays on jobs. Once published, the person sees the activity by name in My schedule and on the phone, with nothing to ring or clock on to. Leave is asked for, not planned, so leave activities are not offered.'),
+      t('See where you’re working', 'everyone', 'My schedule lists your published days with the job, the site, who is with you and what plant is on it. The jobs you’re scheduled for also appear as quick buttons when you log time.'),
+    ],
+  },
+  {
+    id: 'dropbox',
+    name: 'Dropbox documents', group: 'integrations', status: 'live',
+    screens: [['dropbox', 'Dropbox'], ['documents', 'Documents'], ['logs', 'Logs']],
+    intro: 'Company documents kept in Dropbox, opened inside the app without a Dropbox login.',
+    overview: 'Dropbox documents lets you keep company documents such as safety procedures, templates and manuals in Dropbox and open them inside AccurateHR, without anyone needing a Dropbox login. An admin connects Dropbox and chooses the folders to share. Staff then browse and open or download files under Documents.',
+    good: [
+      'An admin chooses who sees each shared folder: everyone, managers or admins.',
+      'Only the folders you have chosen to share can be reached. Nothing else in your Dropbox is visible to staff.',
+      'Staff can browse the sub-folders inside a shared folder and open or download files from there.',
+      'Connecting Dropbox and choosing folders is done under Integrations, and needs an access level that includes integrations.',
+    ],
+    tasks: [
+      t('Open a company document', 'everyone', 'Documents lists the folders shared with your role. Browse and open or download files.'),
+      at('integrations', 'edit', 'Choose the folders to share', 'admin', 'Connect Dropbox, pick the folders, and choose who sees each: everyone, managers or admins.'),
+    ],
+  },
+  {
+    id: 'notifications',
+    name: 'Notifications, email & push', group: 'integrations', status: 'live',
+    screens: [['email-settings', 'Email'], ['logs', 'Logs']],
+    intro: 'The app tells you when something needs you: in the app, by email and on your phone.',
+    overview: 'AccurateHR tells people when something needs them in three ways: the bell menu in the app, an email, and a push notification on a phone that has the app installed. One event sends all three. Everyone receives notifications, and admins choose the wording of the emails.',
+    good: [
+      'Each kind of email, such as leave decided, timesheet approved or document to sign, can be edited by an admin: subject, heading, message and button, with a preview and a test email sent to yourself.',
+      'An admin can switch off a kind of email, except the sign-in emails. If email is not set up at all, notifications stay in the app.',
+      'Each person can turn notification emails off for themselves. PIN emails always go.',
+      'Each person can also choose to get the calendar’s daily summary as a morning note at an hour they pick. It is off until they turn it on.',
+      'The email log under Logs shows whether each email was delivered, delayed, bounced or marked as a complaint.',
+      'Every email has your company’s logo and name at the top and its address and contact details at the bottom, taken from Company details. It is sent from your company’s name on AccurateHR’s sending address, and a reply goes to the Reply-to email under Company details (your company email, or your owner’s, if you leave it empty). The preview and the test email show it too.',
+    ],
+    tasks: [
+      t('Read your notifications', 'everyone', 'The bell shows what is new. Tap one to go straight to it.'),
+      t('Get notifications on your phone', 'everyone', 'Install the app to your home screen and allow notifications when asked.'),
+      t('Afternoon reminders', 'everyone', 'At 6 pm, anyone still clocked on is reminded to clock off or fix the time, and anyone with a job published for them today and no time logged (not clocked on, not on leave) is told nothing is logged. On weekdays at 6 pm, anyone with hours from the last week on days they have not submitted is reminded to submit them. They arrive like every other notification (the bell, push, and email unless you have turned emails off).'),
+      at('integrations', 'edit', 'Change the wording of an email', 'admin', 'Edit the subject, heading, message and button of each email, preview it as you go, and send yourself a test. The message is written like a document: headings, bold, bullet and numbered lists, indents, tables and links, with the same bar as policies and contracts. Click a variable, or use Insert field above the message, to put it in at the cursor.'),
+    ],
+  },
+  {
+    id: 'announcements',
+    name: 'Company announcements', group: 'platform', status: 'live',
+    screens: [['announcements', 'Announcements']],
+    intro: 'News and notices for everyone, or for a role and department, with an optional acknowledgement and a list of who has read it.',
+    overview: 'Announcements are news and notices for the whole company, or for a role, a department or both. You can ask people to acknowledge a notice and see who has read it. Admins, and anyone whose access level includes company setup, post them, and the people in the audience read them on the Me tab.',
+    good: [
+      'When both a role and a department are chosen, a person has to match both to see the announcement.',
+      'Announcements can be scheduled with Show from and Show until, pinned to the top, edited and archived. Archived ones stay on record and can be restored.',
+      'An important announcement also shows as a banner on the dashboard until the person has read it.',
+      'Nothing is emailed unless you choose it for that announcement. You pick no notification, the bell menu, or the bell menu, push and email.',
+      'Duplicate starts a new announcement with the same message, priority, audience and acknowledgement setting, but leaves off the dates and the pin.',
+    ],
+    tasks: [
+      at('company_setup', 'edit', 'Copy an announcement', 'admin', 'Press Duplicate on an announcement to start a new one with the same message, priority, audience and acknowledgement setting. Its dates and its pin are left off, and as with any new announcement you choose whether to tell people.'),
+      t('Read company news', 'everyone', 'Announcements for you show as company news on the Me tab, and an important one shows as a banner on the dashboard until you have read it. If one asks you to acknowledge it, press the button to say you have read it.'),
+      at('company_setup', 'edit', 'Post an announcement', 'admin', 'Settings → Announcements → New announcement. Write the title and message, set its priority (Important also shows on the Dashboard), and choose who it is for: everyone, a role, a department, or both (then a person must match both). Tick People must acknowledge it if you need to know who has read it. Press Post to show it now, or set Show from to have it appear later, and Show until to take it down by itself.'),
+      at('company_setup', 'edit', 'Choose how people are told', 'admin', 'Tell people, on a new announcement, is how far it goes: no notification, the bell menu, or the bell menu, push and email. Nothing is emailed unless you choose it for that announcement.'),
+      at('company_setup', 'edit', 'Pin, edit or archive an announcement', 'admin', 'Tick Pin it to the top to keep one above the rest. Edit it at any time, and Archive it when it is over: archived ones stay on record and can be restored.'),
+      at('company_setup', 'view', 'See who has read it', 'admin', 'Who’s read it on an announcement lists everyone it was for, and whether each has read it, acknowledged it or not read it yet.'),
+    ],
+  },
+  {
+    id: 'adminconfig',
+    name: 'Company settings & lookups', group: 'platform', status: 'live',
+    screens: [['company-settings', 'Company details'], ['leave-types', 'Leave types'], ['expense-categories', 'Expense categories'], ['asset-categories', 'Asset categories'], ['timesheet-profiles', 'Timesheet profiles'], ['public-holidays', 'Public holidays'], ['rdos', 'RDOs']],
+    intro: 'The company’s own details and the lists everything else draws on.',
+    overview: 'Company settings holds your company’s own details, such as name, logo, ABN, address and the standard working week, and whether submitted timesheets are approved automatically or wait for a manager. It also holds the lists the rest of the system draws on: leave types, expense categories, asset categories and timesheet profiles. It is used by admins and owners, or anyone whose access level includes company setup.',
+    good: [
+      'What staff can change for themselves, such as their own details, leave, documents and purchase orders, is set on their access level under Access levels, not here.',
+      'Leave types, expense categories, asset categories and timesheet profiles each have a Duplicate button next to Edit, so a similar one starts from what is already right.',
+      'A copy takes the settings only. A copied leave type has its code left blank, because every code has to be different, and a copied timesheet profile is never the company default.',
+      'A copy is saved with the same checks as anything new, so someone who may not create one is stopped when they press Create.',
+      'The address box searches as you type.',
+      'Your logo, name, address and contact details are used for you: at the top and bottom of every email the app sends, and across the top of printed contracts, reports, incident reports, recharges, job cards and schedules. There is nothing to switch on. A company that has filled in nothing gets AccurateHR’s own header on its emails. The top-left corner of the app is always AccurateHR’s own logo: the full logo on a computer and its icon on a phone.',
+    ],
+    tasks: [
+      at('company_setup', 'edit', 'Copy a leave type, category or timesheet profile', 'admin', 'Each has a Duplicate button next to Edit. A copied leave type has its code left blank, because every code has to be different. A copied timesheet profile is never the company default.'),
+      at('company_setup', 'edit', 'Set the company name, logo and working week', 'admin', 'Company details is where they live. Upload a PNG, JPEG or WebP logo (a wide or square one on a plain or transparent background looks best), fill in the ABN, address, phone, email and website, then press Save. They appear on emails and printed pages straight away, and changing the logo changes it on emails already sent. Press Send test to me under Settings → Email to see an email with them.'),
+      at('company_setup', 'edit', 'Set your state, time zone and safety contacts', 'admin', 'In Company details, under Where you are, choose your state or territory and your time zone (it follows the state unless you pick another). Under Safety contacts, your regulator’s name, number and Act start from your state; fill them in only to correct them, and add a support line (such as an employee assistance program) to show it beside the emergency numbers. The day, the reminders and the safety screens follow these.'),
+      at('records_delete', 'view', 'Delete something made by mistake or to test', 'admin', 'Press Delete where the record is shown: a person’s page or the People list, their Contracts or Documents, a vacancy on the Hire board, an onboarding, or the leave, expense and timesheet approval screens (tick several in a list to delete them together). The app checks first and, if it can be deleted, warns you what goes with it and that it can’t be undone; only the Delete in that warning deletes anything. Anything signed or acknowledged is kept as the record, and anything already sent to simPRO, Xero or a pay run is never deleted, only archived (a person is deactivated instead), and the pop-up says which. A person is only deleted if they never really worked here. Every delete is listed under Settings → Logs → Deleted. It needs the Delete records area, which admins and owners have.'),
+      at('access', 'edit', 'Choose what staff can change themselves', 'admin', 'That moved to Access levels: open the Employee level and set Own details, Leave, Employee documents and Purchase orders.'),
+    ],
+  },
+  {
+    id: 'csv-import',
+    name: 'CSV import', group: 'platform', status: 'live',
+    screens: [['import', 'Import data']],
+    intro: 'Load your people, their licences and tickets, leave balances and assets from spreadsheets when you have no simPRO to pull them from. Everything is checked before it is saved.',
+    overview: 'Import data loads your people, licences and tickets, leave balances, assets and ute checks from spreadsheets, for companies with no simPRO to pull them from. Each kind has a template to download, and every row is checked and shown before anything is saved. It is used by admins and owners, or anyone whose access level includes company setup.',
+    good: [
+      'Nothing is saved until you press Import. Until then every row shows as new, an update, no change, or something to fix with the reason.',
+      'Rows are matched to what is already there, so uploading a corrected file does not add anything twice, and a blank cell leaves what is there alone.',
+      'A person is matched by email, a licence by person and title, and a balance by person and leave type. An asset is matched by tag, then serial number, then name.',
+      'The manager column takes the manager’s email, and the manager can be in the same file. New people get a PIN, and their login email can be sent during the import or later from People.',
+      'Someone importing cannot import a role, or change a person, above their own access level.',
+    ],
+    tasks: [
+      at('company_setup', 'edit', 'Download a template', 'admin', 'Open Import data under Settings and download the template for the kind of record. Keep its headings; fill it in with Excel or Google Sheets and save it as CSV.'),
+      at('company_setup', 'edit', 'Upload a file and check it', 'admin', 'Upload the file. Every row is shown as new, an update, no change or something to fix, with the reason. Nothing is saved until you choose Import.'),
+      at('company_setup', 'edit', 'Fix a row and upload again', 'admin', 'Rows with a problem are skipped. Fix them in the file and upload it again: each row is matched to what is already here, so nothing is added twice, and a blank cell leaves what is there alone.'),
+      at('company_setup', 'edit', 'Import people and their managers', 'admin', 'A person is matched by email. The manager column takes the manager’s email; they can be in the same file, and need the manager or admin role. New people get a PIN, which you can email them during the import or later from People.'),
+      at('company_setup', 'edit', 'Import licences, balances and assets', 'admin', 'Import the people first. Licences and tickets name the person by email; balances name the leave type by its code or name; assets are matched by tag, serial number or name, and a new category is created for you.'),
+    ],
+  },
+  {
+    id: 'simpro',
+    name: 'simPRO', group: 'integrations', status: 'partial',
+    screens: [['simpro', 'simPRO'], ['copy-quote', 'Copy quote'], ['copy-job', 'Copy job'], ['logs', 'Logs']],
+    intro: 'The link with simPRO: employees, leave, timesheets, jobs, plant and job costs.',
+    good: [
+      'You sign in on your own simPRO build, and AccurateHR never sees your password. The saved sign-in is stored scrambled and renews itself, including when nobody has used it for a few days; if simPRO refuses a renewal, the screen asks you to sign in again.',
+      'Every company connects its own simPRO, and what you connect is used for your account alone. Nothing syncs until you have chosen the company in your build: until then approved time, leave, licences and job costs wait, and go once you are connected.',
+      'simPRO grants API access per build, so you ask for it in simPRO first (Request API access → Build something myself): simPRO raises a ticket with your account manager and emails you when it is active, usually within a day; you then copy the client ID, download the secret and paste both here once. They are kept scrambled on your account and never shown again, and Forget keys removes them.',
+      'Approved expense lines charged to a job, and approved allowances, are recorded on that job’s cost centre as a one-off cost. It counts in the job’s cost and profit and is not billable, so it never reaches the customer’s invoice.',
+      'A cost is sent as soon as it is approved and again in the nightly sync. A cost that changes afterwards is corrected in simPRO, and one taken back is removed. If simPRO refuses one (a closed or invoiced cost centre, say), the reason is kept and it can be sent again under Job costs.',
+      'Nothing is sent for a job that was made in AccurateJobs, because it is not in simPRO.',
+      'simPRO keeps one schedule for a person on a cost centre in a day, so a second time on the same cost centre (a morning and an afternoon either side of lunch, say) is added to the schedule simPRO already has as another block. If that schedule is locked in simPRO, belongs to someone else or overlaps the time, the entry says so and is not sent.',
+      'At 6 pm and 10 pm every day, on each company’s own clock, approved time that never reached simPRO is sent again. A day nobody has approved yet is not sent: approval comes first.',
+      'Open jobs are read from simPRO every hour from 6 am to 6 pm, Monday to Saturday, on each company’s own clock, one simPRO company at a time, and everything else (suppliers, schedules and the rest) once a night. Anyone in the Field view can also bring jobs up to date at once with the sync button at the top of the screen.',
+    ],
+    tasks: [
+      at('integrations', 'edit', 'Connect simPRO and match employees', 'admin', 'Open simPRO under Integrations, type your Build URL (the address you open simPRO at, ending in simprosuite.com or simprocloud.com) and press Connect to simPRO. Open Use an application from your own simPRO build and follow its steps: in simPRO, under System → Setup → API → Applications, press Request API access, choose Build something myself and write that you want to connect your simPRO build to AccurateHR using OAuth 2.0 with the Authorisation Code grant and the redirect address shown. simPRO raises a ticket with your account manager and emails you when it is active, usually within a day. Open the application on that page, copy its client ID, download the secret, paste both here and press Connect to simPRO. That is done once. You sign in on your own build and allow AccurateHR, then come back here and choose which company of your build to connect (none is chosen for you). Use Test connection, then match people. Here, HR is the master record.'),
+      at('integrations', 'edit', 'Sign in to simPRO again, or disconnect', 'admin', 'Under Settings → simPRO, Reconnect signs in again (do this if the screen says the sign-in has expired), and Disconnect stops the link until you connect once more. It removes what AccurateHR saved; to also cut off its access on simPRO’s side, remove the application’s authorisation in simPRO.'),
+      at('integrations', 'edit', 'Send job costs that did not go', 'admin', 'Under Settings → simPRO → Job costs, see the costs waiting or refused, with simPRO’s reason, and send them again.'),
+      at('integrations', 'view', 'Check time that did not reach simPRO', 'admin', 'Settings → simPRO → Timesheets lists approved time that is not in simPRO, with simPRO’s reason for each, and Sync timesheets sends it now. The app also sends it again by itself at 6 pm and 10 pm every day, so a block that failed in the morning goes in the evening without anyone pressing anything. After the 10 pm check, anything still not in simPRO is listed under Logs → Problems. A block whose job, section or cost centre simPRO no longer has is not tried again: fix or remove that entry.'),
+      at('integrations', 'view', 'Check what each sync did', 'admin', 'Logs lists every sync and anything it could not do. Its Problems tab lists things that failed in the background where nobody was looking, such as a step of the nightly run or a notification that could not be sent, with how many times and when it last happened.'),
+      at('integrations', 'edit', 'Copy a quote or job into another company', 'admin', 'Load the quote or job, choose what to copy, then send it. Jobs start as Pending. A copied quote keeps the quote’s own name and status unless a naming rule has been set up for your company, in which case the screen shows the name and status the copy will get before you send.'),
+    ],
+  },
+  {
+    id: 'audit',
+    name: 'History', group: 'platform', status: 'live',
+    screens: [['logs', 'Logs']],
+    intro: 'Who did what: every change made in the app, every sign-in, and what AccurateHR support did.',
+    overview: 'History, under Settings → Logs, keeps one line for every change anyone makes through the app (an employee edited, leave approved, a day of time sent back, a setting changed, a connection made), every sign-in and sign-out, and anything AccurateHR support did to your account. Each line says who, what, which record, where from and whether it went through. It is kept for seven years.',
+    good: [
+      'Only what was changed is kept, never what was typed: a line says which fields were sent, and never a PIN, password, bank or tax detail.',
+      'A line stays after the person who made it has left or been deleted; their name is simply no longer shown.',
+      'Deleted records have a line here and the full detail under Deleted. Private chat messages, push subscriptions and a person’s own screen layout are not recorded.',
+      'Who can see it follows the Integrations and logs area: admins and owners to start with, or any level given it.',
+    ],
+    tasks: [
+      at('integrations', 'view', 'See who changed what', 'admin', 'Open Settings → Logs → History. Filter by person, by area (people, leave, timesheets, settings and so on), by date, or search for a record or a word, and press Load more for older lines.'),
+      at('integrations', 'view', 'Check how someone got in', 'admin', 'Filter History by the person: their sign-ins and sign-outs are listed with the time and where from. A refused sign-in shows the email that was tried, with nobody as the person.'),
+    ],
+  },
+  {
+    id: 'jobsafety',
+    name: 'Job safety', group: 'ops', status: 'partial',
+    screens: [['job-safety', 'Job safety'], ['job-checklists', 'Job checklists'], ['swms', 'SWMS']],
+    intro: 'Start and finish checklists on jobs, and Safe Work Method Statements written in the app.',
+    overview: 'Job safety has two parts. Job checklists are written by the office for the start of a job or the finish of a job under Settings → Job checklists: items in order, each one required or not, with or without a photo. A checklist goes with every job, or only the jobs you attach it to under Operations → Job safety, and when someone ticks one it is kept as a record of who, which job, which day and each answer. SWMS (Safe Work Method Statements) are written under Operations → SWMS: the hazards and protective equipment that apply, then each job task with its hazards, risk ratings and controls. The editor keeps a bar on screen with Save, Preview and Publish, each job task folds to a single line until you open it, and the bar says how many things are still to finish, with each one taking you to the box that needs filling. Tasks that other statements share can be copied across, and the control measures, the management lists and the legislation note can carry bold, bullets inside bullets and tables. When one is complete it is published as a numbered version that cannot be changed, with a review date, and it prints as a landscape page like a paper statement. Published SWMS go on a job under Operations → Job safety, several at a time, into a folder for the job. The job’s own details (the principal contractor, the site, and the hazardous substances taken on site) are entered once for all of them, and each SWMS keeps its own date given to the principal contractor. Each job has a folder, and its details are entered once for every SWMS in it, with any one able to change them for itself. Each person reads it there and signs on by typing their name, the office sees who has signed and prints the pack, and a new version asks everyone to sign again. The office can also email the statement to the job’s principal contractor: they get a personal link to read it and print it or save it as a PDF, with no sign-in, and the job’s date given to the principal contractor fills in by itself. On a phone, Today shows the SWMS under each of the day’s jobs: you read it laid out for a small screen, type your name and sign on, with or without signal. Under Operations → Job safety a list shows who is booked on a job in the next two weeks and has not yet signed on to its SWMS, and the person who leads a job sees the same people in their to-do list. On a phone, Today shows each job’s safety checks under it: Start is held until you have signed on to the SWMS and ticked the start checklists, and a required item that is Not OK holds you until you tick it again with it put right and tells the people who lead the job.',
+    good: [
+      'Your access level’s Job safety area decides it. The standard Employee and Mechanic levels have it for their own records, Manager for the team’s, Admin and Owner for everyone with every tick. Anyone who has it reads and prints the SWMS that have been published, signs on to them on a job, and sees their own, their team’s or everyone’s checklist records and sign-ons. Can write and attach is writing SWMS and choosing which checklists and SWMS go with which job. Can publish SWMS is making a version official, so the person who writes one need not be the one who signs it off. Writing the checklists themselves is Company setup.',
+      'A SWMS can only be published when it is complete: a title, at least one job task, and every hazard with its controls and a risk rating before and after. A hazard still rated Acute after its controls cannot go ahead as written, so it blocks publishing, and so does a rating that is worse after controls than before. The bar says how many things are still to finish: press it for the list, and each one takes you to the box.',
+      'A published version never changes. Editing the SWMS afterwards changes only the working copy, and the list says Unpublished changes until you publish the next version. Older versions stay there to look at and print. A SWMS is archived, never deleted, and an archived one can be brought back from the Archived list.',
+      'The list says what each statement is waiting for: how many things a draft still needs, or Ready to publish, and Publish is on the row of a finished one. Search by name or document number, or show only the ones still to finish, the published ones, those with changes not yet published, those due for review, or the archived ones.',
+      'Ctrl+S (Cmd+S on a Mac) saves what you are writing, and closing the page with unsaved changes asks first. A job task holds up to 20 hazards and a SWMS up to 40 tasks. A hazard’s name can run to 400 characters, its control measures to 6,000 and the person responsible to 300.',
+      'The hazard’s name, the control measures, the management lists and the legislation note are written with a simple editor: bold, italic, underline and colour, bullets (press Tab in a bullet for a smaller one under it, and Esc then Tab to leave the box from the keyboard), numbered lists, links and tables. Pasting from Word, a web page or a PDF keeps its bullets, bold and tables and drops everything else. Each box holds a set number of characters, counted without the formatting (400 for a hazard’s name, 6,000 for the control measures of a hazard, 9,000 for each management list, 4,000 for the legislation note): a box over its limit is marked in red and cannot be saved until it is shorter, so nothing is ever cut without telling you. A SWMS written before this shows its control measures and lists as bullets, and a hazard’s name as the lines it printed as, when you open it, and nothing changes until you save. A published version never changes.',
+      'The review date is set when a version is published, from the review period you chose for that SWMS, and the list flags one whose review is overdue or due within a month. On a Monday afternoon the people whose level can publish a SWMS are also told which ones are due for review in the next 30 days, again when a week is left, and then once a month while one is overdue. Publishing a new version starts it again.',
+      'The lists of hazardous work, high-risk construction work and protective equipment are the ones on the company’s current statements, each with an anything else box. The legislation box is yours to fill in, so it names your own regulator.',
+      'A checklist counts for the day: you tick Before you start each day you start a job, by yourself, and what you tick is yours alone. Start is held on Home (and on My schedule), but clocking off and adding time by hand are never held, because your hours have to be right.',
+      'A required checklist item has to be answered: it cannot be marked not applicable. An item that is Not OK needs a note saying what is wrong, and an item that asks for a photo needs one when it is OK. A required item that is Not OK is still kept as the record, and on a phone it holds you from starting the job until you tick the checklist again with it put right. A record keeps its own copy of the words, so changing a checklist later never changes what was ticked, and someone who has ticked one is deactivated rather than deleted.',
+      'A checklist or a SWMS can only be put on a job that has been read from simPRO, and a SWMS only once it has been published.',
+      'On your phone, Home and Safety show the SWMS under each job that has one, as long as your access level has Job safety: the standard Employee, Mechanic and Manager levels do, so nothing needs adding unless a level was set to none. With no signal you can still read and sign it, because the phone keeps a copy of the statements for the day’s jobs while it has signal: your sign-on shows Waiting to send and goes when the signal returns, and the office sees when you typed it as well as when it arrived.',
+      'Still to sign on: a person is on the list when they are booked on a job that has a SWMS, on the schedule that has been published to staff, in the next two weeks, and have not signed the version in force. A day of approved leave does not count, and neither does someone who has been archived. What you see follows your access level: your own name, your team’s or everyone’s. A job’s leader sees everyone booked on the jobs they lead, in their to-do list, for the next week, whatever their own level shows elsewhere, but only if their level has Job safety.',
+      'Signing on is always you, typing your own name; nobody can sign on for someone else. What you sign is the version you read: you sign each version once on each job, and a newer version asks you again. Your sign-on is kept with the words you agreed to and the time, and is never deleted, so a person who has signed on is archived rather than deleted.',
+      'Sending a SWMS to the principal contractor is part of Can write and attach. Press Send on the statement’s row under Operations → Job safety, type their email address (and a name and a message if you like) and the version in force goes to them as a link that works for 30 days. They see the statement as it prints, with the job’s details as they were sent, but not your site notes. The date given to the principal contractor on the job is set to the day you send it, and the row shows who it went to, which version, and whether they have opened it, with a note when you have published a newer version that has not been sent yet. A link you no longer want can be withdrawn at once. Some email programs open a link to check it, so “opened” is a guide and not proof that a person read it, and a company can send only 50 a day.',
+      'The details you give for a job (the principal contractor, the site, the substances) belong to that job only, and are entered once for every SWMS in its folder. A SWMS that has changed one for itself is marked Own details for this job; the rest follow the job, so changing the job’s details changes them all. The date a SWMS was given to the principal contractor is the SWMS’s own, because each is sent on its own day. They print in the header and the lists of the SWMS, and changing them never changes what the SWMS itself says.',
+      'Only people with Can write and attach add SWMS to a job, change a job’s details or change one SWMS’s own, and there is no limit on how many jobs have a folder. Anyone whose level has Job safety can read the details.',
+    ],
+    tasks: [
+      at('job_safety', 'edit', 'Write a SWMS', 'admin', 'Open Operations → SWMS and press New SWMS. Give it a title, tick the hazards and protective equipment that apply, then press Add job task and fill in each task’s hazards, risk ratings, controls and who is responsible. Under each rating, Help me rate it opens your risk grid: find how likely the harm is down the side and how serious it would be along the top, press the square where they meet, and Use this rating fills the box. It only ever uses the square you pressed, and a rating can still be chosen straight from the box. Each part folds away to its heading, and the buttons under Go to take you to a part. A job task whose hazards share one person responsible has that person written once; press A different person for some hazards to name them hazard by hazard. A hazard can be duplicated just below itself or moved to another task. Press Save as you go (or Ctrl+S) and Preview to see the printed page in front of what you are writing. Press Duplicate beside one to start from a copy.'),
+      at('job_safety', 'edit', 'Bring a SWMS in from a Word file or a paste', 'admin', 'Open Operations → SWMS and press Bring one in. Choose a Word file (.docx), or paste the statement’s text or its table (copy a table from Word or Excel with its heading row). Press Read it: the pop-up says what it found (the title and number, the boxes that are ticked, the management lists, the job tasks with their hazards, controls and ratings) and what it did not. Press Open in the editor to check it: it opens as a copy, and nothing is saved or published until you press Save. A risk rating is only taken where the document says it (3H, or Low, Moderate, High, Acute); every other one is left blank for you to set. Check every line against the original before you publish.'),
+      at('job_safety', 'edit', 'Bring in a PDF', 'admin', 'A PDF cannot be chosen as a file. Open it, select all and copy, then paste the text into Bring one in. The ticked boxes on a PDF are pictures, so they are not found and you tick them in the editor. If no table of job tasks is found and the assistant is switched on, press Read the job tasks: it reads the text a part at a time and suggests the tasks, hazards and controls, copying the controls as written. It is limited each day, and what it suggests has to be checked, line by line, against the PDF.'),
+      at('job_safety', 'edit', 'Copy tasks from another SWMS', 'admin', 'In the SWMS you are writing, open Job tasks and press Copy tasks from another SWMS. Choose the SWMS, tick the tasks you want (Emergency response and On completion are usually the same on every statement) and press Add. They are added to the end as copies you can change, and the other SWMS is not touched.'),
+      at('job_safety', 'approve', 'Publish a SWMS version', 'admin', 'Open the SWMS, save your changes and press Publish version. If it is not ready the bar says how many things are still to finish: press it to see them, and each one takes you to the box. A finished draft can also be published from its row in the list. A pop-up lists what has changed since the version in force and asks, if you like, for a note on why: everyone asked to sign the new version sees it. Older versions stay in the list at the bottom of the page, where you can look at them again.'),
+      at('job_safety', 'view', 'Compare two versions of a SWMS', 'admin', 'Open the SWMS and open Versions at the bottom of the page. Press Compare with the one before beside a version to see what is different: a line for each change, grouped by the part of the statement, with the lines taken out in red and the lines put in in green. While there are unpublished changes, the button below the list shows what has changed since the version in force.'),
+      at('job_safety', 'edit', 'Archive or bring back a SWMS', 'admin', 'In the SWMS list, press Archive beside one to put it away: it is kept with every version and sign-on but is no longer offered. Choose Archived in the list’s filter and press Restore to bring it back as it was.'),
+      at('job_safety', 'edit', 'Put SWMS on a job', 'admin', 'Open Operations → Job safety. Under SWMS on jobs each job has its own folder. Choose the job and press Add SWMS (or Add SWMS in the job’s folder), tick every published SWMS that applies to it, search by name if the list is long, and press Add. They all go on at once, and the job’s folder opens with them in it. Take off removes a SWMS from the job, and everything already signed is kept.'),
+      at('job_safety', 'edit', 'Enter a job’s details once', 'admin', 'In the job’s folder press Job details (Set job details the first time) and fill in what is true of the whole job: the principal contractor and how to reach them, the site address, who to contact, who monitors the work, any permits, the hazardous substances taken on site and notes for the crew. Every SWMS in the folder uses them, printed in its header and lists. For a job set up before this, the details its SWMS already share are shown to start from, and saving them makes them the job’s. To change something for one SWMS only, press Details on its row, change it there and save: that SWMS is marked Own details for this job and keeps it, while the others follow the job. Use the job’s details for everything puts it back, and the date a SWMS was given to the principal contractor is always its own.'),
+      at('job_safety', 'edit', 'Send a SWMS to the principal contractor', 'admin', 'Open Operations → Job safety and find the statement on its job under SWMS on jobs. Press Send, type the principal contractor’s email address (it is kept on the job for next time unless you untick that), add a name and a message if you want, and press Send. They get an email with a personal link to read the version in force and print it or save it as a PDF. The date given to the principal contractor on the job is set to today, and the row shows who it went to, when, and whether they have opened it. Send again after you publish a new version. To stop a link working, open Send on that row and press Withdraw beside it.'),
+      at('job_safety', 'view', 'Sign on to a SWMS', 'everyone', 'Open Operations → Job safety. Under SWMS on jobs press Read and sign on beside the job, read the whole statement, type your full name and press Sign on. If the SWMS is published again you are asked to sign the new version.'),
+      at('job_safety', 'view', 'Sign on from your phone', 'everyone', 'Open Safety (or Home). Under each job that has a SWMS, press Read and sign on, read it from the top, type your full name and press Sign on. With no signal it says Waiting to send and goes when the signal returns. If the job you are on has one you have not signed, a notice under the clock says so.'),
+      at('job_safety', 'view', 'Do the start checks on a job', 'everyone', 'Open Safety (or Home). Under each job you are scheduled on, sign on to its SWMS (Read and sign on) and press Tick checklist beside Before you start. Mark each item OK or Not OK (not applicable is only for an item that is not required), type what is wrong on a Not OK, take a photo where one is asked for, and press Submit checklist. Start opens once everything is done for the day. With no signal it says Waiting to send and goes when the signal returns, and Start is open as soon as you have ticked it. A photo needs signal.'),
+      at('job_safety', 'view', 'Put right something that was not OK', 'everyone', 'If a required item was Not OK, Start stays held and says which item. Put it right, then press Tick again beside the checklist and mark it OK: the hold goes. The people who lead the job were told as soon as you sent it, and the record is kept either way. Finishing a job works the same, except that nothing holds you: clocking off is never blocked, and a Not OK is recorded and the leaders are told.'),
+      at('job_safety', 'view', 'See who is still to sign on', 'manager', 'Open Operations → Job safety. Still to sign on lists each job with a SWMS and the people booked on it in the next two weeks who have not yet signed the version in force, with the first day each is on the job. Under SWMS on jobs each row says how many are still to sign, and Who has signed lists them above those who have. If you lead a job, the people on it who have not signed also appear in your to-do list, on the dashboard and on Today.'),
+      at('job_safety', 'view', 'See who has signed and print the pack', 'manager', 'Open Operations → Job safety and press Who has signed beside the SWMS on the job. It lists who signed which version and when; Print the pack prints the statement with the job’s details and a line for each person who signed the version in force. Operations → Job safety → Records lists every sign-on. You see your own, your team’s or everyone’s, by your level.'),
+      at('job_safety', 'view', 'Read and print a SWMS', 'everyone', 'Open Operations → SWMS and choose one. You see the version in force, laid out as it prints. Press Print to print it or save it as a PDF.'),
+      at('company_setup', 'edit', 'Write a job checklist', 'admin', 'Open Settings → Job checklists and press New job checklist. Name it, choose whether it is ticked at the start or the finish of a job, add its items, and tick Required and Photo on the ones that need them. Tick Goes with every job if it should be asked on every job. Press Duplicate beside one to start from a copy.'),
+      at('job_safety', 'edit', 'Attach a checklist to a job', 'admin', 'Open Operations → Job safety, choose the job, choose the checklist and press Attach. Press the cross beside a checklist on a job to take it off.'),
+      at('job_safety', 'view', 'See who has ticked a checklist', 'manager', 'Open Operations → Job safety → Records. Each line is one checklist ticked on one job; open it to see every answer, the notes and the number of photos. You see your own, your team’s or everyone’s as your level allows.'),
+    ],
+  },
+  {
+    id: 'support',
+    name: 'Support requests', group: 'platform', status: 'partial',
+    screens: [['support', 'Support']],
+    intro: 'Ask AccurateHR support for help from inside the app, and follow the answer.',
+    overview: 'Under Me → Support you can ask AccurateHR’s own support team for help without leaving the app: give your request a short title, say what you need, and press Send. Support answers in the same place, and you are told by the bell, on your phone and by email, as you have chosen. Everyone who is allowed to ask sees their own requests, and an owner or admin sees the whole company’s. Mark a request solved when it is, or reply to open it again.',
+    good: [
+      'AccurateHR support reads what you send, screenshots included. Please never put a PIN, a password or bank details in a message or a picture.',
+      'You can add up to three screenshots (JPEG, PNG or WebP) to a message. They are kept with the request, and go with the rest of your company’s files if the account is ever deleted.',
+      'Who can ask follows your access level’s Support requests area: managers can ask about their own requests, and owners and admins see everyone’s. Staff start without it and ask their office first; a level can give it to them.',
+      'An owner or admin can, on a request, let AccurateHR support look at the company’s account for one, three or seven days. It is for that request only, ends when the request is solved or the time is up, and can be withdrawn at any time.',
+      'When support does look, it signs in as the person who asked and can only look: it cannot change anything, open private chat, contracts, employee documents or any stored file, or see bank, super, tax file number, pay rate, date of birth, home address or emergency contact details. A banner on every page says who is looking and until when.',
+      'Everything support opens is recorded in History, and the person who asked and every admin are told in the app, on their phone and by email, as they have chosen, when support signs in.',
+      'You can only ask for help while your company’s account is active.',
+    ],
+    tasks: [
+      at('support', 'edit', 'Ask for help', 'manager', 'Open Me → Support and press Ask for help. Write a short title and what you need: what you were doing, what you expected and what happened instead.'),
+      at('support', 'view', 'Follow the answer', 'manager', 'Open Me → Support and choose a request to read the whole conversation. A request with the marker Your turn is waiting for your reply. Reply in the box, or press Mark solved when it is sorted out.'),
+      at('support', 'edit', 'Add a screenshot', 'manager', 'When you ask or reply, press Add a screenshot and choose up to three pictures. Press the cross on a picture to take it off. Press a picture in the conversation to see it large.'),
+      at('support', 'approve', 'Let AccurateHR support look at your account', 'admin', 'Open the request, choose how long (one, three or seven days) and press Allow access. Press Withdraw access to take it back sooner. Look in History to see what support opened.'),
+    ],
+  },
+  {
+    id: 'xero',
+    name: 'Xero payroll', group: 'integrations', status: 'live',
+    screens: [['xero', 'Xero'], ['logs', 'Logs']],
+    intro: 'The link with Xero payroll: send hours and leave, read leave balances back.',
+    overview: 'The Xero link sends each approved pay cycle to Xero Payroll (Australia) as timesheets and leave applications, and reads leave balances back. It can also be used for intercompany recharge invoices and bills. An admin connects it once for each company and sets up the matching under Settings → Xero.',
+    good: [
+      'To connect, an admin signs in to Xero as someone with payroll admin access and allows AccurateHR.',
+      'In Xero settings you pick the pay calendar new cycles follow, match each person to their Xero employee (Auto-match goes by email, then name), and map schedule rates, leave types, allowances and other activities to Xero pay items.',
+      'An allowance is sent on the timesheet as a count of days, weeks or hours of the earnings rate you match it to, which should be set up in Xero as paid per unit at the same amount. An allowance with no rate matched stops that person’s pay being approved.',
+      'Once a leave type is mapped to a Xero leave type, Xero owns that leave balance.',
+      'The connection is kept alive each week so it does not lapse.',
+      'Everything sent to Xero is recorded in the Xero log under Logs. Only Xero Payroll Australia is supported.',
+    ],
+    tasks: [
+      at('integrations', 'edit', 'Connect Xero', 'admin', 'Sign in to Xero as someone with payroll admin access and allow AccurateHR. The Xero screen shows the redirect address the Xero app has to have, exactly, with a Copy button; if Xero’s page says “Invalid redirect_uri”, add that address to the app in Xero’s developer portal and try again.'),
+      at('integrations', 'edit', 'Map pay items', 'admin', 'Choose what each schedule rate, activity and leave type is paid as in Xero, and match employees.'),
+    ],
+  },
+  {
+    id: 'companies',
+    name: 'Multi-company', group: 'platform', status: 'live',
+    screens: [['simpro', 'simPRO'], ['xero', 'Xero']],
+    intro: 'Run more than one simPRO company, each with its own Xero organisation, in one HR system.',
+    overview: 'One AccurateHR account can run more than one simPRO company, each paired with its own Xero organisation. Each employee belongs to one company, and their time, leave, purchase orders, expenses, incidents and pay cycles carry that company, so they go to the right simPRO and the right Xero. Admins set it up, and staff do not see it.',
+    good: [
+      'Pay calendars and Xero mappings are set for each company separately.',
+      'Each employee is set to belong to one company, which decides where their records are sent.',
+      'Intercompany recharges bill work between your companies.',
+      'Companies are set up under Integrations, in the simPRO and Xero settings.',
+    ],
+    tasks: [
+      t('Add another company', 'admin', 'Pair a simPRO company with a Xero organisation, then set which company each employee belongs to.'),
+    ],
+  },
+];
+
+// ---- the in-app help page ----
+// What a signed-in person is shown, for the browser and for the phone app alike: only the tasks their role or level can do, narrowed by a search.
+// → [{ topic, tasks }], in the order of TOPICS; a topic with no task left is left out. A search matches a topic's name and intro (all its tasks then show)
+// or a task's own title and words.
+export function helpFor(role, access, query = '') {
+  const needle = String(query || '').trim().toLowerCase();
+  return TOPICS.map(topic => {
+    const own = topic.tasks.filter(task => showTask(task, role, access));
+    const whole = !needle || [topic.name, topic.intro].join(' ').toLowerCase().includes(needle);
+    return { topic, tasks: whole ? own : own.filter(task => [task.title, task.about].join(' ').toLowerCase().includes(needle)) };
+  }).filter(x => x.tasks.length);
+}
+// The same, under the headings of GROUPS: [{ group, topics: [{ topic, tasks }] }], leaving out a group with nothing in it.
+export const helpByGroup = (role, access, query = '') => { const shown = helpFor(role, access, query); return GROUPS.map(group => ({ group, topics: shown.filter(x => x.topic.group === group.id) })).filter(g => g.topics.length); };
+// The line that says who the person is signed in as: { strong, rest }, or null for a role the page has no words for. A standard employee's role is stored as 'user'.
+export function youAre(role) {
+  const found = ROLES.find(([name]) => name.toLowerCase() === (role === 'user' ? 'employee' : role));
+  return found ? { strong: `You are signed in as ${/^[AEIOU]/.test(found[0]) ? 'an' : 'a'} ${found[0].toLowerCase()}. `, rest: `${found[1]} You only see the help for what you can do.` } : null;
+}
+export const HELP_WORDS = { search: 'Search the help…', guides: 'See every step-by-step guide', guide: 'Open guide', good: 'Good to know', goTo: 'Go to', none: 'Nothing matches that search.' };
