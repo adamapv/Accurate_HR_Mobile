@@ -267,6 +267,37 @@ export function meAttention({ week, plant, quals, gaps, today, onSubmit }, { fmt
   return out.sort((a, b) => rank[a.tone] - rank[b.tone]);
 }
 
+// ---- a scheduled job ----
+// A row of the person's published schedule (GET /schedule/mine): { work_date, company_id, job_id, job_name, activity, customer_name, site_name, site_address, site_lat,
+// site_lng, site_id, notes, crew: [names], plant: [names] }.
+// How it is headed: its number (or "Activity" for a public holiday, an RDO, a toolbox) and its name.
+export const schedRowTitle = r => ({ tag: r.activity ? 'Activity' : `#${r.job_id}`, name: r.job_name || (r.activity ? 'Activity' : 'Job') });
+// The address is shown unless it only repeats the site's name.
+export const showAddress = r => !!r.site_address && !r.site_address.toLowerCase().startsWith(String(r.site_name || '').trim().toLowerCase() || '\0');
+// Who else is on the row: up to six names, then "+ N more".
+export const crewLine = crew => crew.length > 6 ? `${crew.slice(0, 6).join(', ')} + ${crew.length - 6} more` : crew.join(', ');
+// Directions to a site, by its coordinates when known, else its address: Apple's maps on an Apple device (`apple`), Google's otherwise. Null with neither.
+export function mapsUrl(c, apple) {
+  if (!c?.site_address && c?.site_lat == null) return null;
+  const dest = c.site_lat != null && c.site_lng != null ? `${c.site_lat},${c.site_lng}` : c.site_address;
+  return apple ? `https://maps.apple.com/?daddr=${encodeURIComponent(dest)}` : `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(dest)}`;
+}
+// A phone number as a link to ring.
+export const telHref = phone => `tel:${String(phone).replace(/[^\d+]/g, '')}`;
+// Ringing one person: { ring: 'tel:…' }, or what to say when their record has no number.
+export const ringStep = p => p.phone ? { ring: telHref(p.phone) } : { say: `${p.name} has no phone number on their record`, tone: 'info' };
+// What a tap on Navigate ('nav'), Call PM ('pm') or Call team leaders ('leaders') does, from the job's details (the row with GET /jobs/:company/:id/contact laid over
+// it: { site_address, site_lat, site_lng, pm: { name, phone }, leaders: [{ id, name, position, phone }] }). Who to ring is the job's own people, never the customer.
+// → { nav: url } | { ring: 'tel:…' } | { say, tone } | { choose: [{ id, name, detail, phone }] } (several team leaders: say who they are, then ringStep the one chosen)
+export function contactStep(what, d, apple) {
+  if (what === 'nav') return mapsUrl(d, apple) ? { nav: mapsUrl(d, apple) } : { say: 'simPRO has no address for this site', tone: 'danger' };
+  if (what === 'pm') return !d.pm ? { say: 'This job has no project manager set', tone: 'info' } : ringStep(d.pm);
+  const leaders = d.leaders || [];
+  if (!leaders.length) return { say: 'This job has no team leaders set', tone: 'info' };
+  if (leaders.length === 1) return ringStep(leaders[0]);
+  return { choose: leaders.map(l => ({ id: l.id, name: l.name, phone: l.phone || null, detail: l.phone ? [l.position, l.phone].filter(Boolean).join(' · ') : 'No phone number on their record' })) };
+}
+
 // ---- the session and links ----
 // The session's fingerprint: the first 8 bytes of SHA-256 over "Bearer <session id>", as 16 hex characters. Everything kept on a device for one session (the outbox,
 // the offline copies) is tagged with it, and the service worker keys its copies with the same value, so one person's never show for the next. '' with no session.

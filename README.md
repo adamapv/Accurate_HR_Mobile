@@ -13,6 +13,7 @@ The AccurateHR Field view as a native Android and iPhone app. Built with React N
 - Submit day and Pull back, from the Job card tab: what stops a day going (still on the clock, something on the phone not sent yet), what an approver would query, a confirm with the day's hours, and what happened afterwards.
 - A tab bar (Home, Job card, More). More shows who is signed in and has Sign out.
 - Time on an activity instead of a job (training, a toolbox talk, a public holiday on a public holiday, an RDO). One that needs a manager's approval is not time: the form says to request it as leave.
+- Home lists the jobs published for you today and tomorrow: the job, customer and site, address, notes, who else is on it and what plant, with Navigate, Call PM and Call team leaders.
 - Home opens with no signal, on the copy kept from last time.
 - Sign out, which forgets everything kept on the phone.
 
