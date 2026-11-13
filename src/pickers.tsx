@@ -9,8 +9,8 @@ import { radius, space, TOUCH, useTheme } from '@/theme';
 const pad2 = (n: number) => String(n).padStart(2, '0');
 const atTime = (hm: string) => { const [h, m] = (hm || '07:00').split(':').map(Number); const d = new Date(); d.setHours(h || 0, m || 0, 0, 0); return d; };
 
-// A time ('HH:MM', or '' for none) or a date ('YYYY-MM-DD'). `maxDate` stops a date in the future. `step` snaps a time to that many minutes.
-export function WhenField({ label, mode, value, onChange, maxDate, step, placeholder }: { label: string; mode: 'time' | 'date'; value: string; onChange: (v: string) => void; maxDate?: string; step?: number; placeholder?: string }) {
+// A time ('HH:MM', or '' for none) or a date ('YYYY-MM-DD'). `maxDate` stops a date after it and `minDate` one before it. `step` snaps a time to that many minutes.
+export function WhenField({ label, mode, value, onChange, maxDate, minDate, step, placeholder }: { label: string; mode: 'time' | 'date'; value: string; onChange: (v: string) => void; maxDate?: string; minDate?: string; step?: number; placeholder?: string }) {
   const t = useTheme();
   const [open, setOpen] = useState(false);
   const shown = !value ? placeholder || 'Choose' : mode === 'date' ? fmtDate(value) : value;
@@ -30,6 +30,7 @@ export function WhenField({ label, mode, value, onChange, maxDate, step, placeho
         <DateTimePicker
           mode={mode} value={mode === 'date' ? parseDay(value || isoLocal(new Date())) : atTime(value)} is24Hour
           maximumDate={mode === 'date' && maxDate ? parseDay(maxDate) : undefined}
+          minimumDate={mode === 'date' && minDate ? parseDay(minDate) : undefined}
           display={Platform.OS === 'ios' ? 'spinner' : 'default'} themeVariant="dark"
           onValueChange={(_e, d) => { if (Platform.OS !== 'ios') setOpen(false); take(d); }}
           onDismiss={() => setOpen(false)} />
