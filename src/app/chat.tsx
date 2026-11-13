@@ -1,5 +1,6 @@
 // One chat: its messages under day chips, with the unread line, names in a group and a tick on the reader's own, and a box to send a text message, a photo
-// from the camera, a document from the phone or a voice message recorded here. Typing "@" offers the chat's people to mention. Holding a message offers a reaction, Reply, Copy and Delete; a
+// from the camera, a document from the phone or a voice message recorded here. The menu at the top mutes the chat and, for a group, opens its people and its name; tapping a
+// message's reactions shows who reacted. Typing "@" offers the chat's people to mention. Holding a message offers a reaction, Reply, Copy and Delete; a
 // document opens through the phone's share sheet.
 // How the messages are laid out, how a message's text is cut into words, links and mentions, and what sending puts in the outbox are the web app's own rules
 // (shared/chat-core.js). A message goes through the outbox, so one typed with no signal waits in the chat and is sent once.
@@ -13,7 +14,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Redirect, router, useLocalSearchParams } from 'expo-router';
 import { can } from '@shared/access.js';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { CHAT_VOICE, voiceDraft, voiceFull, voiceKeep, voicePath, voiceSecs, voiceUploadPath, CHAT_DELETE_CONFIRM, CHAT_DOC_FAILED, CHAT_EMOJI, CHAT_PHOTO_FAILED, CHAT_SEND_DOC, CHAT_SEND_PHOTO, MENTION_LIST, chatDocDraft, chatDocProblem, chatDocUploadPath, chatFileType, mentionCandidates, mentionIds, mentionPick, mentionQuery, chatActions, chatCanReact, chatClock, chatDeleted, chatDeletedText, chatDivider, chatFileLine, chatHue, chatItems, chatName, chatParts, chatPhotoDraft, chatQuote, chatReacted,
+import { CHAT_REACTION_REMOVE, CHAT_REACTIONS_TITLE, chatMenu, chatSub, muteDraft, muteSaid, reactionMine, reactionRows, reactionsPath, CHAT_VOICE, voiceDraft, voiceFull, voiceKeep, voicePath, voiceSecs, voiceUploadPath, CHAT_DELETE_CONFIRM, CHAT_DOC_FAILED, CHAT_EMOJI, CHAT_PHOTO_FAILED, CHAT_SEND_DOC, CHAT_SEND_PHOTO, MENTION_LIST, chatDocDraft, chatDocProblem, chatDocUploadPath, chatFileType, mentionCandidates, mentionIds, mentionPick, mentionQuery, chatActions, chatCanReact, chatClock, chatDeleted, chatDeletedText, chatDivider, chatFileLine, chatHue, chatItems, chatName, chatParts, chatPhotoDraft, chatQuote, chatReacted,
   chatReactionDraft, chatSecs, chatSendDraft, mergeChat } from '@shared/chat-core.js';
 import { useSession } from '@/lib/session';
 import { useOutbox } from '@/lib/use-outbox';
@@ -29,7 +30,7 @@ type Person = { id: string; name: string; position?: string | null };
 type Quote = { sender_name?: string; text?: string | null; photo?: boolean; audio?: boolean; file?: string | null; deleted?: boolean };
 type Msg = { id: string; seq: number; sender_id: string; sender_name?: string; body?: string | null; created_at: string; system?: string; deleted?: boolean; reply?: Quote | null;
   mentions?: { id: string; name: string }[]; reactions?: { emoji: string; count: number; mine: boolean }[]; photo_key?: string | null; audio_key?: string | null; audio_secs?: number; file?: { key?: string; name: string; size?: number } | null };
-type Page = { thread: { id: string; kind: string; title?: string | null; others?: Person[] }; messages: Msg[]; last_read_seq: number; read_upto: number | null; me: string; rev?: number };
+type Page = { thread: { id: string; kind: string; title?: string | null; muted?: boolean; others?: Person[] }; messages: Msg[]; last_read_seq: number; read_upto: number | null; me: string; rev?: number };
 type Item = { kind: 'day' | 'unread' | 'system'; key: string; text: string } | { kind: 'msg'; key: string; m: Msg; mine: boolean; first: boolean; showName: boolean; tick: string } | { kind: 'local'; key: string; e: Entry };
 
 export default function Chat() {
@@ -47,6 +48,9 @@ export default function Chat() {
   const [sheet, setSheet] = useState<Msg | null>(null);       // the message whose choices are showing
   const [replyTo, setReplyTo] = useState<Msg | null>(null);   // the message being answered
   const [sending, setSending] = useState(false);              // a photo or a document on its way
+  const [menu, setMenu] = useState(false);                   // the chat's own menu
+  const [who, setWho] = useState<{ m: Msg; rows: { emoji: string; id: string; name: string }[] } | null>(null);   // who reacted to a message
+  const [told, setTold] = useState('');
   const [rec, setRec] = useState<{ secs: number } | null>(null);   // a voice message being recorded
   const recorder = useAudioRecorder(VOICE_RECORDING);
   const recState = useRef<{ start: number; timer: ReturnType<typeof setInterval> | null; reply: Msg | null; ending: boolean } | null>(null);
@@ -88,7 +92,7 @@ export default function Chat() {
         if (stop) return;
         rev.current = d.rev || 0;
         if (d.messages.length) { setMsgs(prev => mergeChat(prev, d.messages) as Msg[]); latest.current = Math.max(latest.current, ...d.messages.map(m => m.seq)); }
-        if (d.read_upto !== undefined) setHead(h => (h ? { ...h, read_upto: d.read_upto } : h));
+        setHead(h => (h ? { ...h, thread: d.thread || h.thread, read_upto: d.read_upto !== undefined ? d.read_upto : h.read_upto } : h));
         setError('');
       } catch { /* the next look will say */ }
     };
@@ -249,6 +253,20 @@ export default function Chat() {
         .catch(e => setError(e instanceof Error ? e.message : 'Something went wrong. Try again.'));
     } }]);
   };
+  // The chat's own menu: notifications on or off here; a group's people and its name on the group's own page.
+  const menuDo = (a: string) => {
+    setMenu(false);
+    if (!head) return;
+    if (a === 'info') return router.push({ pathname: '/chat-group', params: { id } });
+    if (a === 'rename') return router.push({ pathname: '/chat-group', params: { id, rename: '1' } });
+    const was = !!head.thread.muted;
+    api(`/chat/threads/${id}`, { method: 'PUT', body: muteDraft(head.thread) }).then(() => { setHead(h => (h ? { ...h, thread: { ...h.thread, muted: !was } } : h)); setTold(muteSaid(was) as string); changed(); })
+      .catch(e => setError(e instanceof Error ? e.message : 'Something went wrong. Try again.'));
+  };
+  const openWho = (m: Msg) => {
+    api<{ reactions: { emoji: string; id: string; name: string }[] }>(reactionsPath(m.id) as string).then(d => setWho({ m, rows: d.reactions }))
+      .catch(e => setError(e instanceof Error ? e.message : 'Something went wrong. Try again.'));
+  };
   const act = (m: Msg, a: string) => {
     setSheet(null);
     if (a === 'reply') setReplyTo(m);
@@ -287,7 +305,11 @@ export default function Chat() {
             )}
           </>
         )}
-        {!m.deleted && !!m.reactions?.length && <Text style={[styles.meta, { color: t.fg }]}>{m.reactions.map(r => `${r.emoji}${r.count > 1 ? ` ${r.count}` : ''}`).join('  ')}</Text>}
+        {!m.deleted && !!m.reactions?.length && (
+          <Pressable accessibilityRole="button" accessibilityLabel="Who reacted" onPress={() => openWho(m)} hitSlop={8}>
+            <Text style={[styles.meta, { color: t.fg }]}>{m.reactions.map(r => `${r.emoji}${r.count > 1 ? ` ${r.count}` : ''}`).join('  ')}</Text>
+          </Pressable>
+        )}
         <Text style={[styles.meta, { color: mine ? '#E6E8FF' : t.muted }]}>{chatClock(m.created_at) as string}{mine && !m.deleted ? (tick === 'read' ? ' · Read' : ' · Sent') : ''}</Text>
       </View>
     </Pressable>
@@ -312,8 +334,13 @@ export default function Chat() {
       <KeyboardAvoidingView style={styles.fill} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <View style={[styles.head, { borderBottomColor: t.line, backgroundColor: t.topbar }]}>
           <Pressable accessibilityRole="button" accessibilityLabel="Back to chats" onPress={() => router.back()} style={styles.back}><Ionicons name="chevron-back" size={24} color={t.accent2} /></Pressable>
-          <Text accessibilityRole="header" numberOfLines={1} style={[styles.title, { color: t.fg }]}>{head ? (chatName(head.thread) as string) : 'Chat'}</Text>
+          <View style={{ flex: 1 }}>
+            <Text accessibilityRole="header" numberOfLines={1} style={[styles.title, { color: t.fg, flex: 0 }]}>{head ? (chatName(head.thread) as string) : 'Chat'}</Text>
+            {!!head && !!(chatSub(head.thread) as string) && <Text numberOfLines={1} style={{ fontSize: 13, color: t.muted }}>{`${chatSub(head.thread) as string}${head.thread.muted ? ' · Muted' : ''}`}</Text>}
+          </View>
+          {!!head && <Pressable accessibilityRole="button" accessibilityLabel="Chat options" onPress={() => { setTold(''); setMenu(true); }} style={styles.back}><Ionicons name="ellipsis-horizontal" size={22} color={t.fg} /></Pressable>}
         </View>
+        {!!told && <Text accessibilityRole="alert" style={[styles.note, { color: t.muted }]}>{told}</Text>}
         {!!error && <Text accessibilityRole="alert" style={[styles.note, { color: msgs ? t.muted : t.danger }]}>{error}</Text>}
         {!msgs ? (!error && <Text style={[styles.note, { color: t.muted }]}>Loading…</Text>) : (
           <FlatList ref={list} data={items} keyExtractor={i => i.key} contentContainerStyle={styles.list} keyboardShouldPersistTaps="handled"
@@ -367,6 +394,34 @@ export default function Chat() {
           </View>
         )}
       </KeyboardAvoidingView>
+      <Modal visible={menu && !!head} transparent animationType="fade" onRequestClose={() => setMenu(false)}>
+        <Pressable accessibilityLabel="Close" onPress={() => setMenu(false)} style={styles.shade}>
+          <View style={[styles.sheet, { backgroundColor: t.surface, borderColor: t.line }]}>
+            {(chatMenu(head?.thread, canSend) as { act: string; label: string }[]).map((a, n) => (
+              <Pressable key={a.act} accessibilityRole="button" onPress={() => menuDo(a.act)} style={[styles.choice, { borderTopColor: t.line, borderTopWidth: n ? StyleSheet.hairlineWidth : 0 }]}><Text style={{ fontSize: 17, color: t.fg }}>{a.label}</Text></Pressable>
+            ))}
+            <Pressable accessibilityRole="button" onPress={() => setMenu(false)} style={[styles.choice, { borderTopColor: t.line }]}><Text style={{ fontSize: 17, color: t.muted }}>Cancel</Text></Pressable>
+          </View>
+        </Pressable>
+      </Modal>
+      <Modal visible={!!who} transparent animationType="fade" onRequestClose={() => setWho(null)}>
+        <Pressable accessibilityLabel="Close" onPress={() => setWho(null)} style={styles.shade}>
+          {!!who && (
+            <View style={[styles.sheet, { backgroundColor: t.surface, borderColor: t.line }]}>
+              <Text accessibilityRole="header" style={{ fontSize: 15, fontWeight: '700', color: t.muted, padding: space.md }}>{CHAT_REACTIONS_TITLE as string}</Text>
+              {(reactionRows(who.rows, head?.me) as { key: string; text: string }[]).map(r => (
+                <View key={r.key} style={[styles.choice, { borderTopColor: t.line }]}><Text style={{ fontSize: 17, color: t.fg }}>{r.text}</Text></View>
+              ))}
+              {canSend && !!(reactionMine(who.rows, head?.me) as string | null) && (
+                <Pressable accessibilityRole="button" onPress={() => { const m = msgs?.find(x => x.id === who.m.id) || who.m, e = reactionMine(who.rows, head?.me) as string; setWho(null); void react(m, e); }} style={[styles.choice, { borderTopColor: t.line }]}>
+                  <Text style={{ fontSize: 17, color: t.danger }}>{CHAT_REACTION_REMOVE as string}</Text>
+                </Pressable>
+              )}
+              <Pressable accessibilityRole="button" onPress={() => setWho(null)} style={[styles.choice, { borderTopColor: t.line }]}><Text style={{ fontSize: 17, color: t.muted }}>Close</Text></Pressable>
+            </View>
+          )}
+        </Pressable>
+      </Modal>
       <Modal visible={!!sheet} transparent animationType="fade" onRequestClose={() => setSheet(null)}>
         <Pressable accessibilityLabel="Close" onPress={() => setSheet(null)} style={styles.shade}>
           {!!sheet && (
