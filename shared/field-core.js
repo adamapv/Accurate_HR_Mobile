@@ -705,6 +705,123 @@ export const pinProblem = ({ next, confirm }, strict) => !(strict ? /^\d{6,8}$/ 
 export const pinDraft = ({ current, next }) => ({ current_pin: current, new_pin: next });
 export const PIN_CHANGED = 'PIN changed — any other devices have been signed out';
 
+// ---- plant check-out ----
+// Taking a truck, machine or trailer, handing it back, the daily pre-start and the check of what a ute carries. A row is one of GET plant/available.
+export const PLANT_SUB = 'Take a truck, machine or trailer — and hand it back when you’re done';
+export const PLANT_SEARCH = 'Search by name, rego, type…';
+// With the person, free to take, and with someone else. The search narrows the last two only: what is with you always shows.
+export function plantGroups(rows, q = '') {
+  const needle = String(q || '').trim().toLowerCase();
+  const match = r => !needle || [r.name, r.registration_number, r.category_name, r.brand, r.model, r.holder_name].some(v => String(v || '').toLowerCase().includes(needle));
+  const list = rows || [];
+  return { mine: list.filter(r => r.mine), free: list.filter(r => !r.mine && !r.holder_name && match(r)), others: list.filter(r => !r.mine && r.holder_name && match(r)), searching: !!needle };
+}
+export const plantHeads = g => ({ mine: `With you now (${g.mine.length})`, noMine: 'Nothing checked out to you.', free: `Available (${g.free.length})`, noFree: g.searching ? 'No matches.' : 'Everything is checked out.',
+  others: `Checked out by others (${g.others.length})` });
+// The line under an item's name. `since` writes when it was taken, the client's own way (a time today, a day otherwise).
+export const plantMeta = (r, since) => [r.category_name, r.registration_number && `Rego ${r.registration_number}`,
+  r.holder_name && !r.mine && `with ${r.holder_name}${r.held_since ? ` since ${since(r.held_since)}` : ''}`, r.mine && r.held_since && `since ${since(r.held_since)}`].filter(Boolean).join(' · ');
+// What stops it being taken (in red), else what to know about it (a warning).
+export const plantNote = r => r.block_reason ? { tone: 'danger', text: r.block_reason } : r.warning ? { tone: 'warn', text: r.warning } : null;
+// An item that cannot be taken (expired rego, test and tag) shows as unavailable, with no button that looks as if it works.
+export const plantBlocked = r => !!r.block_reason && !r.mine;
+export const PLANT_UNAVAILABLE = 'Unavailable';
+// What can be done with an item, in order: [{ mode, label, primary }]. mode is 'prestart' | 'ute' | 'return' | 'take' | 'takeover'.
+export function plantActions(r) {
+  if (r.mine) return [
+    r.prestart_required && { mode: 'prestart', label: r.prestart_due ? 'Pre-start due' : 'Pre-start done', primary: !!r.prestart_due },
+    r.ute_checklist_id && { mode: 'ute', label: r.ute_check_due ? 'Ute check due' : 'Check ute', primary: !!r.ute_check_due },
+    { mode: 'return', label: 'Return', primary: false }].filter(Boolean);
+  if (plantBlocked(r)) return [];
+  return [r.holder_name ? { mode: 'takeover', label: 'Take over', primary: false } : { mode: 'take', label: 'Take', primary: true }];
+}
+// The form that takes, takes over, returns or pre-starts one item.
+export const plantFormTitle = (item, mode) => mode === 'return' ? `Return ${item.name}` : mode === 'prestart' ? `Pre-start: ${item.name}` : mode === 'takeover' ? `Take over ${item.name}` : `Take ${item.name}`;
+export const plantTakeoverHint = item => `${item.holder_name} still has this checked out. Taking it over moves it to you and lets them know.`;
+export const plantReadingLabel = item => `Hour meter / odometer${item.current_hours != null ? ` (last: ${item.current_hours})` : ''} — optional`;
+export const RETURN_CONDITIONS = [['good', 'Good'], ['fair', 'Fair — minor wear'], ['poor', 'Poor']];
+export const PLANT_CONDITION_LABEL = 'Condition';
+export const PLANT_DEFECT_LABEL = 'Any damage or faults? (goes straight to the office)';
+export const PLANT_DEFECT_EXAMPLE = 'e.g. hydraulic leak on boom, cracked mirror';
+export const PLANT_WHERE_LABEL = 'Where’s it going? (optional)';
+export const PLANT_WHERE_EXAMPLE = 'Job or site';
+export const PLANT_WHERE_FROM_SCHEDULE = 'From today’s schedule. Change it if it’s going somewhere else.';
+export const PLANT_SCHEDULED_TODAY = 'Scheduled today:';
+export const plantLicenceLabel = item => `I hold a current ${item.requires_licence}`;
+export const PLANT_FAIL_NOTE = 'A check has failed — this tags it out of service and tells the office. Don’t use it until it’s been fixed.';
+// The jobs the person is scheduled on today (rows of GET schedule/mine), each once.
+export const plantScheduled = (rows, today) => (rows || []).filter(r => r.job_id && !r.activity && r.work_date === today)
+  .filter((r, i, all) => all.findIndex(x => x.company_id === r.company_id && x.job_id === r.job_id) === i);
+export const plantJobText = r => `#${r.job_id}${r.job_name ? ` ${r.job_name}` : ''}`;
+// Where it is most likely going: the job this item is planned onto today, when that is one of the person's; else their only job. null when it can't be told.
+export function plantLikely(scheduled, item) {
+  const planned = scheduled.filter(r => (r.plant || []).includes(item.name));
+  return planned.length === 1 ? planned[0] : scheduled.length === 1 ? scheduled[0] : null;
+}
+// `check` is what the pre-start checks say (prestartState), null until they have loaded. A return has none.
+export const plantFailing = (mode, check) => mode !== 'return' && !!check?.required && !!check.failed;
+export const plantSubmitLabel = (mode, failing) => mode === 'return' ? 'Return it' : failing ? 'Report fault — tag out of service' : mode === 'prestart' ? 'Record pre-start' : mode === 'takeover' ? 'Take it over' : 'Take it';
+// Whether the form can't be sent yet: the checks still loading or unanswered, or the licence not ticked (a fault is reported without it).
+export function plantHeld({ mode, check, item, licence }) {
+  if (mode === 'return') return false;
+  if (!check) return true;
+  if (check.required && !check.ready) return true;
+  return mode !== 'prestart' && !plantFailing(mode, check) && !!item.requires_licence && !licence;
+}
+// What is sent: { path, body }.
+export function plantDraft({ item, mode, hours, notes, licence, condition, defect, check }) {
+  if (mode === 'return') return { path: `/plant/${item.id}/return`, body: { hours, condition, defect } };
+  if (mode === 'prestart') return { path: `/plant/${item.id}/prestart`, body: { hours, prestart: check.prestart } };
+  return { path: `/plant/${item.id}/checkout`, body: { hours, notes, licence_confirmed: !!licence, take_over: mode === 'takeover', prestart: check?.required ? check.prestart : undefined } };
+}
+// What the person is told once it is saved. `res` is the Worker's answer.
+export function plantSaid({ item, mode, defect, res }) {
+  if (mode === 'return') return defect ? `${item.name} returned — the defect has been sent to the office.` : `${item.name} returned. Thanks!`;
+  if (mode === 'prestart') return res?.result === 'pass' ? `Pre-start for ${item.name} recorded — all good.`
+    : `Fault recorded. ${item.name} is now out of service and has been handed back — the office has been told. Don’t use it.`;
+  return `${item.name} is checked out to you.` + (res?.taken_over_from ? ` ${res.taken_over_from} has been told.` : '') + (res?.warning ? ` Note: ${res.warning}` : '');
+}
+// A failed pre-start at check-out comes back as a refusal, but it is a finished job (recorded and tagged), not something to try again.
+export const plantFaultRecorded = (failing, message) => !!failing && /failed its pre-start/.test(String(message || ''));
+
+// The pre-start checks: `cfg` is GET plant/:id/prestart-form ({ required, photo_required, items: [labels] }), `answers` is { [label]: { result, note } },
+// `photos` the keys of the photos sent. → { required, ready, failed, prestart } (prestart is what the Worker takes).
+export const PRESTART_HEAD = 'Pre-start checks';
+export const PRESTART_ALL_OK = 'All OK';
+export const PRESTART_CHOICES = [['pass', 'OK'], ['fail', 'Not OK'], ['na', 'N/A']];
+export const PRESTART_WRONG = 'What’s wrong?';
+export const PRESTART_MAX_PHOTOS = 6;
+export const prestartPhotoLabel = cfg => `Photos${cfg.photo_required ? ' (at least one)' : ' (optional)'} — a walk-around shot, plus any faults`;
+export function prestartState(cfg, answers, photos, uploading) {
+  const items = cfg.items.map(label => ({ label, result: answers[label]?.result, note: answers[label]?.note || '' }));
+  const missing = items.filter(i => !i.result).length + items.filter(i => i.result === 'fail' && !i.note.trim()).length;
+  return { required: !!cfg.required, ready: missing === 0 && (!cfg.photo_required || photos.length > 0) && !uploading, failed: items.some(i => i.result === 'fail'), prestart: { items, photos: [...photos] } };
+}
+export const prestartAllOk = cfg => Object.fromEntries(cfg.items.map(l => [l, { result: 'pass' }]));
+
+// The check of what a ute carries: `checklist` is the one from GET assets/:id/ute-check ({ items: [{ id, label, needs_asset_no }] }), `answers` is
+// { [item id]: { answer, asset_no, note } }. → { ready, items } (items is what the Worker takes).
+export const UTE_HEAD = 'On the ute?';
+export const UTE_ALL_ON = 'All on board';
+export const UTE_CHOICES = [['yes', 'Yes'], ['no', 'No'], ['na', 'N/A']];
+export const UTE_ASSET_NO = 'Asset number';
+export const UTE_ASSET_NO_HINT = '(asset no.)';
+export const UTE_WHERE = 'Where is it? (optional)';
+export const UTE_NO_LIST = 'This ute has no checklist yet — an admin chooses one on its Ute checklist tab.';
+export const UTE_DATE_LABEL = 'Date checked';
+export const UTE_NOTES_LABEL = 'Notes (optional)';
+export const UTE_SAVE = 'Save check';
+export function uteState(checklist, answers) {
+  const items = checklist.items.map(it => { const a = answers[it.id] || {}; return { item_id: it.id, label: it.label, answer: a.answer, asset_no: String(a.asset_no || '').trim(), note: String(a.note || '').trim() }; });
+  const missing = items.filter((x, i) => !x.answer || (x.answer === 'yes' && checklist.items[i].needs_asset_no && !x.asset_no)).length;
+  return { ready: missing === 0, items };
+}
+export const uteAllOn = (checklist, answers) => Object.fromEntries(checklist.items.map(it => [it.id, { ...answers[it.id], answer: 'yes' }]));
+export const uteTitle = asset => asset ? `Check ${asset.name}` : 'Ute check';
+export const uteSub = data => data?.asset ? [data.asset.registration_number && `Rego ${data.asset.registration_number}`, data.asset.holder_name && `with ${data.asset.holder_name}`, data.checklist?.name].filter(Boolean).join(' · ') : '';
+export const uteDraft = ({ date, check, notes }) => ({ checked_on: date, items: check.items, notes });
+export const uteSaid = (res, asset) => res?.short_count ? `Check saved — ${res.short_count} ${res.short_count === 1 ? 'tool' : 'tools'} short (${(res.short || []).join(', ')}). The workshop has been told.` : `Check saved — everything is on ${asset.name}.`;
+
 // ---- the session and links ----
 // The session's fingerprint: the first 8 bytes of SHA-256 over "Bearer <session id>", as 16 hex characters. Everything kept on a device for one session (the outbox,
 // the offline copies) is tagged with it, and the service worker keys its copies with the same value, so one person's never show for the next. '' with no session.

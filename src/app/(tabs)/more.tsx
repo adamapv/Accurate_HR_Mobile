@@ -1,4 +1,4 @@
-// More: who is signed in, this build, and Sign out. Chat, POs, My leave, My expenses, My qualifications, My documents, My assets and My forms open from here. The rest of the Field view's More (device settings, onboarding, performance) joins it as it is built.
+// More: who is signed in, this build, and Sign out. Chat, POs, My leave, My expenses, Plant check-out, My qualifications, My documents, My assets and My forms open from here. The rest of the Field view's More (device settings, onboarding, performance) joins it as it is built.
 // The sentence that says what is still in the browser is kept in step with what the app has: change it whenever a screen is added.
 import { Linking, View } from 'react-native';
 import { router } from 'expo-router';
@@ -47,7 +47,8 @@ export default function More() {
         {can(me.access, 'chat') && <Row icon="chatbubbles-outline" tint="violet" title="Chat" sub="Message the office and your crew" onPress={() => router.push('/chats')} />}
         {can(me.access, 'purchase_orders') && <Row icon="receipt-outline" tint="violet" title="Purchase orders" sub="Raise one, and see yours" onPress={() => router.push('/pos')} />}
         {can(me.access, 'leave') && <Row icon="calendar-outline" tint="amber" title="My leave" sub="Your balances and requests" onPress={() => router.push('/leave')} />}
-        <Row icon="cash-outline" tint="green" title="My expenses" sub="Claim fuel, materials and travel" onPress={() => router.push('/expenses')} last />
+        <Row icon="cash-outline" tint="green" title="My expenses" sub="Claim fuel, materials and travel" onPress={() => router.push('/expenses')} />
+        <Row icon="car-outline" tint="orange" title="Plant check-out" sub="Take a truck, machine or trailer, or hand one back" onPress={() => router.push('/plant')} last />
       </List>
 
       <Heading>My records</Heading>
