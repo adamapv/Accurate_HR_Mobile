@@ -7,6 +7,7 @@ export const SHARED = [
   'pickers-core.js',  // dates and times as text
   'field-core.js',    // the job card's layout, the clock, which days can be submitted, what needs doing now
   'job-checks.js',    // what holds Start: SWMS sign-ons and start checklists
+  'chat-core.js',     // chat: the list, a message's text, how messages are laid out, what sending puts in the outbox
   'offline-queue.js', // the outbox
   'rich-text.js',     // the one cleaner for SWMS and policy text
   'swms.js',          // what a SWMS is made of

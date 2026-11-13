@@ -1,12 +1,13 @@
 {
   "repo": "adamapv/AccurateHR",
-  "commit": "19e4c1ae505ee5c1b065ec3f266e69c5cabf2127",
+  "commit": "b7f9b729e17d695c35f3d1c0700ecf0f6ecd666a",
   "files": {
     "access.js": "b486c5098ae89af2cd1654c8304e0ec8cb06f2045331a035df2e3f5ab472aa4e",
     "pay-rules.js": "8424b1d5662cb698a30b3f017e27505fb26f8cca7290a6da5d3655f12c412adb",
     "pickers-core.js": "187eb2caf60c759d8ee3cbeafabb97127025814c732f67212cd2c9b945be3063",
     "field-core.js": "01765196f2b30353c2f431a57c9c5d0922137ab2c70313fbf4a3d508443d68bd",
     "job-checks.js": "41e28047578969ddcb83454844599f01d0e033cd5af18287e71768797d77571a",
+    "chat-core.js": "1c30922a3c694039fc6948b35d6d337398769c27eb5d1cc39299d61a8a821655",
     "offline-queue.js": "72c373f2fe528c3d6dadb679849b8f347bb3f8cdc362df05565e6cc374651e5c",
     "rich-text.js": "621b12c798d46435d168a8fd37518a5c875bd2c51826f979e8f7db606b99705f",
     "swms.js": "3bb7b953bb0b2e2764933fdcb0d411d3e32df196a5edab7becedbe87282e2ca7",

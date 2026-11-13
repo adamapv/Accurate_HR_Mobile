@@ -40,6 +40,11 @@ check(r.failed === 1 && h.off.entries()[0].status === 'failed' && /already clock
 const failedId = h.off.entries()[0].id;
 check(h.off.retry(failedId) && h.off.entries()[0].status === 'pending' && h.off.discard(failedId) && h.off.entries().length === 0, '...to try again or throw away');
 
+h = harness(); h.off.setSession(A); h.online(false);
+await h.off.submit({ kind: 'chat-send', method: 'POST', path: '/chat/threads/t1/messages', body: { body: 'On my way' }, local_card: { body: 'On my way' } });
+await h.off.submit(clockOn);
+check(h.off.entries().length === 1 && h.off.entries()[0].kind === 'clock-on' && h.off.chatEntries().length === 1 && h.off.chatEntries()[0].body.body === 'On my way' && h.off.pending() === 2, 'a chat message waits in the same outbox but is listed apart, for its own chat to show');
+
 console.log('\n-- one session at a time');
 h = harness(); h.off.setSession(A); h.online(false);
 await h.off.submit(clockOn);
