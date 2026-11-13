@@ -1017,6 +1017,68 @@ export const ONE_ON_ONES_RECENT = 'Recent';
 export const upcomingRow = (o, fmtDateTime) => ({ title: fmtDateTime(o.scheduled_at), meta: [`${o.duration_mins || 30} min with ${o.manager_name}`, o.agenda].filter(Boolean).join(' · '), pill: 'Upcoming' });
 export const pastRow = (o, fmtDate) => ({ title: fmtDate(dayOfStored(o.scheduled_at)), meta: `with ${o.manager_name}`, pill: 'Done', notes: o.notes || '', actions: o.action_items || '', actionsLabel: 'Actions: ' });
 
+// ---- support ----
+// Asking the product's own support team for help, and following the answer. `list` is GET support/requests ({ requests, me, everyone, can_ask, needs_you });
+// `thread` is GET support/requests/:id ({ request, messages, can_allow_access }).
+export const SUPPORT_STATUS = { open: ['With AccurateHR', 'info'], waiting: ['AccurateHR replied', 'warn'], solved: ['Solved', 'muted'] };
+export const SUPPORT_DAYS = [[1, '1 day'], [3, '3 days'], [7, '7 days']];
+export const SUPPORT_WARNING = 'AccurateHR support reads what you send here and answers in the app. Please don’t put a PIN, a password or bank details in a message or a screenshot.';
+export const SUPPORT_PICS_MAX = 3;
+export const SUPPORT_ASK = 'Ask for help';
+// Where a request stands for the person looking: { label, tone }. A reply waiting on the person who asked is their turn.
+export function supportState(r, me) {
+  const [label, tone] = SUPPORT_STATUS[r.status] || SUPPORT_STATUS.open;
+  return r.status === 'waiting' && r.raised_by === me ? { label: 'Your turn', tone: 'warn' } : { label, tone };
+}
+// The list as its two tabs: { open, solved }, and the words around it.
+export const supportTabs = list => ({ open: (list?.requests || []).filter(r => r.status !== 'solved'), solved: (list?.requests || []).filter(r => r.status === 'solved') });
+export const supportNeedsYou = list => list?.needs_you > 0 ? `${plural(list.needs_you, 'request')} waiting on your reply.` : '';
+export const supportEmpty = (list, tab) => tab === 'solved' ? 'Nothing solved yet.' : list?.can_ask ? 'No open requests. Press Ask for help when you need us.' : 'No open requests.';
+export const supportRowMeta = (r, list, fmtDateTime) => [list.everyone && r.raised_by !== list.me ? `Asked by ${r.raised_by_name}` : null, plural(r.messages, 'message'), `last ${fmtDateTime(r.last_message_at)}`].filter(Boolean).join(' · ');
+// A new request.
+export const SUPPORT_NEW = { title: 'Ask AccurateHR support for help', subject: 'In a few words', subjectExample: 'For example: Leave balances look wrong', body: 'What do you need help with?',
+  bodyHint: 'What you were doing, what you expected and what happened instead. The more we know, the faster we can sort it out.', send: 'Send', sent: 'Sent to AccurateHR support' };
+export const SUPPORT_SUBJECT_MAX = 120;
+export const SUPPORT_BODY_MAX = 4000;
+export const supportFormStart = () => ({ subject: '', body: '' });
+export const supportCanSend = form => !!String(form.subject || '').trim() && !!String(form.body || '').trim();
+export const supportDraft = (form, fileIds) => ({ ...form, file_ids: fileIds });
+export const supportPicLabel = n => n ? 'Add another screenshot' : 'Add a screenshot';
+export const supportPicLimit = `Up to ${SUPPORT_PICS_MAX}`;
+export const SUPPORT_PIC_KIND = 'Use a JPEG, PNG or WebP picture';
+export const SUPPORT_PIC_FAILED = 'Couldn’t upload a picture';
+export const SUPPORT_PIC_GONE = 'Picture unavailable';
+export const supportFilePath = id => `/support/files/${encodeURIComponent(id)}`;
+// A thread.
+export const supportPath = (id, part = '') => `/support/requests/${encodeURIComponent(id)}${part}`;
+export const supportAsked = (r, me, fmtDateTime) => `${r.raised_by === me ? 'You' : r.raised_by_name} asked on ${fmtDateTime(r.created_at)}`;
+export const SUPPORT_BACK = 'All support requests';
+// What the person may do on it: { reply, solve, reopen } (asking for help is the Support area's edit).
+export const supportActions = (r, canAsk) => ({ reply: !!canAsk && r.status !== 'solved', solve: !!canAsk && r.status !== 'solved', reopen: !!canAsk && r.status === 'solved' });
+export const SUPPORT_SOLVE = 'Mark solved';
+export const SUPPORT_REOPEN = 'Reopen';
+export const SUPPORT_SOLVED_NOTE = 'This is solved. Press Reopen if it isn’t.';
+export const SUPPORT_REPLY = { label: 'Your reply', example: 'Write a reply…', send: 'Send reply' };
+export const supportReplyDraft = (text, fileIds) => ({ body: text, file_ids: fileIds });
+export const SUPPORT_TEAM_PILL = 'AccurateHR';
+// A message as the thread shows it: a system line is one centred line; the rest say who, when and what, with their pictures.
+export const supportMessage = (m, fmtDateTime) => m.from === 'system' ? { system: true, text: `${m.body} · ${fmtDateTime(m.created_at)}` }
+  : { system: false, who: m.author_name, team: m.from === 'support', when: fmtDateTime(m.created_at), text: m.body, files: (m.files || []).map(f => f.id) };
+// Letting support look at the account: time-limited, on this request only. → null when there is nothing to show, else
+// { head, open, text, withdraw } while it is allowed, or { head, open: false, text, allow } when the person may allow it, or { note } when only an admin can.
+export const SUPPORT_ACCESS_HEAD = 'Let AccurateHR support look at your account';
+export function supportAccess(thread, me, fmtDateTime) {
+  const r = thread.request;
+  if (r.status === 'solved') return null;
+  if (r.access) return { head: SUPPORT_ACCESS_HEAD, open: true, text: `AccurateHR support can look at your account until ${fmtDateTime(r.access.until)}, or until this is marked solved.`, withdraw: !!thread.can_allow_access || r.access.by === me };
+  if (thread.can_allow_access) return { head: SUPPORT_ACCESS_HEAD, open: false, allow: true,
+    text: 'Sometimes it is quicker if we can see what you see. Allowing it lasts for the time you choose, only for this request, and ends when it is solved. It is recorded in History.' };
+  return { note: 'If AccurateHR support needs to look at your account, an owner or admin can allow it from here.' };
+}
+export const SUPPORT_ALLOW = { label: 'Allow access', howLong: 'For how long', said: 'AccurateHR support can look at your account until it is solved or the time is up' };
+export const SUPPORT_WITHDRAW = { label: 'Withdraw access', title: 'Withdraw access?', body: 'AccurateHR support will no longer be able to look at your account for this request.', confirmLabel: 'Withdraw' };
+export const SUPPORT_DAYS_START = 3;
+
 // ---- the session and links ----
 // The session's fingerprint: the first 8 bytes of SHA-256 over "Bearer <session id>", as 16 hex characters. Everything kept on a device for one session (the outbox,
 // the offline copies) is tagged with it, and the service worker keys its copies with the same value, so one person's never show for the next. '' with no session.
