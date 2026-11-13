@@ -1,11 +1,11 @@
-// The job card: clocking off the open card (?id=<card id>), or adding time by hand (no id). The date, start, finish and lunch, the job, and how the time is shared
+// The job card: clocking off the open card or changing a finished one (?id=<card id>, with ?date= for a finished one), or adding time by hand (no id). The date, start, finish and lunch, the job, and how the time is shared
 // between its cost centres. Every rule is the web form's own (shared/field-core.js): what a new card opens with, what is refused before it is sent, how the shares
 // move, and what is sent. It is saved through the outbox, so it works with no signal.
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Switch, View } from 'react-native';
+import { Alert, Switch, View } from 'react-native';
 import { Redirect, router, useLocalSearchParams } from 'expo-router';
 import { cardDefaults, cardDraft, cardProblem, costCentreOptions, dropSplits, findJob, hmMins, insertSplit, onlyCostCentre, planJobCard, rememberedCostCentre, setSplitPct, splitEvenly } from '@shared/field-core.js';
-import { applyToOpenCard } from '@shared/offline-queue.js';
+import { applyToOpenCard, applyToWeek } from '@shared/offline-queue.js';
 import { filterJobs } from '@shared/pickers-core.js';
 import { useSession } from '@/lib/session';
 import { useRead } from '@/lib/use-read';
@@ -22,32 +22,42 @@ type Row = Split & { key: number; remembered?: boolean };
 type CardRow = { id: string; work_date: string; clock_on: string; clock_off: string | null; lunch: number | boolean | null; job_id: string | null; company_id: string | null; job_label: string | null;
   splits: Split[] | null; notes: string | null; activity_id: string | null; activity_label: string | null; source: string | null; updated_at?: string };
 type Open = { card: CardRow | null; last_card: (CardRow & { splits: Split[] | null }) | null; night: { rest_hours: number; window: { start: string; end: string } } | null };
-type Week = { entries: { card_id: string | null; work_date: string; start_time: string; end_time: string }[] };
+type Week = { period: { period_start: string; period_end: string }; cards: CardRow[]; entries: { card_id: string | null; work_date: string; start_time: string; end_time: string }[] };
 
 let nextKey = 0;
 const blank = (over: Partial<Row> = {}): Row => ({ key: ++nextKey, job_id: '', company_id: '', section_id: '', cost_centre_id: '', pct: 100, ...over });
 
 export default function JobCardScreen() {
   const { state } = useSession();
-  const { id } = useLocalSearchParams<{ id?: string }>();
+  const { id, date } = useLocalSearchParams<{ id?: string; date?: string }>();
   const open = useRead<Open>('/job-cards/open');
+  // A finished card is found in its day's week (the Job card tab passes the date).
+  const week = useRead<Week>(id && date ? `/timesheets/mine?date=${date}` : null);
   const queued = useOutbox();
   if (state.status !== 'signedIn') return <Redirect href="/" />;
   if (open.data === undefined) return open.error ? <Screen centered><Problem>{open.error}</Problem><Button kind="plain" onPress={() => router.back()}>Back</Button></Screen> : <Loading />;
-  // The open card as the phone sees it, with what is still waiting laid over it.
+  if (!id) return <Form key={`new:${date || ''}`} card={null} open={open.data} date={date} />;
+  // The open card as the phone sees it, with what is still waiting laid over it; else one of the day's cards the same way.
   const live = applyToOpenCard(open.data.card, queued).card as CardRow | null;
-  if (id && (!live || live.id !== id)) return <Redirect href="/" />;   // it was clocked off somewhere else
-  return <Form key={id || 'new'} card={id ? live : null} open={open.data} />;
+  let card = live && live.id === id ? live : null;
+  if (!card && date) {
+    if (week.data === undefined) return week.error ? <Screen centered><Problem>{week.error}</Problem><Button kind="plain" onPress={() => router.back()}>Back</Button></Screen> : <Loading />;
+    card = ((applyToWeek(week.data, queued, planJobCard) as Week).cards || []).find(c => c.id === id) || null;
+  }
+  if (!card) return <Redirect href="/" />;   // it was clocked off or deleted somewhere else
+  return <Form key={id} card={card} open={open.data} />;
 }
 
-function Form({ card, open }: { card: CardRow | null; open: Open }) {
+function Form({ card, open, date }: { card: CardRow | null; open: Open; date?: string }) {
   const { offline, changed } = useSession();
   const isNew = !card;
+  const finished = !!card?.clock_off;                 // a finished card being changed, not a clock-off
+  const byHand = isNew || card?.source === 'manual';  // a start and finish typed in, which go in quarter hours
   const jobsRead = useRead<{ rows: Job[] }>('/jobs');
   const recent = useRead<{ cost_centres: { company_id: string; job_id: string; section_id: string; cost_centre_id: string }[] }>('/job-cards/recent');
   const d0 = useMemo(() => (isNew ? cardDefaults(open.last_card) : null), [isNew, open.last_card]);
   const [form, setForm] = useState({
-    work_date: card?.work_date || localToday(),
+    work_date: card?.work_date || date || localToday(),
     clock_on: card?.clock_on || d0?.clock_on || '',
     clock_off: card ? card.clock_off || localNowHM() : d0?.clock_off || '',
     lunch: card?.lunch != null ? !!card.lunch : isNew ? !!d0?.lunch : true,
@@ -107,23 +117,33 @@ function Form({ card, open }: { card: CardRow | null; open: Open }) {
     } catch (e) { setProblem(e instanceof Error ? e.message : 'Something went wrong. Try again.'); setBusy(false); }
   };
 
+  // Deleting asks first, and goes through the outbox like everything else.
+  const remove = () => Alert.alert(byHand ? 'Delete this time?' : 'Delete this job card?', 'It comes off your timesheet.', [
+    { text: 'Cancel', style: 'cancel' },
+    { text: 'Delete', style: 'destructive', onPress: async () => {
+      setBusy(true); setProblem('');
+      try { await offline.submit({ kind: 'delete', method: 'DELETE', path: `/job-cards/${card!.id}`, local_card: card }); changed(); router.back(); }
+      catch (e) { setProblem(e instanceof Error ? e.message : 'Something went wrong. Try again.'); setBusy(false); }
+    } },
+  ]);
+
   // A card clocked on to an activity is finished in the browser for now.
   if (card?.activity_id) {
     return (
       <Screen centered>
         <Title>{card.activity_label || 'Activity'}</Title>
-        <Body tone="muted">This card is on an activity. Clock off in the Field view in your browser for now.</Body>
+        <Body tone="muted">This card is on an activity. Change it in the Field view in your browser for now.</Body>
         <Button kind="plain" onPress={() => router.back()}>Back</Button>
       </Screen>
     );
   }
   return (
     <Screen>
-      <Title>{isNew ? 'Add time' : 'Clock off'}</Title>
+      <Title>{isNew ? 'Add time' : finished ? 'Change time' : 'Clock off'}</Title>
       {isNew && d0?.from && <Body tone="muted">Times from your last day. Change what is different.</Body>}
       <WhenField label="Date" mode="date" value={form.work_date} maxDate={localToday()} onChange={v => setForm(f => ({ ...f, work_date: v }))} />
-      <WhenField label={isNew ? 'Start' : 'Clock on'} mode="time" value={form.clock_on} step={isNew ? 15 : undefined} onChange={v => setForm(f => ({ ...f, clock_on: v }))} />
-      <WhenField label={isNew ? 'Finish' : 'Clock off'} mode="time" value={form.clock_off} step={isNew ? 15 : undefined} onChange={v => setForm(f => ({ ...f, clock_off: v }))} />
+      <WhenField label={byHand ? 'Start' : 'Clock on'} mode="time" value={form.clock_on} step={byHand ? 15 : undefined} onChange={v => setForm(f => ({ ...f, clock_on: v }))} />
+      <WhenField label={byHand ? 'Finish' : 'Clock off'} mode="time" value={form.clock_off} step={byHand ? 15 : undefined} onChange={v => setForm(f => ({ ...f, clock_off: v }))} />
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
         <Body>Lunch (30 minutes, unpaid)</Body>
         <Switch accessibilityLabel="Lunch" value={form.lunch} onValueChange={v => setForm(f => ({ ...f, lunch: v }))} />
@@ -156,7 +176,8 @@ function Form({ card, open }: { card: CardRow | null; open: Open }) {
 
       <Field label="Notes" value={form.notes} onChangeText={v => setForm(f => ({ ...f, notes: v }))} multiline />
       <Problem>{problem}</Problem>
-      <Button onPress={save} busy={busy}>{isNew ? 'Add time' : 'Clock off'}</Button>
+      <Button onPress={save} busy={busy}>{isNew ? 'Add time' : finished ? 'Save' : 'Clock off'}</Button>
+      {!isNew && <Button kind="plain" onPress={remove} disabled={busy}>{byHand ? 'Delete this time' : 'Delete this job card'}</Button>}
       <Button kind="plain" onPress={() => router.back()} disabled={busy}>Cancel</Button>
     </Screen>
   );

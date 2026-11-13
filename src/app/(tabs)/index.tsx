@@ -2,14 +2,14 @@
 // the outbox (shared/offline-queue.js), so a clock-on with no signal is kept on the phone and sent once when the signal returns.
 import { useEffect, useState } from 'react';
 import { View } from 'react-native';
-import { Redirect, router } from 'expo-router';
+import { router } from 'expo-router';
 import { openCardState, restHoldText } from '@shared/field-core.js';
 import { applyToOpenCard, applyToRecent, describe } from '@shared/offline-queue.js';
 import { useSession, type Me } from '@/lib/session';
 import { useRead } from '@/lib/use-read';
 import { useOutbox } from '@/lib/use-outbox';
 import { fmtDate, fmtMins, fmtTime, localNowHM, localToday } from '@/lib/dates';
-import { Body, Button, Card, Loading, Problem, Screen, Title } from '@/ui';
+import { Body, Button, Card, Problem, Screen, Title } from '@/ui';
 
 type OpenCard = {
   card: { id: string; work_date: string; clock_on: string; job_label: string | null; activity_label: string | null } | null;
@@ -18,25 +18,13 @@ type OpenCard = {
 };
 
 export default function Home() {
-  const { state, retry, signOut } = useSession();
-  if (state.status === 'loading') return <Loading />;
-  if (state.status === 'signedOut') return <Redirect href="/sign-in" />;
-  if (state.status === 'unreachable') {
-    return (
-      <Screen centered>
-        <Title>Can’t reach AccurateHR</Title>
-        <Body tone="muted">{state.message}</Body>
-        <Button onPress={retry}>Try again</Button>
-        <Button kind="plain" onPress={() => { void signOut(); }}>Sign out</Button>
-      </Screen>
-    );
-  }
-  if (state.me.employee.must_change_pin) return <Redirect href="/change-pin" />;
-  return <SignedIn me={state.me} />;
+  const { state } = useSession();
+  // The tabs only open for someone signed in (see _layout.tsx).
+  return state.status === 'signedIn' ? <SignedIn me={state.me} /> : null;
 }
 
 function SignedIn({ me }: { me: Me }) {
-  const { offline, signOut } = useSession();
+  const { offline } = useSession();
   const open = useRead<OpenCard>('/job-cards/open');
   const queued = useOutbox();
   const [busy, setBusy] = useState(false);
@@ -112,9 +100,8 @@ function SignedIn({ me }: { me: Me }) {
       )}
 
       <Card>
-        <Body tone="muted">This is an early build of the app. Your week, Safety, Chat and the rest are in the Field view in your browser for now.</Body>
+        <Body tone="muted">This is an early build of the app. Safety, your week, Chat and the rest are in the Field view in your browser for now.</Body>
       </Card>
-      <Button kind="plain" onPress={() => { void signOut(); }}>Sign out</Button>
     </Screen>
   );
 }
