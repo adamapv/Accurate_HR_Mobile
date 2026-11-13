@@ -12,7 +12,8 @@ import { useRead } from '@/lib/use-read';
 import { useDetails, type DetailGroup } from '@/lib/use-details';
 import { fmtDate, localToday } from '@/lib/dates';
 import { useTheme } from '@/theme';
-import { Avatar, Body, Button, Card, Empty, Heading, Notice, Screen, Title } from '@/ui';
+import { MyPhoto } from '@/my-photo';
+import { Body, Button, Card, Empty, Heading, Notice, Screen, Title } from '@/ui';
 
 type RowT = { label: string; value: string; empty?: string; tel?: string };
 type Gaps = { checks: { key: string; label: string; ok: boolean }[]; missing: { key: string; title: string }[]; pct: number };
@@ -50,13 +51,9 @@ export default function MyHR() {
     <Screen>
       <Title>My HR</Title>
       <Card>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
-          <Avatar name={e.name} />
-          <View style={{ flex: 1 }}>
-            <Body strong>{p?.aka ? `${e.name} “${p.aka}”` : e.name}</Body>
-            {facts.length > 0 && <Body tone="muted">{facts.join(' · ')}</Body>}
-          </View>
-        </View>
+        <MyPhoto name={e.name} photoKey={p?.photo_url} canEdit={canEdit} />
+        <Body strong>{p?.aka ? `${e.name} “${p.aka}”` : e.name}</Body>
+        {facts.length > 0 && <Body tone="muted">{facts.join(' · ')}</Body>}
         <Body>{`${verdict.strong}${verdict.rest}`}</Body>
         <View accessibilityRole="progressbar" accessibilityLabel={summary.ring} accessibilityValue={{ min: 0, max: 100, now: gaps.pct }} style={{ height: 8, borderRadius: 4, backgroundColor: t.line, overflow: 'hidden' }}>
           <View style={{ width: `${gaps.pct}%`, height: 8, backgroundColor: gaps.pct >= 100 ? t.ok : t.accent }} />

@@ -1287,6 +1287,15 @@ export const DETAIL_KEEP_HINT = 'Leave the account number or tax file number bla
 export const DETAIL_CHOOSE = '— choose —';
 export const DETAIL_SAVED = 'Saved';
 
+// ---- my photo ----
+// A person's own photo on their profile: only they ever see it. `key` is profile.photo_url (what the Worker knows the photo by), so a new photo is a new
+// address. The side it is shrunk to before it is sent, where it is read from, and the words.
+export const PHOTO_SIDE = 512;
+export const myPhotoPath = key => `/me/photo?v=${encodeURIComponent(key)}`;
+export const photoAction = key => key ? 'Change photo' : 'Add a photo';
+export const PHOTO_WORDS = { choose: 'Choose a photo', remove: 'Remove photo', updated: 'Photo updated', removed: 'Photo removed', failed: 'Upload failed — try again', onlyYou: 'Only you can see your photo.' };
+export const PHOTO_REMOVE_CONFIRM = { title: 'Remove your photo?', body: 'Your initials will show instead.', confirmLabel: 'Remove' };
+
 // ---- the session and links ----
 // The session's fingerprint: the first 8 bytes of SHA-256 over "Bearer <session id>", as 16 hex characters. Everything kept on a device for one session (the outbox,
 // the offline copies) is tagged with it, and the service worker keys its copies with the same value, so one person's never show for the next. '' with no session.
