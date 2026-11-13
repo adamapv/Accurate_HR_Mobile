@@ -4,6 +4,7 @@ import { Redirect } from 'expo-router';
 import { Tabs } from 'expo-router/tabs';
 import { feel } from '@/lib/haptics';
 import { ClockNotice } from '@/clock-notice';
+import { PushTaps } from '@/push-taps';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useSession } from '@/lib/session';
 import { useOutbox } from '@/lib/use-outbox';
@@ -31,6 +32,7 @@ export default function TabsLayout() {
   return (
     <>
     <ClockNotice />
+    <PushTaps />
     <Tabs screenListeners={{ tabPress: () => feel.pick() }} screenOptions={{ headerShown: false, tabBarActiveTintColor: t.accent2, tabBarInactiveTintColor: t.muted, tabBarStyle: { backgroundColor: t.topbar, borderTopColor: t.line }, tabBarLabelStyle: { fontSize: 11.5, fontWeight: '600' }, sceneStyle: { backgroundColor: t.bg } }}>
       <Tabs.Screen name="index" options={{ title: 'Home', tabBarIcon: icon('home'), tabBarBadge: failed || undefined }} />
       <Tabs.Screen name="day" options={{ title: 'Job card', tabBarIcon: icon('time') }} />
