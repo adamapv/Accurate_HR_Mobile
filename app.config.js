@@ -41,6 +41,6 @@ module.exports = {
       ['expo-notifications', { color: '#5468FF', enableBackgroundRemoteNotifications: false }],
       ['expo-splash-screen', { backgroundColor: '#0A0A12', image: './assets/images/splash-icon.png', imageWidth: 120 }],
     ],
-    extra: { apiUrl: staging ? 'https://staging.accuratehr.co' : 'https://app.accuratehr.co', env: staging ? 'staging' : 'production', build, commit },
+    extra: { push: fs.existsSync(path.join(__dirname, 'google-services.json')), apiUrl: staging ? 'https://staging.accuratehr.co' : 'https://app.accuratehr.co', env: staging ? 'staging' : 'production', build, commit },
   },
 };

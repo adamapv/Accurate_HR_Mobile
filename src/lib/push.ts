@@ -5,7 +5,7 @@
 import { Platform } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import type { Api } from './api-core';
-import { APP_VERSION } from './config';
+import { APP_VERSION, HAS_PUSH } from './config';
 import { screenFor } from './links';
 
 // The channel the Worker's notifications arrive on (Android), made once.
@@ -23,7 +23,7 @@ async function allowed(): Promise<boolean> {
 
 export async function registerForPush(api: Api): Promise<void> {
   try {
-    if (Platform.OS !== 'android' || !(await allowed())) return;   // an iPhone joins when there is an iPhone build
+    if (!HAS_PUSH || Platform.OS !== 'android' || !(await allowed())) return;   // an iPhone joins when there is an iPhone build
     await Notifications.setNotificationChannelAsync(PUSH_CHANNEL.id, { name: PUSH_CHANNEL.name, importance: Notifications.AndroidImportance.DEFAULT });
     const token = (await Notifications.getDevicePushTokenAsync()).data;
     if (typeof token !== 'string' || !token || token === registered) return;

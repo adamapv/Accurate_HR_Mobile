@@ -11,12 +11,15 @@ import { useOutbox } from '@/lib/use-outbox';
 import { useRead } from '@/lib/use-read';
 import { LOCK_WORDS } from '@/lib/lock-core';
 import { useLock } from '@/lock';
+import * as Clipboard from 'expo-clipboard';
+import { crashText, forgetCrash, lastCrash } from '@/lib/crash';
 import { Avatar, Body, Button, Card, Heading, List, Notice, Pill, Problem, Row, Screen, Title } from '@/ui';
 
 export default function More() {
   const { state, signOut, api, refreshMe } = useSession();
   const notes = useRead<{ rows: { read_at: string | null }[]; unread: number }>('/notifications');
   const lock = useLock();
+  const [crash, setCrash] = useState(() => lastCrash());
   const [said, setSaid] = useState('');
   const [problem, setProblem] = useState('');
   const waiting = useOutbox().filter(e => e.status === 'pending').length;
@@ -43,6 +46,15 @@ export default function More() {
           </View>
         </View>
       </Card>
+
+      {crash && (
+        <Card>
+          <Body strong>{crash.fatal ? 'The app closed unexpectedly' : 'A screen hit a problem'}</Body>
+          <Body tone="muted">{`${crash.message}\nVersion ${crash.build}`}</Body>
+          <Button kind="plain" icon="copy-outline" onPress={() => { void Clipboard.setStringAsync(crashText(crash)); setSaid('Copied. Paste it to whoever looks after the app.'); }}>Copy the details</Button>
+          <Button kind="plain" onPress={() => { forgetCrash(); setCrash(null); }}>Dismiss</Button>
+        </Card>
+      )}
 
       <Heading>My work</Heading>
       <List>
