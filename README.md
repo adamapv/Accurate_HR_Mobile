@@ -22,6 +22,7 @@ The AccurateHR Field view as a native Android and iPhone app. Built with React N
 - POs: the ones you have raised (a tap copies the number), and Raise a PO on a job with a supplier (your starred ones first), the job's cost centre, and an optional reference and note. It is raised in simPRO there and then, so it needs signal.
 - My leave (from More): your balances, your requests with Submit, Discard or Cancel where each still applies, and the team leave calendar for a level whose Leave reaches their team. Request leave says what a request would be as you fill it in (its hours, the balance after, leave you already have on those days, who else is off), and an activity on a job card that needs approval leads straight to it. Needs signal.
 - My expenses (from More): the four figures over your claims and the claims themselves. A claim has its date, description and lines; a line is a receipt or amount (with a photo of the receipt) or a distance paid at the company's rate, and can be charged to a job's cost centre. A draft or a claim sent back can be changed, sent or deleted. Needs signal.
+- My qualifications (from More): the four figures over your tickets, what you have sent in for review (Withdraw while it waits), and the tickets on your record with Renew / update. Submit a ticket takes photos of the card with the camera and what is printed on it, and sends it for an admin to check. Needs signal. Scan a card is still to come.
 - Home opens with no signal, on the copy kept from last time.
 - Sign out, which forgets everything kept on the phone.
 

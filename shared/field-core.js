@@ -519,6 +519,55 @@ export const mileageHint = (km, rate, fmtMoney) => !rate ? 'No mileage rate is s
   : km ? `Comes to ${fmtMoney(Math.round(km * rate.rate_cents_per_km))} at ${fmtMoney(rate.rate_cents_per_km)}/km` : `Paid at ${fmtMoney(rate.rate_cents_per_km)}/km`;
 export const lineJobHint = onJob => onJob ? 'Once approved, the cost is recorded on that job’s cost centre in simPRO.' : 'Not charged to a job: it is reimbursed and goes nowhere else.';
 
+// ---- licences and tickets ----
+const sentenceCase = s => s ? String(s).charAt(0).toUpperCase() + String(s).slice(1).replace(/_/g, ' ') : '';
+// What a person has sent in that is still worth showing: everything not yet approved, and what was approved in the last 14 days. `now` is the caller's clock, in milliseconds.
+export const recentSubmissions = (subs, now) => (subs || []).filter(s => s.status !== 'approved' || now - Date.parse(String(s.reviewed_at || s.submitted_at).replace(' ', 'T') + 'Z') < 14 * 864e5);
+// The four figures over a person's tickets: valid (one with no expiry counts), expiring, expired, and what is waiting for review.
+export function qualTiles(rows, recent) {
+  const count = st => (rows || []).filter(q => q.status === st || (st === 'valid' && q.status === 'no_expiry')).length;
+  const pending = (recent || []).filter(s => s.status === 'pending').length;
+  return [
+    { key: 'valid', label: 'Valid', value: count('valid'), tone: 'ok', sub: 'Current on your record' },
+    { key: 'expiring', label: 'Expiring', value: count('expiring'), tone: count('expiring') ? 'warn' : undefined, sub: 'Within the next 30 days' },
+    { key: 'expired', label: 'Expired', value: count('expired'), tone: count('expired') ? 'danger' : undefined, sub: count('expired') ? 'Renew these first' : 'None lapsed' },
+    { key: 'pending', label: 'Waiting for review', value: pending, sub: pending ? 'An admin checks them' : 'Nothing sent in' }];
+}
+export const QUALS_SUB = 'New and renewed tickets are checked by an admin before they go on your record';
+export const NO_QUALS = 'No qualifications on file yet. Use Submit a ticket to add one.';
+// A ticket on a person's record as its row: what it says, where it stands, and the colour of that.
+export const QUAL_STATUS = { valid: 'Valid', no_expiry: 'No expiry', expiring: 'Expiring', expired: 'Expired' };
+export const qualRow = (q, fmtDate) => ({
+  title: q.title,
+  meta: [sentenceCase(q.category), q.issuing_body, q.qualification_number && `# ${q.qualification_number}`,
+    q.expiry_date ? (q.status === 'expired' ? `expired ${fmtDate(q.expiry_date)}` : `expires ${fmtDate(q.expiry_date)}`) : 'no expiry',
+    q.renewal_booked_for && `renewal booked ${fmtDate(q.renewal_booked_for)}`].filter(Boolean).join(' · '),
+  status: QUAL_STATUS[q.status] || sentenceCase(q.status),
+  tone: q.status === 'expired' ? 'danger' : q.status === 'expiring' ? 'warn' : 'ok' });
+// A ticket sent in for review as its row: only one still waiting can be withdrawn.
+export const submissionRow = (s, fmtDate) => ({
+  title: s.title,
+  meta: [s.qualification_number && `# ${s.qualification_number}`, `sent ${fmtDate(String(s.submitted_at).slice(0, 10))}`, s.status === 'rejected' && s.reject_reason].filter(Boolean).join(' · '),
+  status: s.status === 'pending' ? 'Waiting for review' : s.status === 'approved' ? 'Approved' : 'Rejected',
+  tone: s.status === 'pending' ? undefined : s.status === 'approved' ? 'ok' : 'danger',
+  canWithdraw: s.status === 'pending' });
+export const withdrawConfirm = s => ({ title: `Withdraw “${s.title}”?`, body: 'It’s taken off the review list and the photos are deleted.', danger: true, confirmLabel: 'Withdraw' });
+// Sending a ticket in: a new one (chosen from the company's list, or named by hand under OTHER_TICKET), or a renewal of one on the record (`renews`).
+export const OTHER_TICKET = '__other';
+export const ticketFormStart = renews => ({ issuing_body: renews?.issuing_body || '', qualification_number: '', issued_date: '', expiry_date: '', notes: '' });
+export const ticketHead = renews => renews
+  ? { title: `Renew ${renews.title}`, sub: 'Send in the new card — the old one stays on your record until it’s approved' }
+  : { title: 'Submit a ticket', sub: 'Photograph the card and fill in what’s printed on it' };
+// What the ticket is called and its category: the renewed ticket's own, the chosen name's from the list, or what was typed for something else.
+export const ticketNamed = ({ renews, pick, other, names }) => renews ? { title: renews.title, category: renews.category }
+  : pick === OTHER_TICKET ? { title: String(other || '').trim(), category: 'other' }
+  : { title: pick || '', category: (names || []).find(n => n.name === pick)?.category || 'other' };
+// What stands in the way of sending it ('' when nothing does). `photos` is how many pictures of the card there are.
+export const ticketProblem = (title, photos) => !title ? 'Choose which ticket this is' : !photos ? 'Add a photo of the card (front and back if it has writing on both)' : '';
+// What it is sent as. `files` are the uploaded pictures: { r2_key, file_name, mime_type, file_size_bytes }.
+export const ticketDraft = ({ renews, named, form, files }) => ({ qualification_id: renews?.id, title: named.title, category: named.category, ...form, files });
+export const TICKET_SENT = 'Sent for review';
+
 // ---- the session and links ----
 // The session's fingerprint: the first 8 bytes of SHA-256 over "Bearer <session id>", as 16 hex characters. Everything kept on a device for one session (the outbox,
 // the offline copies) is tagged with it, and the service worker keys its copies with the same value, so one person's never show for the next. '' with no session.
