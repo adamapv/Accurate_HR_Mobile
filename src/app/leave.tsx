@@ -8,7 +8,7 @@ import { LEAVE_SENT, leaveBalanceSub, leaveCancelConfirm, leaveComingUp, leaveEm
 import { useSession } from '@/lib/session';
 import { useRead } from '@/lib/use-read';
 import { fmtDate, fmtTime, isoLocal, localToday } from '@/lib/dates';
-import { Body, Button, Card, Problem, Screen, Title } from '@/ui';
+import { Body, Button, Card, Empty, Figures, Heading, Notice, Pill, Problem, Screen, Title } from '@/ui';
 
 type Balance = { id: string; type_name: string; balance_hours: number; accrued_hours: number; taken_hours: number; xero_hours: number | null; xero_synced_at: string | null };
 type Request = { id: string; type_name: string; start_date: string; end_date: string; hours_requested: number; reason: string | null; status: string; decision_note: string | null };
@@ -52,28 +52,22 @@ export default function Leave() {
   return (
     <Screen>
       <Title>My leave</Title>
-      {canAsk && <Button onPress={() => router.push('/request-leave')}>New request</Button>}
-      {mine.offlineAt !== null && <Body tone="muted">No signal. Showing what was saved at {fmtTime(mine.offlineAt)}.</Body>}
+      {canAsk && <Button icon="add-circle-outline" onPress={() => router.push('/request-leave')}>New request</Button>}
+      {mine.offlineAt !== null && <Notice tone="warn" icon="cloud-offline-outline">{`No signal. Showing what was saved at ${fmtTime(mine.offlineAt)}.`}</Notice>}
       <Problem>{problem || mine.error}</Problem>
-      {!!said && <Body tone="ok">{said}</Body>}
-      {balances.map(b => (
-        <Card key={b.id}>
-          <Body tone="muted">{b.type_name}</Body>
-          <Title>{fmtHours(b.balance_hours)}</Title>
-          <Body tone="muted">{leaveBalanceSub(b, fmt) as string}</Body>
-        </Card>
-      ))}
+      {!!said && <Notice tone="ok">{said}</Notice>}
+      {balances.length > 0 && <Figures figures={balances.map(b => ({ key: b.id, label: b.type_name, value: fmtHours(b.balance_hours), sub: leaveBalanceSub(b, fmt) as string }))} />}
       {seesTeam && (
         <Card>
-          <Body>Team leave calendar</Body>
+          <Heading>Team leave calendar</Heading>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-            <View style={{ flex: 1 }}><Button kind="plain" onPress={() => shift(-1)}>Earlier</Button></View>
-            <View style={{ flex: 1 }}><Button kind="plain" onPress={() => shift(1)}>Later</Button></View>
+            <View style={{ flex: 1 }}><Button kind="plain" icon="chevron-back" onPress={() => shift(-1)}>Earlier</Button></View>
+            <View style={{ flex: 1 }}><Button kind="plain" icon="chevron-forward" onPress={() => shift(1)}>Later</Button></View>
           </View>
-          <Body>{month.toLocaleDateString('en-AU', { month: 'long', year: 'numeric' })}</Body>
+          <Body strong>{month.toLocaleDateString('en-AU', { month: 'long', year: 'numeric' })}</Body>
           <Problem>{away.error}</Problem>
           {!away.data ? (away.error ? null : <Body tone="muted">Loading…</Body>)
-            : list.length === 0 ? <Body tone="muted">{NOBODY_AWAY as string}</Body>
+            : list.length === 0 ? <Empty>{NOBODY_AWAY as string}</Empty>
             : list.map(a => (
               <View key={a.row.id}>
                 <Body>{a.title}</Body>
@@ -82,24 +76,23 @@ export default function Leave() {
             ))}
         </Card>
       )}
-      <Body>My requests{rows && leaveWaiting(rows) > 0 ? ` · ${leaveWaiting(rows) as number} waiting` : ''}</Body>
+      <Heading right={rows && leaveWaiting(rows) > 0 ? <Pill tone="warn">{`${leaveWaiting(rows) as number} waiting`}</Pill> : undefined}>My requests</Heading>
       {!!rows && rows.length > 0 && <Body tone="muted">{leaveComingUp(rows, today) as string}</Body>}
       {!rows ? (mine.error ? null : <Body tone="muted">Loading…</Body>)
-        : rows.length === 0 ? <Body tone="muted">{leaveEmptyText(canAsk) as string}</Body>
+        : rows.length === 0 ? <Empty>{leaveEmptyText(canAsk) as string}</Empty>
         : rows.map(r => {
           const row = leaveRow(r, today, fmt) as Row;
           return (
             <Card key={r.id}>
-              <Body>{row.title}</Body>
+              <Body strong>{row.title}</Body>
               <Body tone="muted">{row.meta}</Body>
-              <Body tone={row.tone || 'muted'}>{STATUS[r.status] || r.status}</Body>
-              {!!row.note && <Body tone="danger">{row.note}</Body>}
+              <Pill tone={r.status === 'approved' ? 'ok' : r.status === 'rejected' ? 'danger' : r.status === 'submitted' ? 'warn' : 'neutral'}>{STATUS[r.status] || r.status}</Pill>
+              {!!row.note && <Notice tone="danger">{row.note}</Notice>}
               {row.canSubmit && <Button onPress={() => { void run(r, 'submit', LEAVE_SENT as string); }} busy={busy === r.id} disabled={!!busy}>Submit</Button>}
               {row.canCancel && <Button kind="plain" onPress={() => cancel(r)} disabled={!!busy}>{row.cancelLabel}</Button>}
             </Card>
           );
         })}
-      <Button kind="plain" onPress={() => router.back()}>Back</Button>
     </Screen>
   );
 }

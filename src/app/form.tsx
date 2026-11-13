@@ -2,7 +2,7 @@
 // camera. The box for each kind, a required question's star, an answer kept on the person's record, what stands in the way of saving and what is sent are the web
 // app's own rules (shared/field-core.js). It needs signal.
 import { useEffect, useState } from 'react';
-import { Switch, View } from 'react-native';
+import { View } from 'react-native';
 import { Redirect, router, useLocalSearchParams } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { ANSWERS_SAVED, fieldBox, fieldLabel, fieldShown, fileAnswer, formDraft, formFilePath, formProblem, SAVED_PLACEHOLDER, savedOnRecord } from '@shared/field-core.js';
@@ -11,7 +11,7 @@ import { useRead } from '@/lib/use-read';
 import { openFile } from '@/lib/open-file';
 import { uploadPhoto } from '@/lib/upload';
 import { ChooseField, WhenField } from '@/pickers';
-import { Body, Button, Card, Field, Loading, Problem, Screen, Title } from '@/ui';
+import { Toggle, Body, Button, Card, Field, Loading, Problem, Screen, Title } from '@/ui';
 
 type Question = { id: string; field_type: string; label: string; help_text: string | null; options: string[] | null; required: number };
 type FileValue = { r2_key: string; file_name: string; file_size_bytes: number; mime_type: string };
@@ -77,7 +77,7 @@ export default function FormScreen() {
       return (
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
           <View style={{ flex: 1 }}><Body>{label}</Body></View>
-          <Switch accessibilityLabel={label} value={!!v} onValueChange={on => set(q.id, on)} />
+          <Toggle accessibilityLabel={label} value={!!v} onValueChange={on => set(q.id, on)} />
         </View>
       );
     }
@@ -96,7 +96,7 @@ export default function FormScreen() {
           <Body>{label}</Body>
           {!!file && <Body tone="ok">{file.file_name}</Body>}
           {!!file && !!kept && kept.r2_key === file.r2_key && <Button kind="plain" onPress={() => { void open(q, file); }} busy={working === q.id} disabled={!!working || busy}>Open the file</Button>}
-          <Button kind="plain" onPress={() => { void snap(q); }} busy={working === q.id && !file} disabled={!!working || busy}>{file ? 'Take a new photo' : 'Take a photo'}</Button>
+          <Button kind="plain" icon="camera-outline" onPress={() => { void snap(q); }} busy={working === q.id && !file} disabled={!!working || busy}>{file ? 'Take a new photo' : 'Take a photo'}</Button>
         </Card>
       );
     }

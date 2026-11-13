@@ -2,10 +2,12 @@
 // and Navigate, Call PM and Call team leaders. How it is headed and what each button does are the web app's own rules (shared/field-core.js); who to ring is the
 // job's own people, never the customer, and they are asked for only when a button is pressed.
 import { useState } from 'react';
-import { Alert, Linking, Platform, View } from 'react-native';
+import { ActivityIndicator, Alert, Linking, Platform, Pressable, Text, View } from 'react-native';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { contactStep, crewLine, ringStep, schedRowTitle, showAddress } from '@shared/field-core.js';
 import { useSession } from '@/lib/session';
-import { Body, Button, Card } from '@/ui';
+import { useTheme } from '@/theme';
+import { Body, Card, Notice, Pill, type IconName } from '@/ui';
 
 export type SchedRow = {
   work_date: string; company_id: string; job_id: string; job_name: string | null; activity: boolean; customer_name: string | null; site_name: string | null;
@@ -39,23 +41,51 @@ export function JobRow({ row, children }: { row: SchedRow; children?: React.Reac
     Alert.alert('Call a team leader', 'The team leaders on this job', [...step.choose.map(l => ({ text: `${l.name} · ${l.detail}`, onPress: () => act(ringStep(l) as Step) })), { text: 'Cancel', style: 'cancel' as const }]);
   };
 
+  const hasNav = !!(row.site_address || row.site_lat != null || row.site_id);
   return (
     <Card>
-      <Body>{title.tag} {title.name}</Body>
-      {(row.customer_name || row.site_name) && <Body tone="muted">{[row.customer_name, row.site_name].filter(Boolean).join(' · ')}</Body>}
-      {showAddress(row) && <Body tone="muted">{row.site_address}</Body>}
-      {!!row.notes && <Body>{row.notes}</Body>}
-      {row.crew.length > 0 && <Body tone="muted">With {crewLine(row.crew)}</Body>}
-      {row.plant.length > 0 && <Body tone="muted">Plant: {row.plant.join(', ')}</Body>}
+      <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 10 }}>
+        <View style={{ flex: 1, gap: 2 }}>
+          <Body strong>{title.name}</Body>
+          {(row.customer_name || row.site_name) && <Body tone="muted">{[row.customer_name, row.site_name].filter(Boolean).join(' · ')}</Body>}
+        </View>
+        <Pill tone="info">{title.tag}</Pill>
+      </View>
+      {showAddress(row) && <Line icon="location-outline">{row.site_address}</Line>}
+      {row.crew.length > 0 && <Line icon="people-outline">With {crewLine(row.crew)}</Line>}
+      {row.plant.length > 0 && <Line icon="construct-outline">{row.plant.join(', ')}</Line>}
+      {!!row.notes && <Notice tone="info" icon="chatbox-ellipses-outline">{row.notes}</Notice>}
       {!row.activity && (
-        <View style={{ gap: 8 }}>
-          {(row.site_address || row.site_lat != null || row.site_id) && <Button kind="plain" onPress={() => { void go('nav'); }} busy={busy === 'nav'}>Navigate</Button>}
-          <Button kind="plain" onPress={() => { void go('pm'); }} busy={busy === 'pm'}>Call PM</Button>
-          <Button kind="plain" onPress={() => { void go('leaders'); }} busy={busy === 'leaders'}>Call team leaders</Button>
+        <View style={{ flexDirection: 'row', gap: 8 }}>
+          {hasNav && <Chip icon="navigate-outline" label="Navigate" busy={busy === 'nav'} onPress={() => { void go('nav'); }} />}
+          <Chip icon="call-outline" label="Call PM" busy={busy === 'pm'} onPress={() => { void go('pm'); }} />
+          <Chip icon="people-outline" label="Leaders" full="Call team leaders" busy={busy === 'leaders'} onPress={() => { void go('leaders'); }} />
         </View>
       )}
-      {!!said && <Body tone="muted">{said}</Body>}
+      {!!said && <Notice tone="neutral">{said}</Notice>}
       {children}
     </Card>
+  );
+}
+
+// One line of a job's details, with the icon that says what it is.
+function Line({ icon, children }: { icon: IconName; children: React.ReactNode }) {
+  const t = useTheme();
+  return (
+    <View style={{ flexDirection: 'row', gap: 8, alignItems: 'flex-start' }}>
+      <Ionicons name={icon} size={16} color={t.dim} style={{ marginTop: 3 }} />
+      <View style={{ flex: 1 }}><Body tone="muted">{children}</Body></View>
+    </View>
+  );
+}
+// One of the small buttons along the bottom of a job: an icon over a word.
+function Chip({ icon, label, full, busy, onPress }: { icon: IconName; label: string; full?: string; busy: boolean; onPress: () => void }) {
+  const t = useTheme();
+  return (
+    <Pressable accessibilityRole="button" accessibilityLabel={full || label} accessibilityState={{ busy }} disabled={busy} onPress={onPress}
+      style={({ pressed }) => ({ flex: 1, minHeight: 56, borderRadius: 12, borderWidth: 1, borderColor: t.line, backgroundColor: t.surface2, alignItems: 'center', justifyContent: 'center', gap: 3, opacity: pressed || busy ? 0.6 : 1 })}>
+      {busy ? <ActivityIndicator color={t.accent2} /> : <Ionicons name={icon} size={19} color={t.accent2} />}
+      <Text style={{ color: t.fg, fontSize: 12.5, fontWeight: '600' }}>{label}</Text>
+    </Pressable>
   );
 }

@@ -2,7 +2,7 @@
 // How the week is grouped, named and worded, which days can go and what stands in the way are the web app's own rules (shared/field-core.js). Time itself is logged
 // on Home and the Job card tab; a card here opens in the job card form.
 import { useEffect, useState } from 'react';
-import { Alert, Linking, Pressable, View } from 'react-native';
+import { Alert, Pressable, View } from 'react-native';
 import { router } from 'expo-router';
 import { can } from '@shared/access.js';
 import { cardNotes, copyWeekPlan, copyWeekSaid, dayIsMine, dayRowOf, daysSubmittedText, daysToSend, entryHours, nothingToSubmit, periodLabel, planJobCard, sendChecks, sentBackText, submitHelp, submitLabel,
@@ -11,10 +11,9 @@ import { applyToWeek } from '@shared/offline-queue.js';
 import { useSession } from '@/lib/session';
 import { useRead } from '@/lib/use-read';
 import { useOutbox } from '@/lib/use-outbox';
-import { API_URL } from '@/lib/config';
 import { fmtDate, fmtTime, localToday, parseDay } from '@/lib/dates';
 import { ChooseField } from '@/pickers';
-import { Body, Button, Card, Field, Problem, Screen, Title } from '@/ui';
+import { Body, Button, Card, Field, Figures, List, Notice, Pill, Problem, Row, Screen, Title, type Figure } from '@/ui';
 
 type Period = { id: string; period_start: string; period_end: string; label: string | null };
 type WeekCard = { id: string; work_date: string; clock_on: string; clock_off: string | null; job_label: string | null; activity_label: string | null; notes: string | null; lunch?: number | boolean; carry_in?: boolean; pending?: boolean; splits?: unknown[] };
@@ -95,26 +94,21 @@ export default function WeekTab() {
         <ChooseField<Period> label="Pay period" placeholder="Choose the week" value={periodLabel(period, fmtDate) as string}
           options={(periods.data?.rows || []).map(p => ({ key: p.id, title: periodLabel(p, fmtDate) as string, item: p }))} onChoose={p => { setSaid(null); setPeriodId(p.id); }} />
       )}
-      {ts.offlineAt !== null && <Body tone="muted">No signal. Showing what was saved at {fmtTime(ts.offlineAt)}.</Body>}
+      {ts.offlineAt !== null && <Notice tone="warn" icon="cloud-offline-outline">{`No signal. Showing what was saved at ${fmtTime(ts.offlineAt)}.`}</Notice>}
       <Problem>{ts.error}</Problem>
 
-      {canSafety && (
-        <Card>
-          <Body>{counts.data ? counts.data.swms_signed : '—'} SWMS signed on</Body>
-          <Body tone={counts.data && counts.data.checklists_not_ok > 0 ? 'danger' : 'fg'}>{counts.data ? counts.data.checklists_done : '—'} {counts.data && counts.data.checklists_not_ok > 0 ? `checklists done · ${counts.data.checklists_not_ok} not OK` : 'checklists done'}</Body>
-        </Card>
-      )}
+      <Figures figures={[
+        { key: 'total', label: 'This week', value: hours(data.total_hours), sub: `${data.cards.filter(c => !c.carry_in).length} job cards · ${days.length} ${days.length === 1 ? 'day' : 'days'} worked` },
+        ...(canLeave && balances.length ? balances.slice(0, 1).map(b => ({ key: `leave-${b.id}`, label: b.type_name, value: hours(b.balance_hours), sub: 'Leave balance' })) : []),
+        ...(canSafety ? [{ key: 'swms', label: 'SWMS signed on', value: counts.data ? counts.data.swms_signed : '—' },
+          { key: 'checks', label: 'Checklists done', value: counts.data ? counts.data.checklists_done : '—', tone: counts.data && counts.data.checklists_not_ok > 0 ? 'danger' as const : undefined,
+            sub: counts.data && counts.data.checklists_not_ok > 0 ? `${counts.data.checklists_not_ok} not OK` : undefined }] : []),
+      ] as Figure[]} />
       {canLeave && (
-        <Card>
-          <Body tone="muted">Leave</Body>
-          {balances.length === 0 ? <Body tone="muted">No leave balances yet.</Body> : balances.slice(0, 3).map(b => <Body key={b.id}>{hours(b.balance_hours)} {b.type_name}</Body>)}
-          <Button kind="plain" onPress={() => { void Linking.openURL(`${API_URL}/#/my-leave`); }}>Request leave in the browser</Button>
-        </Card>
+        <List>
+          <Row icon="calendar-outline" tint="amber" title="My leave" sub="Your balances and requests" onPress={() => router.push('/leave')} last />
+        </List>
       )}
-      <Card>
-        <Body>{hours(data.total_hours)} total</Body>
-        <Body tone="muted">{data.cards.filter(c => !c.carry_in).length} job cards · {days.length} {days.length === 1 ? 'day' : 'days'} worked</Body>
-      </Card>
 
       {canEdit && (
         <View style={{ flexDirection: 'row', gap: 12 }}>
@@ -122,21 +116,23 @@ export default function WeekTab() {
           <View style={{ flex: 1 }}><Button kind="plain" onPress={() => router.push({ pathname: '/job-card', params: { date: defaultDate } })} disabled={busy}>Add time</Button></View>
         </View>
       )}
-      {said && <Body tone={said.tone}>{said.text}</Body>}
+      {said && <Notice tone={said.tone}>{said.text}</Notice>}
 
       {days.length === 0 ? <Body tone="muted">{canEdit ? 'Nothing logged this week yet. Add time on the Job card tab.' : fromJobs ? 'Approved AccurateJobs job cards for this week show here.' : 'No time logged in this period.'}</Body>
         : days.map(d => {
           const row = dayRowOf(data, d) as DayRow | null, mine = dayIsMine(row) as boolean;
           return (
             <Card key={d}>
-              <Body>{dayName(d)}{d === today ? ' · today' : ''}</Body>
-              {row && <Body tone={row.status === 'rejected' ? 'danger' : row.status === 'approved' ? 'ok' : 'fg'}>{row.status === 'approved' && row.auto ? 'Approved automatically' : STATUS[row.status] || row.status}</Body>}
-              {row?.status === 'rejected' && <Body tone="danger">Sent back: {row.decision_note || 'fix it and submit it again'}</Body>}
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                <Body strong>{dayName(d)}{d === today ? ' · today' : ''}</Body>
+                {row && <Pill tone={row.status === 'rejected' ? 'danger' : row.status === 'approved' ? 'ok' : row.status === 'submitted' ? 'warn' : 'neutral'}>{row.status === 'approved' && row.auto ? 'Approved automatically' : STATUS[row.status] || row.status}</Pill>}
+              </View>
+              {row?.status === 'rejected' && <Notice tone="danger">{`Sent back: ${row.decision_note || 'fix it and submit it again'}`}</Notice>}
               {byDay[d].cards.map(c => {
                 const blocks = cardEntries[c.id] || [], total = blocks.reduce((n, t) => n + (entryHours(t) as number), 0);
                 const body = (
                   <View style={{ gap: 2, paddingVertical: 6 }}>
-                    <Body>{c.clock_off ? `${c.clock_on}–${c.clock_off}` : `${c.clock_on}–…`} {c.job_label || c.activity_label || 'No job yet'}{c.clock_off ? ` · ${hours(total)}` : ' · on the clock'}</Body>
+                    <Body strong>{c.clock_off ? `${c.clock_on}–${c.clock_off}` : `${c.clock_on}–…`} {c.job_label || c.activity_label || 'No job yet'}{c.clock_off ? ` · ${hours(total)}` : ' · on the clock'}</Body>
                     {(cardNotes(c, fmtDate) as string[]).length > 0 && <Body tone="muted">{(cardNotes(c, fmtDate) as string[]).join(' · ')}</Body>}
                     {blocks.map(t => <Body key={t.id} tone="muted">{t.start_time}–{t.end_time} {t.cost_centre_label || (t.activity_label ? 'Activity' : '')} · {hours(entryHours(t) as number)}</Body>)}
                     {!!c.notes && <Body tone="muted">{c.notes}</Body>}
@@ -148,7 +144,7 @@ export default function WeekTab() {
                   : <View key={c.id}>{body}</View>;
               })}
               {byDay[d].entries.map(t => <Body key={t.id} tone="muted">{t.start_time}–{t.end_time} {t.job_label || ''} {t.cost_centre_label || ''} · {hours(entryHours(t) as number)}</Body>)}
-              {canEdit && sendable.includes(d) && <Button kind="plain" onPress={() => { void submit([d]); }} disabled={busy || pending > 0}>Submit day</Button>}
+              {canEdit && sendable.includes(d) && <Button icon="paper-plane-outline" onPress={() => { void submit([d]); }} disabled={busy || pending > 0}>Submit day</Button>}
               {canEdit && row?.status === 'submitted' && <Button kind="plain" onPress={() => pullBack([row])} disabled={busy}>Pull back</Button>}
             </Card>
           );
@@ -156,10 +152,10 @@ export default function WeekTab() {
 
       {canEdit && (
         <Card>
-          <Body>{help.title}</Body>
+          <Body strong>{help.title}</Body>
           <Body tone="muted">{help.text}</Body>
-          {!!back && <Body tone="danger">{back}</Body>}
-          {checks.map(c => <Body key={c.key} tone={c.block ? 'danger' : 'muted'}>{c.text}</Body>)}
+          {!!back && <Notice tone="danger">{back}</Notice>}
+          {checks.map(c => c.block ? <Notice key={c.key} tone="danger">{c.text}</Notice> : <Body key={c.key} tone="muted">{c.text}</Body>)}
           {sendable.length === 0 ? <Body tone="muted">{nothingToSubmit(wk) as string}</Body> : (
             <>
               <Field label={help.noteLabel} value={note} onChangeText={setNote} multiline />

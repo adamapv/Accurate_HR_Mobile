@@ -12,7 +12,7 @@ import { fmtDate, localToday } from '@/lib/dates';
 import { fmtMoney } from '@/lib/money';
 import { CLAIM_STATUS } from '@/lib/claims';
 import { WhenField } from '@/pickers';
-import { Body, Button, Card, Field, Problem, Screen, Title } from '@/ui';
+import { Body, Button, Card, Field, Heading, Notice, Pill, Problem, Screen, Title } from '@/ui';
 
 type Claim = { id: string; claim_date: string; description: string | null; status: string; total_cents: number; decision_note: string | null; payment_reference: string | null; paid_at: string | null };
 type Line = { id: string; description: string; line_date: string; amount_cents: number; category_name: string | null; mileage_km: number | null; receipt_r2_key: string | null; job_id: string | null; job_label: string | null; cost_centre_label: string | null; simpro_state: string | null; simpro_error: string | null };
@@ -84,7 +84,6 @@ export default function ClaimScreen() {
         <Title>{id ? 'Claim' : 'New claim'}</Title>
         <Problem>{problem || detail.error}</Problem>
         {!problem && !detail.error && <Body tone="muted">Loading…</Body>}
-        <Button kind="plain" onPress={() => router.back()}>Back</Button>
       </Screen>
     );
   }
@@ -94,9 +93,9 @@ export default function ClaimScreen() {
   return (
     <Screen>
       <Title>{claimTitle(claim, fmtMoney) as string}</Title>
-      <Body tone={claim.status === 'rejected' ? 'danger' : claim.status === 'approved' || claim.status === 'paid' ? 'ok' : 'muted'}>{CLAIM_STATUS[claim.status] || claim.status}</Body>
-      {!!sentBack && <Body tone="danger">{sentBack}</Body>}
-      {!!paid && <Body tone="ok">{paid}</Body>}
+      <Pill tone={claim.status === 'rejected' ? 'danger' : claim.status === 'approved' || claim.status === 'paid' ? 'ok' : claim.status === 'submitted' ? 'warn' : 'neutral'}>{CLAIM_STATUS[claim.status] || claim.status}</Pill>
+      {!!sentBack && <Notice tone="danger">{sentBack}</Notice>}
+      {!!paid && <Notice tone="ok">{paid}</Notice>}
       {editable ? (
         <View style={{ gap: 12 }}>
           <WhenField label="Claim date" mode="date" value={head.claim_date} maxDate={localToday()} onChange={v => { const next = { ...head, claim_date: v }; setHead(next); saveHead(next); }} />
@@ -108,15 +107,15 @@ export default function ClaimScreen() {
           <Body tone="muted">{day(head.claim_date)}</Body>
         </Card>
       )}
-      <Body>Lines ({lines.length})</Body>
-      {editable && <Button kind="plain" onPress={() => { saveHead(); router.push(`/claim-line?claim=${encodeURIComponent(id)}`); }} disabled={!!busy}>Add line</Button>}
+      <Heading>Lines ({lines.length})</Heading>
+      {editable && <Button kind="plain" icon="add-circle-outline" onPress={() => { saveHead(); router.push(`/claim-line?claim=${encodeURIComponent(id)}`); }} disabled={!!busy}>Add line</Button>}
       {lines.length === 0 ? <Body tone="muted">No lines yet.</Body> : lines.map(l => {
         const cost = l.job_id ? simproCostText(l.simpro_state, l.simpro_error) as { text: string; failed: boolean } | null : null;
         return (
           <Card key={l.id}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 8 }}>
-              <View style={{ flex: 1 }}><Body>{l.description}</Body></View>
-              <Body>{fmtMoney(l.amount_cents)}</Body>
+              <View style={{ flex: 1 }}><Body strong>{l.description}</Body></View>
+              <Body strong>{fmtMoney(l.amount_cents)}</Body>
             </View>
             <Body tone="muted">{claimLineMeta(l, day) as string}</Body>
             {!!l.job_id && <Body tone="muted">{claimLineJob(l) as string}</Body>}
@@ -128,13 +127,15 @@ export default function ClaimScreen() {
           </Card>
         );
       })}
-      <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-        <Body>Total</Body>
-        <Body>{fmtMoney(claim.total_cents)}</Body>
-      </View>
+      <Card>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Body tone="muted">Total</Body>
+          <Title>{fmtMoney(claim.total_cents)}</Title>
+        </View>
+      </Card>
       <Problem>{problem || detail.error}</Problem>
       {editable && lines.length > 0 && <Button onPress={() => { void submit(); }} busy={busy === 'submit'} disabled={!!busy}>{claimSubmitLabel(claim) as string}</Button>}
-      {editable && claim.status === 'draft' && <Button kind="plain" onPress={deleteClaim} busy={busy === 'delete'} disabled={!!busy}>Delete claim</Button>}
+      {editable && claim.status === 'draft' && <Button kind="danger" icon="trash-outline" onPress={deleteClaim} busy={busy === 'delete'} disabled={!!busy}>Delete claim</Button>}
       <Button kind="plain" onPress={() => router.back()} disabled={!!busy}>Close</Button>
     </Screen>
   );

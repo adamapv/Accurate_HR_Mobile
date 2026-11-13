@@ -16,7 +16,7 @@ import { useSession } from '@/lib/session';
 import { useRead } from '@/lib/use-read';
 import { localNowHM, localToday, parseDay } from '@/lib/dates';
 import { ChooseField, WhenField, type Option } from '@/pickers';
-import { Body, Button, Field, Problem, Screen, Title } from '@/ui';
+import { Body, Button, Field, Heading, Problem, Screen, Title } from '@/ui';
 import { EmergencyCard, NotifiableQuestion, PhotoList, PickField, RowsEditor, Tick, TickList, type Photo } from '@/whs';
 
 type Job = { id: string; company_id: string; name: string | null; customer_name?: string | null; site_name?: string | null; site_address?: string | null };
@@ -24,7 +24,7 @@ type F = Record<string, string>;
 type D = Record<string, unknown> & { notifiable_check: string };
 // A date and a time of day by the phone's clock, as the moment the Worker stores.
 const moment = (date: string, time: string) => { const at = parseDay(date); const [h, m] = (time || '00:00').split(':').map(Number); at.setHours(h || 0, m || 0, 0, 0); return at.toISOString(); };
-const Section = ({ title, hint }: { title: string; hint?: string | null }) => <View style={{ gap: 2, marginTop: 8 }}><Title>{title}</Title>{!!hint && <Body tone="muted">{hint}</Body>}</View>;
+const Section = ({ title, hint }: { title: string; hint?: string | null }) => <View style={{ gap: 10, marginTop: 8 }}><Heading>{title}</Heading>{!!hint && <Body tone="muted">{hint}</Body>}</View>;
 
 export default function ReportIncident() {
   const { state, api, changed } = useSession();

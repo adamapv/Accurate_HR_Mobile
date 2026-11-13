@@ -7,7 +7,7 @@ import { useSession } from '@/lib/session';
 import { useRead } from '@/lib/use-read';
 import { fmtTime } from '@/lib/dates';
 import { fmtMoney } from '@/lib/money';
-import { Body, Button, Card, Problem, Screen, Title } from '@/ui';
+import { Body, Button, Card, Empty, Figures, Notice, Pill, Problem, Screen, Title, type Figure } from '@/ui';
 
 export type Asset = { id: string; name: string; category_name: string | null; brand: string | null; model: string | null; serial_number: string | null; condition: string | null; current_value_cents: number | null };
 type Tile = { key: string; label: string; value: string | number; sub: string; tone?: 'warn' };
@@ -21,35 +21,24 @@ export default function Assets() {
     <Screen>
       <Title>My assets</Title>
       {!!rows && <Body tone="muted">{assetsSub(rows) as string}</Body>}
-      {assets.offlineAt !== null && <Body tone="muted">No signal. Showing what was saved at {fmtTime(assets.offlineAt)}.</Body>}
+      {assets.offlineAt !== null && <Notice tone="warn" icon="cloud-offline-outline">{`No signal. Showing what was saved at ${fmtTime(assets.offlineAt)}.`}</Notice>}
       <Problem>{assets.error}</Problem>
       {!!rows && rows.length > 0 && (
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-          {(assetTiles(rows, fmtMoney) as Tile[]).map(t => (
-            <View key={t.key} style={{ flexBasis: '30%', flexGrow: 1 }}>
-              <Card>
-                <Body tone="muted">{t.label}</Body>
-                <Body tone={t.tone ? 'danger' : 'fg'}>{String(t.value)}</Body>
-                <Body tone="muted">{t.sub}</Body>
-              </Card>
-            </View>
-          ))}
-        </View>
+        <Figures figures={assetTiles(rows, fmtMoney) as Figure[]} />
       )}
       {!rows ? (assets.error ? null : <Body tone="muted">Loading…</Body>)
-        : rows.length === 0 ? <Body tone="muted">{NO_ASSETS as string}</Body>
+        : rows.length === 0 ? <Empty>{NO_ASSETS as string}</Empty>
         : rows.map(a => {
           const row = assetRow(a, fmtMoney) as { title: string; meta: string; condition: string };
           return (
             <Card key={a.id}>
-              <Body>{row.title}</Body>
+              <Body strong>{row.title}</Body>
               {!!row.meta && <Body tone="muted">{row.meta}</Body>}
-              {!!row.condition && <Body tone={['Poor', 'Lost'].includes(row.condition) ? 'danger' : 'muted'}>{row.condition}</Body>}
-              <Button kind="plain" onPress={() => router.push(`/report-asset?id=${encodeURIComponent(a.id)}`)}>Report issue</Button>
+              {!!row.condition && <Pill tone={['Poor', 'Lost'].includes(row.condition) ? 'danger' : row.condition === 'Fair' ? 'warn' : 'ok'}>{row.condition}</Pill>}
+              <Button kind="plain" icon="alert-circle-outline" onPress={() => router.push(`/report-asset?id=${encodeURIComponent(a.id)}`)}>Report issue</Button>
             </Card>
           );
         })}
-      <Button kind="plain" onPress={() => router.back()}>Back</Button>
     </Screen>
   );
 }

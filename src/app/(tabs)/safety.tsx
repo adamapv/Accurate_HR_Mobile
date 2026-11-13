@@ -13,7 +13,7 @@ import { useOutbox } from '@/lib/use-outbox';
 import { fmtDate, fmtTime, localToday } from '@/lib/dates';
 import type { SchedRow } from '@/job-row';
 import { JobSafety, type ForJobs } from '@/safety';
-import { Body, Button, Card, Problem, Screen, Title } from '@/ui';
+import { Body, Card, Empty, Heading, List, Notice, Pill, Problem, Row, Screen, Title } from '@/ui';
 
 type Gate = { ready: boolean; held: boolean };
 const gateOf = startGate as unknown as (a: { job: unknown; swms: unknown[]; lists: unknown[]; queued: unknown[]; today: string }) => Gate;
@@ -43,11 +43,16 @@ export default function Safety() {
     const title = schedRowTitle(r) as { tag: string; name: string };
     return (
       <Card key={`${r.work_date}:${key}`}>
-        <Body>{title.tag} {title.name}</Body>
-        {(r.customer_name || r.site_name) && <Body tone="muted">{[r.customer_name, r.site_name].filter(Boolean).join(' · ')}</Body>}
+        <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 10 }}>
+          <View style={{ flex: 1, gap: 2 }}>
+            <Body strong>{title.name}</Body>
+            {(r.customer_name || r.site_name) && <Body tone="muted">{[r.customer_name, r.site_name].filter(Boolean).join(' · ')}</Body>}
+          </View>
+          <Pill tone="info">{title.tag}</Pill>
+        </View>
         <JobSafety job={ref} swms={swms} lists={isTomorrow ? [] : lists} queued={queued} today={today} keys={keys}
           showFinish={onThis || finishOf({ job: ref, lists, queued, today }).some(c => c.state !== 'todo')} />
-        {gate && !gate.ready && !onThis && <Body tone={gate.held ? 'danger' : 'fg'}>{holdText(gate) as string}</Body>}
+        {gate && !gate.ready && !onThis && <Notice tone={gate.held ? 'danger' : 'warn'}>{holdText(gate) as string}</Notice>}
       </Card>
     );
   };
@@ -60,34 +65,35 @@ export default function Safety() {
   return (
     <Screen>
       <Title>Safety</Title>
-      {offlineAt !== null && <Body tone="muted">No signal. Showing what was saved at {fmtTime(offlineAt)}.</Body>}
+      {offlineAt !== null && <Notice tone="warn" icon="cloud-offline-outline">{`No signal. Showing what was saved at ${fmtTime(offlineAt)}.`}</Notice>}
+      {canWhs && (
+        <List>
+          <Row icon="medkit-outline" tint="orange" title="Safety reports" sub="Report an incident, damage or a hazard" onPress={() => router.push('/safety-reports')} last />
+        </List>
+      )}
       {canSafety && (
         <>
-          <Body tone="muted">Today’s jobs</Body>
+          <Heading>Today’s jobs</Heading>
           {!sched.data || (keys && !forJobs.data && !forJobs.error) ? <Body tone="muted">{sched.error || 'Loading…'}</Body>
-            : todayBlocks.length === 0 ? <Body tone="muted">{todays.length ? 'Nothing to sign on to or tick on today’s jobs.' : 'Nothing published for you today.'}</Body>
+            : todayBlocks.length === 0 ? <Empty icon="shield-checkmark-outline">{todays.length ? 'Nothing to sign on to or tick on today’s jobs.' : 'Nothing published for you today.'}</Empty>
             : todayBlocks}
           <Problem>{forJobs.error}</Problem>
-          {tomorrowBlocks.length > 0 && <><Body tone="muted">Tomorrow</Body>{tomorrowBlocks}</>}
+          {tomorrowBlocks.length > 0 && <><Heading>Tomorrow</Heading>{tomorrowBlocks}</>}
         </>
       )}
 
-      <Body tone="muted">Company policies</Body>
+      <Heading>Company policies</Heading>
       {!policies.data ? <Body tone="muted">{policies.error || 'Loading…'}</Body>
-        : list.length === 0 ? <Body tone="muted">No policies published yet.</Body>
-        : list.map(({ policy, read, sub }) => (
-          <Pressable key={policy.id} accessibilityRole="button" accessibilityLabel={`${policy.title}. ${sub}`} onPress={() => router.push({ pathname: '/policy', params: { id: policy.id } })}>
-            <Card><Body>{policy.title}</Body><Body tone={read ? 'ok' : 'fg'}>{sub}</Body></Card>
-          </Pressable>
-        ))}
+        : list.length === 0 ? <Empty icon="book-outline">No policies published yet.</Empty>
+        : (
+          <List>
+            {list.map(({ policy, read, sub }, i) => (
+              <Row key={policy.id} icon="book-outline" tint={read ? 'green' : 'amber'} title={policy.title} sub={sub} right={read ? undefined : <Pill tone="warn">To read</Pill>}
+                onPress={() => router.push({ pathname: '/policy', params: { id: policy.id } })} last={i === list.length - 1} />
+            ))}
+          </List>
+        )}
 
-      {canWhs && (
-        <Card>
-          <Body tone="muted">Report</Body>
-          <Body>Report an incident, property damage or a hazard, and see the reports you have made.</Body>
-          <View><Button onPress={() => router.push('/safety-reports')}>Safety reports</Button></View>
-        </Card>
-      )}
     </Screen>
   );
 }
