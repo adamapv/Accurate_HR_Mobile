@@ -124,7 +124,8 @@ export function RowsEditor({ rows, onChange, fields, addLabel }: { rows: Record<
 }
 
 // Photos on a report, taken with the camera and sent as they are taken. `onBusy` says when one is still on its way, so the report waits for it.
-export function PhotoList({ photos, onChange, onBusy }: { photos: Photo[]; onChange: (p: Photo[]) => void; onBusy: (busy: boolean) => void }) {
+// A pre-start uses it with its own limit, file name and no hint.
+export function PhotoList({ photos, onChange, onBusy, max = WHS_MAX_PHOTOS as number, hint = photoHint as string, filename = 'whs-photo.jpg' }: { photos: Photo[]; onChange: (p: Photo[]) => void; onBusy: (busy: boolean) => void; max?: number; hint?: string; filename?: string }) {
   const { api, sessionId } = useSession();
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState('');
@@ -137,7 +138,7 @@ export function PhotoList({ photos, onChange, onBusy }: { photos: Photo[]; onCha
     if (!a) return;
     setBusy(true); onBusy(true);
     try {
-      const key = await uploadPhoto(api, sessionId(), a.uri, a.mimeType || 'image/jpeg', '/documents/upload-url', 'whs-photo.jpg');
+      const key = await uploadPhoto(api, sessionId(), a.uri, a.mimeType || 'image/jpeg', '/documents/upload-url', filename);
       onChange([...photos, { key, uri: a.uri }]);
     } catch (e) { setProblem(e instanceof Error ? e.message : 'Upload failed. Try again.'); }
     setBusy(false); onBusy(false);
@@ -154,8 +155,8 @@ export function PhotoList({ photos, onChange, onBusy }: { photos: Photo[]; onCha
           ))}
         </View>
       )}
-      {photos.length < (WHS_MAX_PHOTOS as number) && <Button kind="plain" icon="camera-outline" onPress={() => { void snap(); }} busy={busy}>{photos.length ? 'Take another photo' : 'Take a photo'}</Button>}
-      <Body tone="muted">{photoHint as string}</Body>
+      {photos.length < max && <Button kind="plain" icon="camera-outline" onPress={() => { void snap(); }} busy={busy}>{photos.length ? 'Take another photo' : 'Take a photo'}</Button>}
+      {!!hint && <Body tone="muted">{hint}</Body>}
       <Problem>{problem}</Problem>
     </View>
   );
