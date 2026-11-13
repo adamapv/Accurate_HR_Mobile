@@ -609,6 +609,30 @@ export const confirmProblem = name => String(name || '').trim() ? '' : CONFIRM_N
 export const confirmDraft = name => ({ signature_name: String(name || '').trim() });
 export const docConfirmPath = doc => `/documents/${doc.id}/${doc.requires_signature ? 'sign' : 'acknowledge'}`;
 
+// ---- the assets a person holds ----
+// The three figures over them: how many, what they are worth on the register, and how many are in poor condition or lost.
+export function assetTiles(rows, fmtMoney) {
+  const all = rows || [], attention = all.filter(a => ['poor', 'lost'].includes(String(a.condition || '').toLowerCase()));
+  return [
+    { key: 'items', label: 'Items with you', value: all.length, sub: `${new Set(all.map(a => a.category_name).filter(Boolean)).size || 0} categories` },
+    { key: 'value', label: 'Total value', value: fmtMoney(all.reduce((s, a) => s + (a.current_value_cents || 0), 0), { whole: true }), sub: 'Current value on the register' },
+    { key: 'attention', label: 'Needs attention', value: attention.length, tone: attention.length ? 'warn' : undefined, sub: attention.length ? 'Reported as damaged or faulty' : 'All in good order' }];
+}
+export const assetsSub = rows => `${plural((rows || []).length, 'item')} with you`;
+export const NO_ASSETS = 'You have no assets assigned. Speak to your manager if that’s wrong.';
+// An asset as its row: what it says under its name, and its condition in words.
+export const assetRow = (a, fmtMoney) => ({ title: a.name,
+  meta: [a.category_name, [a.brand, a.model].filter(Boolean).join(' '), a.serial_number && `SN ${a.serial_number}`, a.current_value_cents && fmtMoney(a.current_value_cents, { whole: true })].filter(Boolean).join(' · '),
+  condition: sentenceCase(a.condition) });
+// Telling the office about an asset: what happened, and the condition it is in now. These are the kinds and conditions the person holding it may send.
+export const ASSET_EVENTS = [['condition_change', 'Its condition has changed'], ['damaged', 'It’s damaged'], ['lost', 'It’s lost or stolen'], ['audit', 'Just a check-in']];
+export const HOLDER_CONDITIONS = ['good', 'fair', 'poor', 'lost'];
+export const conditionLabel = c => sentenceCase(c);
+// The report as its form opens: on the condition the register has, when that is one the holder may send, else good.
+export const assetReportStart = asset => ({ event_type: 'condition_change', condition: HOLDER_CONDITIONS.includes(asset?.condition) ? asset.condition : 'good', notes: '' });
+export const assetReportTitle = asset => `Report on ${asset.name}`;
+export const ASSET_REPORT_SENT = 'Thanks — the office has your report';
+
 // ---- the session and links ----
 // The session's fingerprint: the first 8 bytes of SHA-256 over "Bearer <session id>", as 16 hex characters. Everything kept on a device for one session (the outbox,
 // the offline copies) is tagged with it, and the service worker keys its copies with the same value, so one person's never show for the next. '' with no session.
