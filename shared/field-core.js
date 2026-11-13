@@ -211,6 +211,19 @@ export function sendChecks(week, today, dates, fmtDate) {
   }
   return out;
 }
+// What submitting a day leads to, said the same wherever a day is submitted. `autoApprove` is the company's Timesheet approval setting (me.company.timesheet_auto_approve).
+export const submitConsequence = autoApprove => autoApprove ? 'It is approved straight away and its time goes to simPRO.' : 'Your manager is asked to approve it.';
+// What to ask before these days are sent: { title, body } for a confirm, with their hours.
+export function submitConfirm(week, dates, autoApprove, { fmtDate, fmtHours }) {
+  const hours = (week?.entries || []).filter(t => dates.includes(t.work_date)).reduce((n, t) => n + entryHours(t), 0);
+  return { title: dates.length === 1 ? 'Submit this day?' : `Submit ${dates.length} days?`, body: `${fmtHours(hours)} on ${dates.map(fmtDate).join(', ')}. ${submitConsequence(autoApprove)}` };
+}
+// Says what submitting days did (POST /days/submit → { submitted, skipped, auto_approved }): how many went, and which could not and why.
+export function daysSubmittedText(r, fmtDate) {
+  const n = r?.submitted?.length || 0, skipped = r?.skipped || [];
+  const base = r?.auto_approved ? `${plural(n, 'day')} submitted and approved — the time is on its way to simPRO` : `${plural(n, 'day')} sent for approval`;
+  return skipped.length ? `${base}\nNot sent: ${skipped.map(x => `${fmtDate(x.date)} ${x.reason}`).join('; ')}` : base;
+}
 // What needs doing now, most urgent first: [{ key, tone, title, meta, href | onClick, cta }]. Documents,
 // policies and tasks are in the to-do list under it, so they are not repeated here. An `href` is one of the app's own addresses ('#/route?…').
 export function meAttention({ week, plant, quals, gaps, today, onSubmit }, { fmtDate, fmtHours }) {

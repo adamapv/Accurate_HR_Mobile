@@ -10,11 +10,12 @@ The AccurateHR Field view as a native Android and iPhone app. Built with React N
 - Clock on from Home. With no signal it is saved on the phone and sent once when the signal returns; anything the server then refuses is listed with its reason, to try again or discard.
 - Clock off and Add time, on the job card: date, start, finish and lunch, the job (searched by number, name, customer or site), its cost centre (chosen for you when the job has one, or the one you used last time), and the time shared between several cost centres. It is checked and saved by the web form's own rules, and works with no signal.
 - The Job card tab: any day's cards and hours, where the day stands with your approver, and what an approver would query. A card opens to change or delete while the day is still yours.
+- Submit day and Pull back, from the Job card tab: what stops a day going (still on the clock, something on the phone not sent yet), what an approver would query, a confirm with the day's hours, and what happened afterwards.
 - A tab bar (Home, Job card, More). More shows who is signed in and has Sign out.
 - Home opens with no signal, on the copy kept from last time.
 - Sign out, which forgets everything kept on the phone.
 
-Time on an activity, Submit day, Safety, My week, Chat, POs and the rest of More are still to be built. Until then people use the Field view in a browser.
+Time on an activity, Safety, My week, Chat, POs and the rest of More are still to be built. Until then people use the Field view in a browser.
 
 ## Trying it on an Android phone
 

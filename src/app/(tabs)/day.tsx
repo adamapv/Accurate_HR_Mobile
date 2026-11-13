@@ -1,9 +1,10 @@
 // The Job card tab: one day's time. The day's cards (with what is still waiting on the phone laid over them), its total, where the day stands with the approver,
-// what an approver would query, and Add time. A card opens in the job card form to change or delete while the day is still the person's own.
+// what an approver would query, Add time, Submit day and Pull back. A card opens in the job card form to change or delete while the day is still the person's own.
+// Which days can go, what stands in the way and what is said before and after are the web app's own rules (shared/field-core.js).
 import { useState } from 'react';
-import { Pressable, View } from 'react-native';
+import { Alert, Pressable, View } from 'react-native';
 import { router } from 'expo-router';
-import { cardOnDate, dayIsMine, dayRowOf, entryHours, planJobCard, timeFromJobs } from '@shared/field-core.js';
+import { cardOnDate, dayIsMine, dayRowOf, daysSubmittedText, daysToSend, entryHours, planJobCard, sendChecks, submitConfirm, timeFromJobs } from '@shared/field-core.js';
 import { applyToWeek } from '@shared/offline-queue.js';
 import { addDaysIso } from '@shared/pickers-core.js';
 import { useSession } from '@/lib/session';
@@ -20,8 +21,10 @@ const STATUS: Record<string, string> = { submitted: 'Sent for approval', approve
 const hours = (n: number) => `${n.toFixed(2).replace(/\.?0+$/, '')}h`;
 
 export default function Day() {
-  const { state } = useSession();
+  const { state, api, changed } = useSession();
   const [date, setDate] = useState(localToday());
+  const [busy, setBusy] = useState(false);
+  const [said, setSaid] = useState<{ tone: 'ok' | 'danger'; text: string } | null>(null);
   const today = localToday();
   const week = useRead<Week>(`/timesheets/mine?date=${date}`);
   const queued = useOutbox();
@@ -34,14 +37,33 @@ export default function Day() {
   const dayRow = view ? dayRowOf(view, date) : null;
   const mine = dayIsMine(dayRow);
   const fromJobs = timeFromJobs(state.me.employee, date);
-  const flags = (view?.flags || []).filter(f => f.date === date && !(f.kind === 'missing_day' && date === today));
+  // What stands between this day and Submit: what stops it, then what an approver would query.
+  const checks = (view ? sendChecks(view, today, [date], fmtDate) : []) as { key: string; block: boolean; date?: string; text: string }[];
+  const blocks = checks.filter(c => c.block), queries = checks.filter(c => !c.block && c.date === date);
+  const canSubmit = !!view && !fromJobs && (daysToSend(view, today) as string[]).includes(date) && blocks.length === 0;
+
+  // Submitting and pulling back need signal (the answer says which days went), so they do not wait in the outbox.
+  const run = async (fn: () => Promise<string>) => {
+    setBusy(true); setSaid(null);
+    try { const text = await fn(); await week.reload(); changed(); setSaid({ tone: 'ok', text }); }
+    catch (e) { setSaid({ tone: 'danger', text: e instanceof Error ? e.message : 'Something went wrong. Try again.' }); }
+    setBusy(false);
+  };
+  const submit = () => {
+    const ask = submitConfirm(view, [date], !!state.me.company.timesheet_auto_approve, { fmtDate, fmtHours: (n: number) => `${n.toFixed(1)}h` });
+    Alert.alert(ask.title, ask.body, [{ text: 'Cancel', style: 'cancel' }, { text: 'Submit', onPress: () => { void run(async () => daysSubmittedText(await api('/days/submit', { method: 'POST', body: { dates: [date] } }), fmtDate)); } }]);
+  };
+  const pullBack = () => Alert.alert('Pull this day back?', 'It leaves your manager’s approvals until you submit it again. You can change your time in the meantime.', [
+    { text: 'Cancel', style: 'cancel' },
+    { text: 'Pull back', onPress: () => { void run(async () => { await api(`/days/${dayRow!.id}/withdraw`, { method: 'POST', body: {} }); return 'Day pulled back. Fix it and submit it again.'; }); } },
+  ]);
 
   return (
     <Screen>
       <Title>{date === today ? 'Today' : fmtDate(date)}</Title>
       <View style={{ flexDirection: 'row', gap: 12 }}>
-        <View style={{ flex: 1 }}><Button kind="plain" onPress={() => setDate(d => addDaysIso(d, -1))}>Earlier</Button></View>
-        <View style={{ flex: 1 }}><Button kind="plain" onPress={() => setDate(d => addDaysIso(d, 1))} disabled={date >= today}>Later</Button></View>
+        <View style={{ flex: 1 }}><Button kind="plain" onPress={() => { setSaid(null); setDate(d => addDaysIso(d, -1)); }}>Earlier</Button></View>
+        <View style={{ flex: 1 }}><Button kind="plain" onPress={() => { setSaid(null); setDate(d => addDaysIso(d, 1)); }} disabled={date >= today}>Later</Button></View>
       </View>
       {week.offlineAt !== null && <Body tone="muted">No signal. Showing what was saved at {fmtTime(week.offlineAt)}.</Body>}
       <Problem>{week.error}</Problem>
@@ -51,6 +73,7 @@ export default function Day() {
           <Body tone={dayRow.status === 'rejected' ? 'danger' : dayRow.status === 'approved' ? 'ok' : 'fg'}>{STATUS[dayRow.status] || dayRow.status}</Body>
           {dayRow.status === 'rejected' && <Body tone="muted">{dayRow.decision_note || 'Fix it and submit it again.'}</Body>}
           {!mine && <Body tone="muted">This day can’t be changed while it is with your approver or approved.</Body>}
+          {dayRow.status === 'submitted' && <Button kind="plain" onPress={pullBack} disabled={busy}>Pull back</Button>}
         </Card>
       )}
 
@@ -71,10 +94,12 @@ export default function Day() {
             : <View key={c.id}>{body}</View>;
         })}
       {view && cards.length > 0 && <Body>{hours(total)} on this day</Body>}
-      {flags.map(f => <Body key={`${f.kind}:${f.date}`} tone="muted">{f.text}</Body>)}
+      {mine && blocks.map(c => <Body key={c.key} tone="danger">{c.text}</Body>)}
+      {mine && queries.map(c => <Body key={c.key} tone="muted">{c.text}</Body>)}
+      {said && <Body tone={said.tone}>{said.text}</Body>}
 
-      {view && mine && !fromJobs && <Button onPress={() => router.push({ pathname: '/job-card', params: { date } })}>Add time</Button>}
-      {view && mine && !fromJobs && cards.some(c => c.clock_off) && <Body tone="muted">Submit your day in the Field view in your browser for now.</Body>}
+      {view && mine && !fromJobs && <Button kind={canSubmit ? 'plain' : 'primary'} onPress={() => router.push({ pathname: '/job-card', params: { date } })} disabled={busy}>Add time</Button>}
+      {canSubmit && <Button onPress={submit} busy={busy}>Submit day</Button>}
     </Screen>
   );
 }
