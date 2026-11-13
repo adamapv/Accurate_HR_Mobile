@@ -20,6 +20,7 @@ The AccurateHR Field view as a native Android and iPhone app. Built with React N
 - My week: a pay period day by day with each day's cards, hours and where it stands, the week's safety counts and leave balances, Copy last week, Submit for one day or all that can go (with a note), and Pull back.
 - Chat: the list of chats with the last message and how many are waiting, and a chat with its messages under day chips, the unread line, names in a group, photos shown, links that open, and a box to send a text message. A message typed with no signal waits in the chat and is sent once.
 - POs: the ones you have raised (a tap copies the number), and Raise a PO on a job with a supplier (your starred ones first), the job's cost centre, and an optional reference and note. It is raised in simPRO there and then, so it needs signal.
+- My leave (from More): your balances, your requests with Submit, Discard or Cancel where each still applies, and the team leave calendar for a level whose Leave reaches their team. Request leave says what a request would be as you fill it in (its hours, the balance after, leave you already have on those days, who else is off), and an activity on a job card that needs approval leads straight to it. Needs signal.
 - Home opens with no signal, on the copy kept from last time.
 - Sign out, which forgets everything kept on the phone.
 

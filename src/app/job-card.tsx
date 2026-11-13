@@ -5,6 +5,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Switch, View } from 'react-native';
 import { Redirect, router, useLocalSearchParams } from 'expo-router';
+import { can } from '@shared/access.js';
 import { activityAsksFirst, activityGroups, cardDefaults, cardDraft, cardProblem, costCentreOptions, dropSplits, findJob, hmMins, insertSplit, onlyCostCentre, planJobCard, rememberedCostCentre, setSplitPct, splitEvenly } from '@shared/field-core.js';
 import { applyToOpenCard, applyToWeek } from '@shared/offline-queue.js';
 import { filterJobs } from '@shared/pickers-core.js';
@@ -27,7 +28,7 @@ type CardRow = { id: string; work_date: string; clock_on: string; clock_off: str
 type StartInit = { kind?: 'clock-on'; id?: string; work_date: string; clock_on: string; company_id: string; job_id: string; splits: Split[] } & Partial<CardRow>;
 type Open = { card: CardRow | null; last_card: (CardRow & { splits: Split[] | null }) | null; night: { rest_hours: number; window: { start: string; end: string } } | null };
 type Week = { period: { period_start: string; period_end: string }; cards: CardRow[]; entries: { card_id: string | null; work_date: string; start_time: string; end_time: string }[]; holidays?: { date: string }[]; rdos?: { date: string }[] };
-type Activity = { id: string; name: string; needs_approval?: number | boolean; ask_first?: number | boolean; day_off?: string | null };
+type Activity = { id: string; name: string; needs_approval?: number | boolean; ask_first?: number | boolean; day_off?: string | null; leave_type_id?: string | null };
 
 let nextKey = 0;
 const blank = (over: Partial<Row> = {}): Row => ({ key: ++nextKey, job_id: '', company_id: '', section_id: '', cost_centre_id: '', pct: 100, ...over });
@@ -58,7 +59,7 @@ export default function JobCardScreen() {
 }
 
 function Form({ card, open, date, start }: { card: CardRow | null; open: Open; date?: string; start?: StartInit }) {
-  const { offline, changed } = useSession();
+  const { state, offline, changed } = useSession();
   const isNew = !card;
   const finished = !!card?.clock_off;                 // a finished card being changed, not a clock-off
   const byHand = (isNew && !start) || card?.source === 'manual';  // a start and finish typed in, which go in quarter hours
@@ -169,7 +170,8 @@ function Form({ card, open, date, start }: { card: CardRow | null; open: Open; d
         <Card>
           <ChooseField<string> label="Activity" placeholder={activitiesRead.data ? 'Choose the activity' : 'Loading activities…'} value={form.activity_id ? activityName || `Activity ${form.activity_id}` : ''}
             options={activityOptions} onChoose={id => setForm(f => ({ ...f, activity_id: id }))} />
-          {askFirst && <Body tone="danger">{picked!.name} needs a manager’s approval, so it goes in as leave rather than on a timesheet. Request it under My leave in the Field view in your browser for now.</Body>}
+          {askFirst && <Body tone="danger">{picked!.name} needs a manager’s approval, so it goes in as leave rather than on a timesheet.</Body>}
+          {askFirst && state.status === 'signedIn' && can(state.me.access, 'leave', 'edit') && <Button onPress={() => router.replace(picked!.leave_type_id ? `/request-leave?type=${encodeURIComponent(picked!.leave_type_id)}` : '/request-leave')}>Request leave</Button>}
           {!askFirst && !!picked?.day_off && <Body tone="muted">Counts as your {picked.day_off === 'rdo' ? 'RDO' : 'public holiday'}.</Body>}
           <Problem>{activitiesRead.error}</Problem>
         </Card>

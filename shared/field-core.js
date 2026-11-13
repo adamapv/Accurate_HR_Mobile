@@ -391,6 +391,73 @@ export const policyList = (rows, fmtDate) => [...(rows || []).filter(p => !p.ack
 // What is said under a policy the person has already acknowledged.
 export const acknowledgedText = (p, fmtDate) => `You acknowledged this on ${fmtDate(p.acknowledged_at)} as ${p.signature_name}.`;
 
+// ---- leave ----
+// A date range as words: one day when both ends are the same.
+const range = (a, b, fmtDate) => (a === b || !b) ? fmtDate(a) : `${fmtDate(a)} – ${fmtDate(b)}`;
+const day10 = d => String(d).slice(0, 10);
+// "From Xero 30 Sept · 16h approved, not yet paid" for a balance read from Xero; null for one that is not.
+export function xeroBalanceNote(b, { fmtDate, fmtHours }) {
+  if (!b.xero_synced_at) return null;
+  const pending = Number(b.xero_hours) - Number(b.balance_hours);
+  return `From Xero ${fmtDate(b.xero_synced_at)}` + (pending > 0.05 ? ` · ${fmtHours(pending)} approved, not yet paid` : '');
+}
+// What is said under one of a person's leave balances.
+export const leaveBalanceSub = (b, fmt) => xeroBalanceNote(b, fmt) || `${fmt.fmtHours(b.accrued_hours)} accrued · ${fmt.fmtHours(b.taken_hours)} taken`;
+// One of a person's own leave requests as its row: what it says, the colour of its date, and what can still be done with it (a draft is sent or discarded; one that is
+// waiting, or approved and not yet started, can be cancelled). `today` is the caller's own day.
+export function leaveRow(r, today, { fmtDate, fmtHours }) {
+  const draft = r.status === 'draft';
+  return {
+    title: `${r.type_name} · ${range(r.start_date, r.end_date, fmtDate)}`,
+    meta: [fmtHours(r.hours_requested), r.reason].filter(Boolean).join(' · '),
+    tone: r.status === 'rejected' ? 'danger' : r.status === 'approved' ? 'ok' : undefined,
+    canSubmit: draft,
+    canCancel: draft || r.status === 'submitted' || (r.status === 'approved' && r.start_date > today),
+    cancelLabel: draft ? 'Discard' : 'Cancel',
+    note: r.status === 'rejected' && r.decision_note ? r.decision_note : '',
+  };
+}
+// What a person is asked before a request is discarded or cancelled.
+export const leaveCancelConfirm = r => ({
+  title: r.status === 'draft' ? 'Discard this draft?' : 'Cancel this leave?',
+  body: r.status === 'approved' ? 'The hours go back on your balance, and it’s taken off the simPRO schedule.' : undefined,
+  confirmLabel: r.status === 'draft' ? 'Discard' : 'Cancel leave', cancelLabel: 'Keep it', danger: true });
+// The heading of a person's requests: how many are waiting for a decision, and how many approved ones are still to come.
+export const leaveWaiting = rows => (rows || []).filter(r => r.status === 'submitted').length;
+export const leaveComingUp = (rows, today) => `${plural((rows || []).filter(r => r.status === 'approved' && r.end_date >= today).length, 'approved request')} coming up`;
+export const leaveEmptyText = canAsk => canAsk ? 'No leave requests yet. Start one with New request.' : 'No leave requests yet.';
+// A new request as its form opens: the kind of leave that was asked for (Request leave on a job card activity), else the first one.
+export const leaveFormStart = (types, wantType) => ({ leave_type_id: (types || []).find(t => t.id === wantType)?.id || (types || [])[0]?.id || '', start_date: '', end_date: '', hours_requested: '', reason: '' });
+// Choosing the start date moves an end date that would now be before it.
+export const leavePickStart = (form, v) => ({ ...form, start_date: v, end_date: form.end_date && form.end_date >= v ? form.end_date : v });
+export const LEAVE_HOURS_HINT = 'Leave blank for every working day between the dates (weekends and public holidays are left out).';
+// What stands in the way of sending a request ('' when nothing does). The server checks the rest and says so in its own words.
+export const leaveProblem = form => !form.leave_type_id || !form.start_date || !form.end_date ? 'Choose a leave type and both dates'
+  : form.end_date < form.start_date ? 'The end date is before the start date' : '';
+// What a request is sent as: straight for approval.
+export const leaveDraft = form => ({ ...form, status: 'submitted' });
+export const LEAVE_SENT = 'Request sent for approval';
+// What to ask the server about a request as it is filled in (its hours, the balance after, who else is off), or null while it is not complete enough to ask.
+export const leavePreviewAsk = form => !form.leave_type_id || !form.start_date || !form.end_date || form.end_date < form.start_date ? null
+  : { leave_type_id: form.leave_type_id, start: form.start_date, end: form.end_date, hours: form.hours_requested };
+// The server's answer as the notes shown under the form: each { tone, lines }. `asked` is what is in the Hours box. It never stops a request being sent: a manager decides.
+export function leavePreviewNotes(p, asked, { fmtDate, fmtHours }) {
+  if (!p?.valid) return [];
+  const short = p.balance_after != null && p.balance_after < 0;
+  const out = [{ tone: short ? 'warn' : 'info', lines: [
+    `${fmtHours(p.hours)} · ${plural(p.working_days, 'working day')}`,
+    p.balance != null && `${p.type?.name || 'Balance'}: ${fmtHours(p.balance)} now, ${fmtHours(p.balance_after)} after this${p.waiting_hours > 0 ? ` and the ${fmtHours(p.waiting_hours)} already waiting` : ''}.`,
+    short && 'That is more than the balance. It can still be sent: a manager decides.',
+    !p.hours_kept && asked !== '' && asked != null && `${fmtHours(Number(asked))} is more than those days hold, so the working days are used.`].filter(Boolean) }];
+  if (p.overlaps?.length) out.push({ tone: 'warn', lines: [`You already have ${plural(p.overlaps.length, 'request')} on these days: ${p.overlaps.map(o => `${range(day10(o.start_date), day10(o.end_date), fmtDate)} (${o.status})`).join(', ')}.`] });
+  if (p.others_off?.length) out.push({ tone: 'info', lines: [`Also off then: ${p.others_off.map(o => `${o.employee_name} ${range(day10(o.start_date), day10(o.end_date), fmtDate)}${o.masked ? '' : ` (${o.type_name})`}`).join(', ')}.`] });
+  return out;
+}
+// Who is away in a month, as a phone lists it: by when they go, then by name, each saying the kind of leave, the days, and whether it is still waiting.
+export const teamLeaveList = (rows, fmtDate) => [...(rows || [])].sort((a, b) => a.start_date.localeCompare(b.start_date) || a.employee_name.localeCompare(b.employee_name))
+  .map(r => ({ row: r, title: r.employee_name, meta: `${r.type_name} · ${range(r.start_date, r.end_date, fmtDate)}${r.status === 'submitted' ? ' · waiting for approval' : ''}` }));
+export const NOBODY_AWAY = 'Nobody is away this month.';
+
 // ---- the session and links ----
 // The session's fingerprint: the first 8 bytes of SHA-256 over "Bearer <session id>", as 16 hex characters. Everything kept on a device for one session (the outbox,
 // the offline copies) is tagged with it, and the service worker keys its copies with the same value, so one person's never show for the next. '' with no session.
