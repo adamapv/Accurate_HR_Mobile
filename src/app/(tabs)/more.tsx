@@ -93,7 +93,7 @@ export default function More() {
         <Row icon="lock-closed-outline" tint="green" title={LOCK_WORDS.row} sub={!lock.available ? LOCK_WORDS.rowNone : lock.on ? LOCK_WORDS.rowOn : LOCK_WORDS.rowOff}
           onPress={lock.available ? () => { setProblem(''); lock.setOn(!lock.on).then(setSaid).catch(e => setProblem(e instanceof Error ? e.message : LOCK_WORDS.failed)); } : undefined} />
         <Row icon="help-circle-outline" tint="violet" title="Help" sub="How to do each thing you can do" onPress={() => router.push('/help')} />
-        <Row icon="globe-outline" tint="blue" title="Open in the browser" sub="Printing and a profile photo, for now" onPress={() => { void Linking.openURL(API_URL); }} last />
+        <Row icon="globe-outline" tint="blue" title="Open in the browser" sub="Printing, for now" onPress={() => { void Linking.openURL(API_URL); }} last />
       </List>
       {!!said && <Notice tone="ok">{said}</Notice>}
       <Problem>{problem}</Problem>
