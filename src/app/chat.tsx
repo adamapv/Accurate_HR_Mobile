@@ -1,16 +1,18 @@
-// One chat: its messages under day chips, with the unread line, names in a group and a tick on the reader's own, and a box to send a text message or a photo
-// from the camera. Holding a message offers a reaction, Reply, Copy and Delete; a document opens through the phone's share sheet.
+// One chat: its messages under day chips, with the unread line, names in a group and a tick on the reader's own, and a box to send a text message, a photo
+// from the camera or a document from the phone. Typing "@" offers the chat's people to mention. Holding a message offers a reaction, Reply, Copy and Delete; a
+// document opens through the phone's share sheet.
 // How the messages are laid out, how a message's text is cut into words, links and mentions, and what sending puts in the outbox are the web app's own rules
 // (shared/chat-core.js). A message goes through the outbox, so one typed with no signal waits in the chat and is sent once.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, AppState, FlatList, Image, KeyboardAvoidingView, Linking, Modal, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
+import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Redirect, router, useLocalSearchParams } from 'expo-router';
 import { can } from '@shared/access.js';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { CHAT_DELETE_CONFIRM, CHAT_EMOJI, CHAT_PHOTO_FAILED, CHAT_SEND_PHOTO, chatActions, chatCanReact, chatClock, chatDeleted, chatDeletedText, chatDivider, chatFileLine, chatHue, chatItems, chatName, chatParts, chatPhotoDraft, chatQuote, chatReacted,
+import { CHAT_DELETE_CONFIRM, CHAT_DOC_FAILED, CHAT_EMOJI, CHAT_PHOTO_FAILED, CHAT_SEND_DOC, CHAT_SEND_PHOTO, MENTION_LIST, chatDocDraft, chatDocProblem, chatDocUploadPath, chatFileType, mentionCandidates, mentionIds, mentionPick, mentionQuery, chatActions, chatCanReact, chatClock, chatDeleted, chatDeletedText, chatDivider, chatFileLine, chatHue, chatItems, chatName, chatParts, chatPhotoDraft, chatQuote, chatReacted,
   chatReactionDraft, chatSecs, chatSendDraft, mergeChat } from '@shared/chat-core.js';
 import { useSession } from '@/lib/session';
 import { useOutbox } from '@/lib/use-outbox';
@@ -20,10 +22,11 @@ import { openFile } from '@/lib/open-file';
 import type { Draft, Entry } from '@/lib/offline-core';
 import { radius, space, TOUCH, useTheme } from '@/theme';
 
+type Person = { id: string; name: string; position?: string | null };
 type Quote = { sender_name?: string; text?: string | null; photo?: boolean; audio?: boolean; file?: string | null; deleted?: boolean };
 type Msg = { id: string; seq: number; sender_id: string; sender_name?: string; body?: string | null; created_at: string; system?: string; deleted?: boolean; reply?: Quote | null;
   mentions?: { id: string; name: string }[]; reactions?: { emoji: string; count: number; mine: boolean }[]; photo_key?: string | null; audio_key?: string | null; audio_secs?: number; file?: { key?: string; name: string; size?: number } | null };
-type Page = { thread: { id: string; kind: string; title?: string | null; others?: { id: string; name: string }[] }; messages: Msg[]; last_read_seq: number; read_upto: number | null; me: string; rev?: number };
+type Page = { thread: { id: string; kind: string; title?: string | null; others?: Person[] }; messages: Msg[]; last_read_seq: number; read_upto: number | null; me: string; rev?: number };
 type Item = { kind: 'day' | 'unread' | 'system'; key: string; text: string } | { kind: 'msg'; key: string; m: Msg; mine: boolean; first: boolean; showName: boolean; tick: string } | { kind: 'local'; key: string; e: Entry };
 
 export default function Chat() {
@@ -40,7 +43,10 @@ export default function Chat() {
   const [busy, setBusy] = useState(false);
   const [sheet, setSheet] = useState<Msg | null>(null);       // the message whose choices are showing
   const [replyTo, setReplyTo] = useState<Msg | null>(null);   // the message being answered
-  const [sending, setSending] = useState(false);              // a photo on its way
+  const [sending, setSending] = useState(false);              // a photo or a document on its way
+  const [caret, setCaret] = useState(0);                      // where the cursor is in the message box
+  const [mentions, setMentions] = useState<{ id: string; name: string }[]>([]);   // the people picked from the "@" list
+  const [officePeople, setOfficePeople] = useState<Person[] | null>(null);
   const latest = useRef(0), rev = useRef(0), readSent = useRef(0);
   const list = useRef<FlatList<Item>>(null);
   useOutbox();   // redraw when something in the outbox moves
@@ -100,6 +106,13 @@ export default function Chat() {
   }, [msgs, head, divider, waiting.map(e => `${e.id}:${e.status}`).join()]);
   useEffect(() => { if (items.length) setTimeout(() => list.current?.scrollToEnd({ animated: false }), 50); }, [items.length]);
 
+  // Everyone in the company, asked for once when an "@" is first typed in the Office chat (a group or a chat with one person offers its own people).
+  const typingMention = mentionQuery(draft, Math.min(caret, draft.length)) !== null, inOffice = head?.thread.kind === 'office';
+  useEffect(() => {
+    if (!typingMention || !inOffice || officePeople) return;
+    api<{ people: Person[] }>('/chat/people').then(d => setOfficePeople(d.people)).catch(() => setOfficePeople([]));
+  }, [typingMention, inOffice, officePeople, api]);
+
   if (state.status !== 'signedIn') return <Redirect href="/" />;
   const canSend = can(state.me.access, 'chat', 'edit');
   const sid = sessionId();
@@ -113,14 +126,14 @@ export default function Chat() {
   const send = async () => {
     const text = draft.trim();
     if (!text) return;
-    const reply = replyTo;
-    setBusy(true); setDraft(''); setReplyTo(null);
+    const reply = replyTo, picked = mentions;
+    setBusy(true); setDraft(''); setReplyTo(null); setMentions([]);
     try {
-      const r = await offline.submit(chatSendDraft({ threadId: id, text, reply, mentionIds: [] }) as Draft);
+      const r = await offline.submit(chatSendDraft({ threadId: id, text, reply, mentionIds: mentionIds(text, picked) }) as Draft);
       if (r.outcome === 'sent' && r.result?.message) { setMsgs(prev => mergeChat(prev, [r.result.message]) as Msg[]); latest.current = Math.max(latest.current, r.result.message.seq); }
       else if (r.outcome === 'sent') await open();
       changed();
-    } catch (e) { setDraft(text); setReplyTo(reply); setError(e instanceof Error ? e.message : 'Not sent. Try again.'); }
+    } catch (e) { setDraft(text); setReplyTo(reply); setMentions(picked); setError(e instanceof Error ? e.message : 'Not sent. Try again.'); }
     setBusy(false);
   };
   // A photo from the camera: its bytes go up first, then it is a message that names them. It needs signal, so it is not queued.
@@ -144,6 +157,35 @@ export default function Chat() {
       setDraft(''); setReplyTo(null); changed();
     } catch (e) { setError(e instanceof ApiError && e.offline ? 'No signal. A photo needs signal.' : e instanceof Error ? e.message : CHAT_PHOTO_FAILED as string); }
     setSending(false);
+  };
+  // A document from the phone: checked by its name and size, its bytes go up, then it is a message of its own (a reply if one was being written). It needs signal.
+  const sendDoc = async () => {
+    setError('');
+    const got = await DocumentPicker.getDocumentAsync({ copyToCacheDirectory: true, multiple: false });
+    const a = got.canceled ? null : got.assets?.[0];
+    if (!a) return;
+    const bad = chatDocProblem({ name: a.name, size: a.size || 0 }, true) as string;
+    if (bad) return setError(bad);
+    const reply = replyTo;
+    setSending(true);
+    try {
+      const bytes = await (await fetch(a.uri)).blob();
+      const up = await fetch(`${API_URL.replace(/\/+$/, '')}/api/hr${chatDocUploadPath(a.name) as string}`, { method: 'PUT', body: bytes, headers: { 'content-type': chatFileType(a.name) as string, ...(sid ? { Authorization: `Bearer ${sid}` } : {}) } });
+      const j = await up.json().catch(() => ({})) as { ok?: boolean; error?: string; file_key?: string; file_name?: string };
+      if (!up.ok || j.ok === false || !j.file_key) throw new Error(j.error ? j.error.charAt(0).toUpperCase() + j.error.slice(1) : CHAT_DOC_FAILED as string);
+      const ref = `app${Date.now().toString(36)}${Math.random().toString(36).slice(2, 12)}`;
+      const d = await api<{ message: Msg }>(path, { method: 'POST', body: chatDocDraft({ key: j.file_key, name: j.file_name || a.name, ref, reply }) });
+      setMsgs(prev => mergeChat(prev, [d.message]) as Msg[]); latest.current = Math.max(latest.current, d.message.seq);
+      setReplyTo(null); changed();
+    } catch (e) { setError((e instanceof ApiError && e.offline) || e instanceof TypeError ? chatDocProblem({ name: a.name, size: a.size || 0 }, false) as string : e instanceof Error ? e.message : CHAT_DOC_FAILED as string); }
+    setSending(false);
+  };
+  // "@": the people of this chat (everyone in the company for the Office), narrowed by what has been typed after it.
+  const mentionQ = mentionQuery(draft, Math.min(caret, draft.length)) as string | null;
+  const candidates = !canSend || !head ? [] : mentionCandidates(mentionQ, head.thread.kind === 'office' ? officePeople : head.thread.others) as Person[];
+  const pickMention = (p: Person) => {
+    const got = mentionPick(draft, Math.min(caret, draft.length), mentions, p) as { draft: string; caret: number; mentions: { id: string; name: string }[] };
+    setDraft(got.draft); setMentions(got.mentions); setCaret(got.caret);
   };
   const react = async (m: Msg, emoji: string) => {
     const before = m.reactions || [];
@@ -244,11 +286,23 @@ export default function Chat() {
             <Pressable accessibilityRole="button" accessibilityLabel="Cancel the reply" onPress={() => setReplyTo(null)} style={styles.back}><Ionicons name="close" size={22} color={t.muted} /></Pressable>
           </View>
         )}
+        {candidates.length > 0 && (
+          <View accessibilityLabel={MENTION_LIST as string} style={[styles.people, { borderTopColor: t.line, backgroundColor: t.topbar }]}>
+            {candidates.map(p => (
+              <Pressable key={p.id} accessibilityRole="button" accessibilityLabel={`Mention ${p.name}`} onPress={() => pickMention(p)} style={styles.person}>
+                <Text numberOfLines={1} style={{ flex: 1, fontSize: 16, color: t.fg }}>{p.name}</Text>
+                {!!p.position && <Text numberOfLines={1} style={{ fontSize: 13, color: t.muted }}>{p.position}</Text>}
+              </Pressable>
+            ))}
+          </View>
+        )}
         {canSend && !!head && (
           <View style={[styles.bar, { borderTopColor: t.line, backgroundColor: t.topbar }]}>
             <Pressable accessibilityRole="button" accessibilityLabel={CHAT_SEND_PHOTO as string} disabled={sending || busy} onPress={() => { void sendPhoto(); }}
               style={[styles.send, { backgroundColor: t.surface2, opacity: sending || busy ? 0.5 : 1 }]}><Ionicons name={sending ? 'cloud-upload-outline' : 'camera-outline'} size={21} color={t.fg} /></Pressable>
-            <TextInput accessibilityLabel="Message" placeholder="Message" placeholderTextColor={t.dim} value={draft} onChangeText={setDraft} multiline
+            <Pressable accessibilityRole="button" accessibilityLabel={CHAT_SEND_DOC as string} disabled={sending || busy} onPress={() => { void sendDoc(); }}
+              style={[styles.send, { backgroundColor: t.surface2, opacity: sending || busy ? 0.5 : 1 }]}><Ionicons name="attach-outline" size={22} color={t.fg} /></Pressable>
+            <TextInput accessibilityLabel="Message" placeholder="Message" placeholderTextColor={t.dim} value={draft} onChangeText={setDraft} multiline onSelectionChange={e => setCaret(e.nativeEvent.selection.end)}
               style={[styles.box, { color: t.fg, backgroundColor: t.surface2, borderColor: t.line }]} />
             <Pressable accessibilityRole="button" accessibilityLabel="Send" disabled={busy || !draft.trim()} onPress={() => { void send(); }}
               style={[styles.send, { backgroundColor: t.accent, opacity: busy || !draft.trim() ? 0.5 : 1 }]}><Ionicons name="send" size={19} color="#FFFFFF" /></Pressable>
@@ -285,6 +339,8 @@ const styles = StyleSheet.create({
   title: { flex: 1, fontSize: 19, fontWeight: '700' },
   note: { padding: space.lg, fontSize: 15, textAlign: 'center' },
   list: { padding: space.md, gap: 6 },
+  people: { borderTopWidth: 1, paddingHorizontal: space.lg },
+  person: { minHeight: TOUCH, flexDirection: 'row', alignItems: 'center', gap: space.md },
   older: { minHeight: TOUCH, alignItems: 'center', justifyContent: 'center' },
   chip: { textAlign: 'center', fontSize: 13, marginVertical: 8 },
   row: { maxWidth: '86%', gap: 4 },
