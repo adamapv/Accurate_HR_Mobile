@@ -26,10 +26,11 @@ The AccurateHR Field view as a native Android and iPhone app. Built with React N
 - My documents (from More, for a level with the Documents area): the three figures over them, the ones waiting on you (Sign or Acknowledge with your typed name), and everything on file, with Open the file where a document has one (it opens in the phone's own app for it and is not kept on the phone). A contract is still read and signed in the browser.
 - My assets (from More): the three figures over what you hold, and each item with Report issue (its condition has changed, it is damaged, lost or stolen, or just a check-in, with the condition it is in now and a note). Needs signal.
 - My forms (from More): the forms still to fill in and the ones already sent. A form is filled in with each question in the box its kind asks for (text, a choice, yes or no, a date, a photo taken with the camera), your earlier answers filled in, and can be updated any time. Needs signal.
+- Safety reports (from the Safety tab, for a level with the safety register): the emergency numbers with the company's own regulator, Report incident, Property damage and Report hazard (the same questions as the web forms, with photos taken with the camera), your own reports and the hazards everyone sees, and a report read back in its sections. Needs signal.
 - Home opens with no signal, on the copy kept from last time.
 - Sign out, which forgets everything kept on the phone.
 
-Reporting an incident or hazard, the week's history, sending photos, voice messages and documents in Chat (and replies, reactions, new chats and groups), and the rest of More are still to be built. Until then people use the Field view in a browser.
+The week's history, sending photos, voice messages and documents in Chat (and replies, reactions, new chats and groups), and the rest of More are still to be built. Until then people use the Field view in a browser.
 
 ## Trying it on an Android phone
 

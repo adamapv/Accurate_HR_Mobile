@@ -1,6 +1,6 @@
 // The Safety tab: what has to be signed on to and ticked on today's jobs (and what is coming tomorrow), the company's policies to read and acknowledge, and where to
 // report an incident or hazard. The checks are the same ones Home shows, by the same rules (shared/job-checks.js); the policies' order and wording are the web app's.
-import { Linking, Pressable, View } from 'react-native';
+import { Pressable, View } from 'react-native';
 import { router } from 'expo-router';
 import { can } from '@shared/access.js';
 import { policyList, schedRowTitle } from '@shared/field-core.js';
@@ -10,7 +10,6 @@ import { addDaysIso } from '@shared/pickers-core.js';
 import { useSession } from '@/lib/session';
 import { useRead } from '@/lib/use-read';
 import { useOutbox } from '@/lib/use-outbox';
-import { API_URL } from '@/lib/config';
 import { fmtDate, fmtTime, localToday } from '@/lib/dates';
 import type { SchedRow } from '@/job-row';
 import { JobSafety, type ForJobs } from '@/safety';
@@ -85,8 +84,8 @@ export default function Safety() {
       {canWhs && (
         <Card>
           <Body tone="muted">Report</Body>
-          <Body>Report an incident, damage or a hazard in the Field view in your browser for now.</Body>
-          <View><Button kind="plain" onPress={() => { void Linking.openURL(`${API_URL}/#/whs`); }}>Open the safety register</Button></View>
+          <Body>Report an incident, property damage or a hazard, and see the reports you have made.</Body>
+          <View><Button onPress={() => router.push('/safety-reports')}>Safety reports</Button></View>
         </Card>
       )}
     </Screen>
