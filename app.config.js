@@ -29,8 +29,9 @@ module.exports = {
     plugins: [
       'expo-router',
       'expo-secure-store',
-      // The camera is used only for a photo a checklist item asks for; the app never reads the phone's photo library.
-      ['expo-image-picker', { cameraPermission: 'AccurateHR uses the camera to take a photo for a checklist item.', photosPermission: false, microphonePermission: false }],
+      // The camera is used only for a photo (a checklist item, a chat, a card to scan); the app never reads the phone's photo library and never films.
+      // Its microphone setting is left alone on purpose: switching it off here takes the microphone away from the whole app, and voice messages need it.
+      ['expo-image-picker', { cameraPermission: 'AccurateHR uses the camera to take a photo for a checklist item.', photosPermission: false, microphonePermission: 'AccurateHR uses the microphone to record a voice message in a chat.' }],
       // The microphone is used only while a voice message is being recorded in a chat; nothing records or plays in the background.
       ['expo-audio', { microphonePermission: 'AccurateHR uses the microphone to record a voice message in a chat.', enableBackgroundRecording: false, enableBackgroundPlayback: false }],
       // The app lock asks the phone who is holding it; the app never sees a face or a fingerprint.
