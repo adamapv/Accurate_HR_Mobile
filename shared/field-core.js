@@ -298,6 +298,17 @@ export function contactStep(what, d, apple) {
   return { choose: leaders.map(l => ({ id: l.id, name: l.name, phone: l.phone || null, detail: l.phone ? [l.position, l.phone].filter(Boolean).join(' · ') : 'No phone number on their record' })) };
 }
 
+// ---- policies and documents ----
+// What a person is told as they confirm a policy or document with their typed name: signing it, or acknowledging it.
+export const confirmNote = sign => sign
+  ? 'By signing, you confirm you’ve read and agree to this document. We record your name, IP address and the time.'
+  : 'By acknowledging, you confirm you’ve read this. We record your name, IP address and the time.';
+// The company's policies as the person reads them: the ones not yet acknowledged first, each saying where it stands. `fmtDate` writes a date the caller's way.
+export const policyList = (rows, fmtDate) => [...(rows || []).filter(p => !p.acknowledged_at), ...(rows || []).filter(p => p.acknowledged_at)]
+  .map(p => ({ policy: p, read: !!p.acknowledged_at, sub: p.acknowledged_at ? `Acknowledged ${fmtDate(p.acknowledged_at)}` : 'Not yet read' }));
+// What is said under a policy the person has already acknowledged.
+export const acknowledgedText = (p, fmtDate) => `You acknowledged this on ${fmtDate(p.acknowledged_at)} as ${p.signature_name}.`;
+
 // ---- the session and links ----
 // The session's fingerprint: the first 8 bytes of SHA-256 over "Bearer <session id>", as 16 hex characters. Everything kept on a device for one session (the outbox,
 // the offline copies) is tagged with it, and the service worker keys its copies with the same value, so one person's never show for the next. '' with no session.
