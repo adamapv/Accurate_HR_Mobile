@@ -186,7 +186,7 @@ function SignedIn({ me }: { me: Me }) {
       )}
 
       <Card>
-        <Body tone="muted">This is an early build of the app. Contracts, forms and the rest are in the Field view in your browser for now.</Body>
+        <Body tone="muted">This is an early build of the app. Contracts, reporting an incident and the rest are in the Field view in your browser for now.</Body>
       </Card>
     </Screen>
   );
