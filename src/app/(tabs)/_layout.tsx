@@ -1,4 +1,4 @@
-// The tab bar: Home, Job card and More so far (Safety and My week join it as they are built). Nothing here opens for someone who is not signed in.
+// The tab bar: Home, Job card, Safety and More so far (My week joins it when it is built). Nothing here opens for someone who is not signed in.
 import type { ColorValue } from 'react-native';
 import { Redirect } from 'expo-router';
 import { Tabs } from 'expo-router/tabs';
@@ -30,6 +30,7 @@ export default function TabsLayout() {
     <Tabs screenOptions={{ headerShown: false, tabBarActiveTintColor: t.accent2, tabBarInactiveTintColor: t.muted, tabBarStyle: { backgroundColor: t.topbar, borderTopColor: t.line }, sceneStyle: { backgroundColor: t.bg } }}>
       <Tabs.Screen name="index" options={{ title: 'Home', tabBarIcon: icon('home-outline'), tabBarBadge: failed || undefined }} />
       <Tabs.Screen name="day" options={{ title: 'Job card', tabBarIcon: icon('time-outline') }} />
+      <Tabs.Screen name="safety" options={{ title: 'Safety', tabBarIcon: icon('shield-checkmark-outline') }} />
       <Tabs.Screen name="more" options={{ title: 'More', tabBarIcon: icon('menu-outline') }} />
     </Tabs>
   );
