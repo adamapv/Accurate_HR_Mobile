@@ -13,7 +13,7 @@ import { localToday } from '@/lib/dates';
 import { fmtMoney } from '@/lib/money';
 import { uploadPhoto } from '@/lib/upload';
 import { ChooseField, WhenField, type Option } from '@/pickers';
-import { Body, Button, Card, Field, Problem, Screen, Title } from '@/ui';
+import { Choice, Body, Button, Card, Field, Problem, Screen, Title } from '@/ui';
 
 type Job = { id: string; company_id: string; name: string | null; customer_name?: string | null; site_name?: string | null; sections: { id: string; name: string; cost_centres: { id: string; name: string }[] }[] };
 type Category = { id: string; name: string };
@@ -79,10 +79,7 @@ export default function ClaimLine() {
   return (
     <Screen>
       <Title>Add line</Title>
-      <View style={{ flexDirection: 'row', gap: 8 }}>
-        <View style={{ flex: 1 }}><Button kind={mode === 'amount' ? 'primary' : 'plain'} onPress={() => setMode('amount')}>Receipt / amount</Button></View>
-        <View style={{ flex: 1 }}><Button kind={mode === 'mileage' ? 'primary' : 'plain'} onPress={() => setMode('mileage')}>Mileage</Button></View>
-      </View>
+      <Choice options={[{ key: 'amount', label: 'Receipt / amount' }, { key: 'mileage', label: 'Mileage' }]} value={mode} onChange={setMode} />
       <Field label="Description" value={form.description} onChangeText={v => setForm(f => ({ ...f, description: v }))} placeholder={linePlaceholder(mode) as string} maxLength={200} />
       <WhenField label="Date" mode="date" value={form.line_date} maxDate={localToday()} onChange={v => setForm(f => ({ ...f, line_date: v }))} />
       <ChooseField<Category> label="Category" placeholder={cats.data ? 'Choose a category' : 'Loading…'} value={cat?.name || ''} options={catList.map(c => ({ key: c.id, title: c.name, item: c }))} onChoose={c => setForm(f => ({ ...f, category_id: c.id }))} />
@@ -101,10 +98,7 @@ export default function ClaimLine() {
         </View>
       )}
       <Body>Charge this to a job?</Body>
-      <View style={{ flexDirection: 'row', gap: 8 }}>
-        <View style={{ flex: 1 }}><Button kind={!onJob ? 'primary' : 'plain'} onPress={() => setOnJob(false)}>No</Button></View>
-        <View style={{ flex: 1 }}><Button kind={onJob ? 'primary' : 'plain'} onPress={() => setOnJob(true)}>Yes, to a job</Button></View>
-      </View>
+      <Choice options={[{ key: 'no', label: 'No' }, { key: 'yes', label: 'Yes, to a job' }]} value={onJob ? 'yes' : 'no'} onChange={v => setOnJob(v === 'yes')} />
       <Body tone="muted">{lineJobHint(onJob) as string}</Body>
       {onJob && (
         <Card>

@@ -16,7 +16,7 @@ import type { Draft } from '@/lib/offline-core';
 import { fmtMins, localNowHM, localToday } from '@/lib/dates';
 import { take } from '@/lib/handoff';
 import { ChooseField, WhenField, type Option } from '@/pickers';
-import { Toggle, Body, Button, Card, Field, Loading, Problem, Screen, Title } from '@/ui';
+import { Choice, Toggle, Body, Button, Card, Field, Loading, Problem, Screen, Title } from '@/ui';
 
 type CostCentre = { id: string; name: string };
 type Job = { id: string; company_id: string; name: string | null; customer_name?: string | null; site_name?: string | null; sections: { id: string; name: string; cost_centres: CostCentre[] }[]; closed?: boolean };
@@ -162,10 +162,7 @@ function Form({ card, open, date, start }: { card: CardRow | null; open: Open; d
       </View>
       {plan.worked > 0 && <Body tone="muted">{fmtMins(plan.worked)} worked{plan.lunch ? ` · lunch ${plan.lunch}` : ''}</Body>}
 
-      <View style={{ flexDirection: 'row', gap: 12 }}>
-        <View style={{ flex: 1 }}><Button kind={onActivity ? 'plain' : 'primary'} onPress={() => setOnActivity(false)}>Job</Button></View>
-        <View style={{ flex: 1 }}><Button kind={onActivity ? 'primary' : 'plain'} onPress={() => setOnActivity(true)}>Activity</Button></View>
-      </View>
+      <Choice options={[{ key: 'job', label: 'Job' }, { key: 'activity', label: 'Activity' }]} value={onActivity ? 'activity' : 'job'} onChange={v => setOnActivity(v === 'activity')} />
       {onActivity && (
         <Card>
           <ChooseField<string> label="Activity" placeholder={activitiesRead.data ? 'Choose the activity' : 'Loading activities…'} value={form.activity_id ? activityName || `Activity ${form.activity_id}` : ''}

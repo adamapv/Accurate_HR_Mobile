@@ -9,7 +9,7 @@ import { useSession } from '@/lib/session';
 import { uploadPhoto } from '@/lib/upload';
 import { ChooseField } from '@/pickers';
 import { useTheme } from '@/theme';
-import { Toggle, Body, Button, Card, Field, Problem } from '@/ui';
+import { Choice, Toggle, Body, Button, Card, Field, Problem } from '@/ui';
 
 export type Whs = { regulator: string; phone: string | null; tel: string | null; written: string; eap: string | null; set: boolean };
 type Part = { text?: string; phone?: string; tel?: string };
@@ -68,11 +68,7 @@ export function NotifiableQuestion({ whs, value, onChange }: { whs: Whs; value: 
     <View style={{ gap: 8 }}>
       <Body>{NOTIFIABLE_QUESTION as string}</Body>
       <Body tone="muted">{NOTIFIABLE_MEANS as string}</Body>
-      <View style={{ flexDirection: 'row', gap: 8 }}>
-        {(NOTIFIABLE_CHECK as [string, string][]).map(([v, label]) => (
-          <View key={v} style={{ flex: 1 }}><Button kind={value === v ? 'primary' : 'plain'} onPress={() => onChange(v)}>{label}</Button></View>
-        ))}
-      </View>
+      <Choice options={(NOTIFIABLE_CHECK as [string, string][]).map(([key, label]) => ({ key, label, tone: key === 'yes' ? 'danger' as const : key === 'unsure' ? 'warn' as const : 'ok' as const }))} value={value} onChange={onChange} />
       {value === 'yes' && <NotifiableSteps whs={whs} />}
       {value === 'unsure' && <Card><Parts parts={notifiableUnsure(whs) as Part[]} tone="danger" /></Card>}
     </View>

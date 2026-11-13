@@ -6,6 +6,7 @@ import { AppState, FlatList, Image, KeyboardAvoidingView, Linking, Platform, Pre
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Redirect, router, useLocalSearchParams } from 'expo-router';
 import { can } from '@shared/access.js';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { chatClock, chatDeletedText, chatDivider, chatFileLine, chatHue, chatItems, chatName, chatParts, chatSecs, chatSendDraft, mergeChat } from '@shared/chat-core.js';
 import { useSession } from '@/lib/session';
 import { useOutbox } from '@/lib/use-outbox';
@@ -157,7 +158,7 @@ export default function Chat() {
     <SafeAreaView style={[styles.fill, { backgroundColor: t.bg }]}>
       <KeyboardAvoidingView style={styles.fill} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <View style={[styles.head, { borderBottomColor: t.line, backgroundColor: t.topbar }]}>
-          <Pressable accessibilityRole="button" accessibilityLabel="Back to chats" onPress={() => router.back()} style={styles.back}><Text style={{ color: t.accent2, fontSize: 17 }}>Back</Text></Pressable>
+          <Pressable accessibilityRole="button" accessibilityLabel="Back to chats" onPress={() => router.back()} style={styles.back}><Ionicons name="chevron-back" size={24} color={t.accent2} /></Pressable>
           <Text accessibilityRole="header" numberOfLines={1} style={[styles.title, { color: t.fg }]}>{head ? (chatName(head.thread) as string) : 'Chat'}</Text>
         </View>
         {!!error && <Text accessibilityRole="alert" style={[styles.note, { color: msgs ? t.muted : t.danger }]}>{error}</Text>}
@@ -174,7 +175,7 @@ export default function Chat() {
             <TextInput accessibilityLabel="Message" placeholder="Message" placeholderTextColor={t.dim} value={draft} onChangeText={setDraft} multiline
               style={[styles.box, { color: t.fg, backgroundColor: t.surface2, borderColor: t.line }]} />
             <Pressable accessibilityRole="button" accessibilityLabel="Send" disabled={busy || !draft.trim()} onPress={() => { void send(); }}
-              style={[styles.send, { backgroundColor: t.accent, opacity: busy || !draft.trim() ? 0.5 : 1 }]}><Text style={{ color: '#FFFFFF', fontSize: 16, fontWeight: '600' }}>Send</Text></Pressable>
+              style={[styles.send, { backgroundColor: t.accent, opacity: busy || !draft.trim() ? 0.5 : 1 }]}><Ionicons name="send" size={19} color="#FFFFFF" /></Pressable>
           </View>
         )}
       </KeyboardAvoidingView>
@@ -185,7 +186,7 @@ export default function Chat() {
 const styles = StyleSheet.create({
   fill: { flex: 1 },
   head: { flexDirection: 'row', alignItems: 'center', gap: space.md, paddingHorizontal: space.lg, minHeight: TOUCH + 8, borderBottomWidth: 1 },
-  back: { minHeight: TOUCH, justifyContent: 'center' },
+  back: { minHeight: TOUCH, minWidth: 32, justifyContent: 'center' },
   title: { flex: 1, fontSize: 19, fontWeight: '700' },
   note: { padding: space.lg, fontSize: 15, textAlign: 'center' },
   list: { padding: space.md, gap: 6 },
@@ -203,6 +204,6 @@ const styles = StyleSheet.create({
   meta: { fontSize: 12 },
   small: { minHeight: TOUCH, justifyContent: 'center' },
   bar: { flexDirection: 'row', alignItems: 'flex-end', gap: space.sm, padding: space.sm, borderTopWidth: 1 },
-  box: { flex: 1, minHeight: TOUCH, maxHeight: 132, borderRadius: radius.md, borderWidth: 1, paddingHorizontal: space.md, paddingVertical: 10, fontSize: 16 },
-  send: { minHeight: TOUCH, borderRadius: radius.md, paddingHorizontal: space.lg, alignItems: 'center', justifyContent: 'center' },
+  box: { flex: 1, minHeight: TOUCH, maxHeight: 132, borderRadius: 22, borderWidth: 1, paddingHorizontal: space.md, paddingVertical: 10, fontSize: 16 },
+  send: { width: TOUCH, height: TOUCH, borderRadius: TOUCH / 2, alignItems: 'center', justifyContent: 'center' },
 });

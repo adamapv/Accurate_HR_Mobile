@@ -155,6 +155,23 @@ export function Button({ children, onPress, kind = 'primary', busy, disabled, ic
     </Pressable>
   );
 }
+// One of a few choices, side by side: the chosen one is filled in its colour (the accent, or green, amber or red when the choice itself is good, a caution or bad).
+export function Choice<T extends string>({ options, value, onChange, disabled }: { options: { key: T; label: string; tone?: Tone }[]; value: T | '' | undefined; onChange: (v: T) => void; disabled?: boolean }) {
+  const t = useTheme();
+  return (
+    <View accessibilityRole="radiogroup" style={[styles.choice, { backgroundColor: t.surface2, borderColor: t.line }]}>
+      {options.map(o => {
+        const on = o.key === value, c = on && o.tone && o.tone !== 'info' && o.tone !== 'neutral' ? toneOf(t, o.tone) : null;
+        return (
+          <Pressable key={o.key} accessibilityRole="radio" accessibilityState={{ selected: on, disabled: !!disabled }} accessibilityLabel={o.label} disabled={disabled} onPress={() => onChange(o.key)}
+            style={({ pressed }) => [styles.choiceItem, on && { backgroundColor: c ? c.bg : t.accent }, pressed && styles.dim]}>
+            <Text numberOfLines={2} style={[styles.choiceText, { color: on ? (c ? c.fg : '#FFFFFF') : t.muted }]}>{o.label}</Text>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
 // A yes-or-no switch, in the app's colours.
 export function Toggle({ value, onValueChange, accessibilityLabel, disabled }: { value: boolean; onValueChange: (v: boolean) => void; accessibilityLabel?: string; disabled?: boolean }) {
   const t = useTheme();
@@ -213,6 +230,9 @@ const styles = StyleSheet.create({
   label: { fontSize: 13, fontWeight: '600' },
   input: { minHeight: TOUCH + 6, borderRadius: radius.md, borderWidth: 1, paddingHorizontal: space.md, fontSize: 17 },
   multiline: { minHeight: 96, paddingTop: space.md, paddingBottom: space.md, textAlignVertical: 'top' },
+  choice: { flexDirection: 'row', gap: 4, padding: 4, borderRadius: radius.md, borderWidth: 1 },
+  choiceItem: { flex: 1, minHeight: TOUCH, borderRadius: radius.md - 3, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6 },
+  choiceText: { fontSize: 14.5, fontWeight: '700', textAlign: 'center' },
   button: { minHeight: TOUCH + 6, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center', paddingHorizontal: space.lg },
   buttonIn: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
   buttonText: { fontSize: 16.5, fontWeight: '700' },
