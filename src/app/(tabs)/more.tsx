@@ -48,6 +48,7 @@ export default function More() {
         {can(me.access, 'purchase_orders') && <Row icon="receipt-outline" tint="violet" title="Purchase orders" sub="Raise one, and see yours" onPress={() => router.push('/pos')} />}
         {can(me.access, 'leave') && <Row icon="calendar-outline" tint="amber" title="My leave" sub="Your balances and requests" onPress={() => router.push('/leave')} />}
         <Row icon="cash-outline" tint="green" title="My expenses" sub="Claim fuel, materials and travel" onPress={() => router.push('/expenses')} />
+        {can(me.access, 'allowances') && <Row icon="wallet-outline" tint="teal" title="My allowances" sub="What your time on jobs has earned" onPress={() => router.push('/allowances')} />}
         <Row icon="car-outline" tint="orange" title="Plant check-out" sub="Take a truck, machine or trailer, or hand one back" onPress={() => router.push('/plant')} last />
       </List>
 
