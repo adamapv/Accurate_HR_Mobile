@@ -947,6 +947,76 @@ export const allowanceRow = (r, { fmtRange, fmtHours, fmtMoney, shortDay }) => (
   what: [allowanceQty(r, fmtHours), r.days?.length > 0 ? r.days.map(shortDay).join(', ') : ''].filter(Boolean).join(' · '), jobs: allowanceJobs(r).join(', '), was: allowanceWas(r, fmtHours),
   amount: r.amount_cents == null ? null : fmtMoney(r.amount_cents), state: allowanceState(r), note: r.state === 'rejected' && r.decision_note ? r.decision_note : '', notOver: r.week_over ? '' : WEEK_NOT_OVER });
 
+// ---- My performance ----
+// A person's own goals, the reviews they self-assess, and their 1:1s. Rows are GET goals, reviews/mine and one-on-ones?employee_id=<me>.
+// A moment the Worker stored ("2026-11-13 04:12:00" in UTC, or an ISO time) in milliseconds.
+const storedMs = s => Date.parse(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}(:\d{2})?$/.test(String(s)) ? `${String(s).replace(' ', 'T')}Z` : String(s));
+const dayOfStored = at => String(at || '').slice(0, 10);
+export const activeGoals = goals => (goals || []).filter(g => g.status === 'active');
+// Coming up (soonest first) and the last five held. `now` is the client's clock in milliseconds.
+export function oneOnOnes(rows, now) {
+  const all = rows || [];
+  return { upcoming: all.filter(o => o.status === 'scheduled' && storedMs(o.scheduled_at) >= now).reverse(), past: all.filter(o => o.status === 'completed').slice(0, 5) };
+}
+export const openReviews = reviews => (reviews || []).filter(r => r.status === 'draft').length;
+// The four figures at the top: [{ key, label, value, sub, tone }].
+export function perfTiles({ goals, reviews, meetings }, now, fmtDate) {
+  const active = activeGoals(goals), achieved = (goals || []).filter(g => g.status === 'achieved').length, open = openReviews(reviews), next = oneOnOnes(meetings, now).upcoming[0];
+  const avg = active.length ? Math.round(active.reduce((s, g) => s + (g.progress_pct || 0), 0) / active.length) : 0;
+  return [
+    { key: 'active', label: 'Active goals', value: active.length, sub: avg ? `${avg}% along on average` : 'Set one to get started' },
+    { key: 'achieved', label: 'Achieved', value: achieved, sub: 'All time', tone: achieved ? 'ok' : undefined },
+    { key: 'reviews', label: 'Reviews to self-assess', value: open, sub: open ? 'Waiting on you' : 'Nothing waiting', tone: open ? 'warn' : undefined },
+    { key: 'next', label: 'Next 1:1', value: next ? fmtDate(dayOfStored(next.scheduled_at)) : '—', sub: next ? `with ${next.manager_name}` : 'None booked' }];
+}
+export const GOALS_HEAD = 'Active goals';
+export const NO_GOALS = 'No active goals — set one to get started.';
+export const NEW_GOAL = 'New goal';
+export const goalTarget = (g, fmtDate) => g.target_date ? `Target: ${fmtDate(g.target_date)}` : '';
+export const goalPct = g => g.progress_pct || 0;
+// The three quick buttons on a goal: [{ key, label, say, primary, draft }]. `say` is what a screen reader hears.
+export const goalSteps = g => { const pct = goalPct(g); return [
+  { key: 'down', label: '−10', say: 'Progress down 10%', primary: false, draft: { id: g.id, progress_pct: Math.max(0, pct - 10) } },
+  { key: 'up', label: '+10', say: 'Progress up 10%', primary: false, draft: { id: g.id, progress_pct: Math.min(100, pct + 10) } },
+  { key: 'achieved', label: 'Achieved', say: 'Mark achieved', primary: true, draft: { id: g.id, status: 'achieved', progress_pct: 100 } }]; };
+// The goal form.
+export const goalFormStart = goal => ({ title: '', description: '', target_date: '', progress_pct: 0, ...goal });
+export const goalFormTitle = form => form.id ? 'Edit goal' : NEW_GOAL;
+export const goalSubmitLabel = form => form.id ? 'Save' : 'Create';
+export const GOAL_FIELDS = { title: 'Title', description: 'Description', target_date: 'Target date', progress_pct: 'Progress %' };
+export const goalPctOf = v => Math.max(0, Math.min(100, parseInt(v, 10) || 0));
+export const goalProblem = form => !String(form.title || '').trim() ? 'Title is required' : '';
+export const goalMethod = form => form.id ? 'PUT' : 'POST';
+export const GOAL_DELETE_CONFIRM = { title: 'Delete this goal?', confirmLabel: 'Delete' };
+export const GOAL_DELETED = 'Goal deleted';
+// Reviews. The manager's comments and rating arrive only once the review is finished.
+export const REVIEWS_HEAD = 'Reviews';
+export const RATINGS = [['exceeds', 'Exceeds expectations'], ['meets', 'Meets expectations'], ['developing', 'Developing'], ['below', 'Below expectations']];
+export const REVIEW_STATUS = [['draft', 'Not started'], ['self_submitted', 'Self-assessed'], ['manager_complete', 'Reviewed'], ['closed', 'Closed']];
+export const ratingLabel = v => RATINGS.find(r => r[0] === v)?.[1] || '';
+export const reviewState = r => ({ tone: { draft: 'neutral', self_submitted: 'warn', manager_complete: 'ok', closed: 'neutral' }[r.status] || 'neutral', label: REVIEW_STATUS.find(s => s[0] === r.status)?.[1] || r.status });
+export const reviewMeta = (r, fmtRange) => [fmtRange(r.starts_on, r.ends_on), r.manager_name && `reviewed by ${r.manager_name}`].filter(Boolean).join(' · ');
+export const reviewSub = r => [r.employee_name, r.manager_name && `reviewer ${r.manager_name}`].filter(Boolean).join(' · ');
+export const reviewFormStart = review => ({ self_assessment: '', manager_comments: '', rating: '', ...review });
+// The person writes their self-assessment until they submit it.
+export const selfAssessOpen = form => form.status === 'draft';
+export const SELF_ASSESS_LABEL = 'Self-assessment';
+export const SELF_ASSESS_EXAMPLE = 'What went well, what was hard, what you want to work on next.';
+export const SELF_ASSESS_NONE = 'Not submitted yet';
+export const MANAGER_COMMENTS_LABEL = 'Manager comments';
+export const RATING_LABEL = 'Rating';
+export const REVIEW_SAVE_DRAFT = 'Save draft';
+export const REVIEW_SUBMIT_SELF = 'Submit self-assessment';
+// What the person sends: their self-assessment, and the status when they submit it.
+export const selfReviewDraft = (review, form, submit) => ({ id: review.id, self_assessment: form.self_assessment, ...(submit ? { status: 'self_submitted' } : {}) });
+export const reviewSaid = status => status === 'self_submitted' ? 'Self-assessment submitted' : status === 'manager_complete' ? 'Review completed' : 'Saved';
+// 1:1s: a row in words. `fmtDate` and `fmtDateTime` are the client's.
+export const ONE_ON_ONES_HEAD = '1:1s';
+export const ONE_ON_ONES_SOON = 'Coming up';
+export const ONE_ON_ONES_RECENT = 'Recent';
+export const upcomingRow = (o, fmtDateTime) => ({ title: fmtDateTime(o.scheduled_at), meta: [`${o.duration_mins || 30} min with ${o.manager_name}`, o.agenda].filter(Boolean).join(' · '), pill: 'Upcoming' });
+export const pastRow = (o, fmtDate) => ({ title: fmtDate(dayOfStored(o.scheduled_at)), meta: `with ${o.manager_name}`, pill: 'Done', notes: o.notes || '', actions: o.action_items || '', actionsLabel: 'Actions: ' });
+
 // ---- the session and links ----
 // The session's fingerprint: the first 8 bytes of SHA-256 over "Bearer <session id>", as 16 hex characters. Everything kept on a device for one session (the outbox,
 // the offline copies) is tagged with it, and the service worker keys its copies with the same value, so one person's never show for the next. '' with no session.
