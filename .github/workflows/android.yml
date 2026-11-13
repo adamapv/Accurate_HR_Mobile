@@ -1,0 +1,37 @@
+# Builds an Android file (APK) that can be installed straight onto a phone, with no store account.
+# Run it from the Actions tab: choose "Android build", then "Run workflow", then which server the app should talk to. The file is under "Artifacts" on the finished run.
+# It is signed with a throwaway key, which is fine for trying it on your own phones and is never what goes to Google Play.
+name: Android build
+on:
+  workflow_dispatch:
+    inputs:
+      server:
+        description: Which server the app talks to
+        type: choice
+        options: [production, staging]
+        default: production
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    env:
+      APP_ENV: ${{ inputs.server }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - run: npm ci
+      - run: npm run check
+      - run: npx expo prebuild --platform android --no-install
+      - run: ./gradlew assembleRelease --no-daemon
+        working-directory: android
+      - uses: actions/upload-artifact@v4
+        with:
+          name: AccurateHR-${{ inputs.server }}-${{ github.run_number }}
+          path: android/app/build/outputs/apk/release/app-release.apk
+          if-no-files-found: error

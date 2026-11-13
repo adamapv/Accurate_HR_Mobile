@@ -1,0 +1,46 @@
+# AccurateHR Mobile
+
+The AccurateHR Field view as a native Android and iPhone app. Built with React Native and Expo, in TypeScript. It talks to the AccurateHR Worker at `app.accuratehr.co` and has no server or database of its own.
+
+## What it does today
+
+- Sign in with a company code, email and PIN. The session is kept in the phone's secure store.
+- A PIN that was set for you must be changed to your own before anything else opens.
+- Home shows who is signed in and where the clock stands (on the clock and for how long, a card left open from an earlier day, or a rest period after a night shift), using the same rules as the web Field view.
+- Sign out.
+
+Clocking on, the job card, Safety, My week, Chat, POs and More are still to be built. Until then people use the Field view in a browser.
+
+## Trying it on an Android phone
+
+No store account is needed.
+
+1. On GitHub, open the **Actions** tab, choose **Android build**, then **Run workflow**. Choose `production` (your real company) or `staging`.
+2. When the run finishes, download the file under **Artifacts** and unzip it. Inside is `app-release.apk`.
+3. Send the file to the phone and open it. Android asks once to allow installing from that source.
+
+The staging build installs beside the production one as "AccurateHR (staging)".
+
+An iPhone cannot install an app this way. iPhone builds need the Apple Developer account.
+
+## Working on it
+
+```bash
+npm install
+```
+
+```bash
+npm run check
+```
+
+```bash
+npx expo start
+```
+
+The app shares its rules with the web app. They are copied from the AccurateHR repo, never written twice:
+
+```bash
+npm run sync:shared -- ../AccurateHR
+```
+
+See `CLAUDE.md` for the rules of the project.
