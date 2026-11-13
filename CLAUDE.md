@@ -18,13 +18,13 @@ Decisions already taken (13 Nov 2026): a full native app, not a web page in a wr
 ## Layout
 
 - `src/app/`: the screens (Expo Router: one file per screen, `_layout.tsx` is the navigator).
-- `src/lib/`: `api-core.ts` (how the app talks to the Worker; no React Native in it, so Node tests it), `session.tsx` (who is signed in), `config.ts`, `dates.ts`.
+- `src/lib/`: `api-core.ts` (how the app talks to the Worker) and `offline-core.ts` (the outbox and the copies kept for reading with no signal), both with no React Native in them, so Node tests them; `offline.ts` (the phone's store, signal and session fingerprint behind `offline-core.ts`); `session.tsx` (who is signed in, and when what is waiting is sent); `use-read.ts` and `use-outbox.ts` (what a screen reads and what is waiting); `config.ts`, `dates.ts`. A write a person can make with no signal goes through `offline.submit`, never straight to `api`.
 - `src/ui.tsx`, `src/theme/`: the building blocks and colours. The colours are the web app's.
 - `shared/`: copied logic. `scripts/shared-list.mjs` is the list.
 
 ## Commands
 
-- `npm run check`: the shared-file check, the type check, and the Node tests (`scripts/test-shared.mjs`, `scripts/test-api.mjs`). Run it before committing. GitHub runs it on every pull request.
+- `npm run check`: the shared-file check, the type check, and the Node tests (`scripts/test-shared.mjs`, `scripts/test-api.mjs`, `scripts/test-offline.mjs`). Run it before committing. GitHub runs it on every pull request.
 - `npm run sync:shared -- <path to AccurateHR>`: copy the shared logic and colours from a clean AccurateHR checkout and record its commit.
 - `npm run check:shared -- <path to AccurateHR>`: also says which shared files have moved on in AccurateHR since the copy.
 - `npx expo export --platform android`: bundles the app; a quick proof that everything imports.

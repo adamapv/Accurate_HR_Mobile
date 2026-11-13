@@ -7,3 +7,5 @@ export const localNowHM = () => { const d = new Date(); return `${pad2(d.getHour
 export function parseDay(iso: string) { const [y, m, d] = iso.split('-').map(Number); return new Date(y, m - 1, d); }
 export const fmtDate = (iso: string) => parseDay(iso).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' });
 export const fmtMins = (m: number) => `${Math.floor(m / 60)}h ${pad2(m % 60)}m`;
+// A moment as a time of day: "9:12 am".
+export const fmtTime = (ms: number) => new Date(ms).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' });
