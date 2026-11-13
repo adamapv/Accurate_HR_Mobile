@@ -14,10 +14,12 @@ The AccurateHR Field view as a native Android and iPhone app. Built with React N
 - A tab bar (Home, Job card, More). More shows who is signed in and has Sign out.
 - Time on an activity instead of a job (training, a toolbox talk, a public holiday on a public holiday, an RDO). One that needs a manager's approval is not time: the form says to request it as leave.
 - Home lists the jobs published for you today and tomorrow: the job, customer and site, address, notes, who else is on it and what plant, with Navigate, Call PM and Call team leaders.
+- Safety on each of today's jobs: its safe work method statements, each to read and sign on to (with no signal too: the statement is kept on the phone and the sign-on is sent later with the time it was typed), and its start checklists to tick, with a photo where an item asks for one.
+- Start on a scheduled job. It is held until the job's statements are signed on to and its start checklists ticked, and while a required item is Not OK. With one cost centre it clocks on straight away; otherwise the job card opens to choose. With a card already open it moves that card onto the job.
 - Home opens with no signal, on the copy kept from last time.
 - Sign out, which forgets everything kept on the phone.
 
-Safety, My week, Chat, POs, today's jobs with Start, and the rest of More are still to be built. Until then people use the Field view in a browser.
+A Safety tab, My week, Chat, POs and the rest of More are still to be built. Until then people use the Field view in a browser.
 
 ## Trying it on an Android phone
 

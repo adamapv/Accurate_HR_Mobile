@@ -84,3 +84,58 @@ export function holdText(gate) {
   const sign = gate.outstanding.filter(s => s.kind === 'swms').length, lists = gate.outstanding.filter(s => s.kind === 'checklist').length;
   return `Start is held until you ${[sign && `sign on to ${sign === 1 ? 'the statement' : `${sign} statements`}`, lists && `tick ${lists === 1 ? 'the start checklist' : `${lists} start checklists`}`].filter(Boolean).join(' and ')}.`;
 }
+
+// ---- what the phone shows and sends ----
+// The jobs a person's Home asks about: the ones published for them today and tomorrow, and the one on the clock. → 'company:job,company:job' (at most 20, as the route takes).
+export function safetyJobKeys(schedRows, card, today, tomorrow) {
+  return [...new Set([...(schedRows || []).filter(r => !r.activity && r.job_id && (r.work_date === today || r.work_date === tomorrow)).map(r => `${r.company_id}:${r.job_id}`),
+    ...(card?.job_id ? [`${card.company_id}:${card.job_id}`] : [])])].slice(0, 20).join(',');
+}
+// The sign-on to this statement, on this job, that is saved on the phone and not sent yet ('pending') or was sent a moment ago ('sent'), or undefined.
+export const signOnEntry = (queued, job, x) => (queued || []).find(e => e?.kind === 'swms-signon' && pending(e) && e.body?.swms_id === x.id && sameJob(e, job) && Number(e.body?.version) >= x.version);
+// Where a person stands with one statement on a job: 'signed', 'waiting' (saved on the phone, not sent yet) or 'needed'.
+export function swmsState(x, job, queued = []) {
+  const e = x.signed ? null : signOnEntry(queued, job, x);
+  return x.signed || e?.status === 'sent' ? 'signed' : e ? 'waiting' : 'needed';
+}
+// How each state is said, with its tone: a statement's, and a checklist's (checkState).
+export const SWMS_PILL = { signed: ['ok', 'Signed'], waiting: ['info', 'Waiting to send'], needed: ['warn', 'Sign on needed'] };
+export const CHECK_PILL = { todo: ['warn', 'To do'], waiting: ['info', 'Waiting to send'], done: ['ok', 'Done today'], held: ['danger', 'Not OK: held'] };
+// Signing on to a statement on a job, as a draft for the outbox: queued like a job card, then sent at once when there is signal, with the phone's own time so a sign-on
+// typed with none still says when it was typed. `job` is { company_id, job_id, label }, `swms` its entry from for-jobs, `signedAt` the phone's time as an ISO string.
+export function signOnDraft({ job, swms, signature_name, signedAt }) {
+  const name = String(signature_name || '').replace(/\s+/g, ' ').trim();
+  return { kind: 'swms-signon', method: 'POST', path: '/job-safety/signons',
+    body: { company_id: job.company_id, job_id: job.job_id, swms_id: swms.id, version: swms.version, signature_name: name, signed_at_phone: signedAt },
+    local_card: { job_id: job.job_id, job_label: job.label || null, swms_title: swms.title, version: swms.version, signed_name: name } };
+}
+// Ticking a checklist on a job, as a draft for the outbox. The run is dated by the phone's own day (`runDate`), so one ticked with no signal is that day's even when it is
+// sent the next, and local_card.held names the required items that were Not OK, which is what holds Start on this phone until it is ticked again.
+// → { draft, held }
+export function jobRunDraft({ job, list, answers, runDate }) {
+  const held = failedRequired(list.items, answers);
+  return { held, draft: { kind: 'job-run', method: 'POST', path: '/job-safety/runs',
+    body: { company_id: job.company_id, job_id: job.job_id, checklist_id: list.id, run_date: runDate, items: runItems(list.items, answers) },
+    local_card: { job_id: job.job_id, job_label: job.label || null, checklist_id: list.id, checklist_name: list.name, phase: list.phase, held } } };
+}
+// What to say once a checklist was sent (`blocked`: the server said a required item is Not OK): { text, tone }.
+export function jobRunSaid(list, blocked) {
+  if (!blocked) return { text: 'Checklist done', tone: 'ok' };
+  return { tone: 'warn', text: list.phase === 'start' ? 'Recorded. Something required is not OK, so Start is held until it is put right. Your supervisor has been told.' : 'Recorded. Something required is not OK. Your supervisor has been told.' };
+}
+// What Start on a scheduled job does. `row` is the schedule row, `split` its one row for the card (the job's only cost centre filled in when it has just one: `only`),
+// `card` the open card or null, `now` { date, time }. → { form: what the job card form opens on } when the cost centre has to be chosen or a card is already open
+// (Switch moves it onto this job), else { clockOn: what to clock on with } straight away.
+export function startStep({ row, only, hasJob, card, now }) {
+  const split = { job_id: row.job_id, company_id: row.company_id, pct: 100, ...(only || { section_id: '', cost_centre_id: '' }) };
+  if (card) return { form: { ...card, prefill_off: '', job_id: row.job_id, company_id: row.company_id, activity_id: '', splits: [split] } };
+  if (only && hasJob) return { clockOn: { company_id: row.company_id, job_id: row.job_id, splits: [split], job_label: `#${row.job_id} ${row.job_name || ''}`.trim() } };
+  return { form: { work_date: now.date, clock_on: now.time, kind: 'clock-on', company_id: row.company_id, job_id: row.job_id, splits: [split] } };
+}
+// The Start button on a scheduled job: what it says, whether it can be pressed and why not. `onIt`: the open card is on this job; `held`: the start checks are
+// outstanding; `rest`: a rest period holds Clock on; `restText` its words.
+export function startButton({ onIt, card, held, rest, restText, busy, loaded }) {
+  return { label: onIt ? 'On it' : card ? 'Switch' : 'Start',
+    disabled: !!onIt || !!busy || !loaded || (!!held && !onIt) || (!!rest && !card),
+    title: onIt ? 'You’re on this job now' : held ? 'Sign on and tick the start checklists first' : rest && !card ? restText : card ? 'Move your open job card onto this job' : 'Clock on to this job now' };
+}

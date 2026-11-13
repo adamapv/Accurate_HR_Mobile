@@ -1,0 +1,18 @@
+// Sends a photo through the Worker's two-step upload, as the web app does: ask where it goes and what it will be known by, then PUT the bytes with the session.
+import type { Api } from './api-core';
+import { API_URL } from './config';
+
+export async function uploadPhoto(api: Api, session: string | null, uri: string, mime = 'image/jpeg'): Promise<string> {
+  const prep = await api<{ upload_path: string; r2_key: string }>('/documents/upload-url', { method: 'POST', body: { filename: 'check.jpg' } });
+  const bytes = await (await fetch(uri)).blob();
+  let res: Response;
+  try {
+    res = await fetch(`${API_URL.replace(/\/+$/, '')}${prep.upload_path}`, { method: 'PUT', body: bytes, headers: { 'content-type': mime, ...(session ? { Authorization: `Bearer ${session}` } : {}) } });
+  } catch { throw new Error('No connection. A photo needs signal.'); }
+  if (!res.ok) {
+    let msg = 'Upload failed. Try again.';
+    try { const j = await res.json(); if (j?.error) msg = String(j.error).charAt(0).toUpperCase() + String(j.error).slice(1); } catch { /* not JSON */ }
+    throw new Error(msg);
+  }
+  return prep.r2_key;
+}

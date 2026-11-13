@@ -20,6 +20,8 @@ module.exports = {
     plugins: [
       'expo-router',
       'expo-secure-store',
+      // The camera is used only for a photo a checklist item asks for; the app never reads the phone's photo library.
+      ['expo-image-picker', { cameraPermission: 'AccurateHR uses the camera to take a photo for a checklist item.', photosPermission: false, microphonePermission: false }],
       ['expo-splash-screen', { backgroundColor: '#0A0A12', image: './assets/images/splash-icon.png', imageWidth: 120 }],
     ],
     extra: { apiUrl: staging ? 'https://staging.accuratehr.co' : 'https://app.accuratehr.co', env: staging ? 'staging' : 'production' },

@@ -469,3 +469,36 @@ export function diffSummary(changes) {
   for (const c of changes) by.set(c.section, (by.get(c.section) || 0) + 1);
   return `${changes.length} change${changes.length === 1 ? '' : 's'}: ${[...by].map(([s, n]) => `${s} ${n}`).join(', ')}`;
 }
+
+// ---- a statement as it is read on a phone ----
+// How each risk rating is toned where it is shown.
+export const RATING_TONE = { '1L': 'ok', '2M': 'info', '3H': 'warn', '4A': 'danger' };
+const labelOf = (list, key) => (list.find(([k]) => k === key) || [key, key])[1];
+// A published version (`content`) with a job's own details (`details`), in the order it is read and with nothing empty left in: what a screen draws, section by section.
+// `fmtDate` writes a date the caller's way. Text that may be rich (a hazard, controls, a management list, the legislation note) is handed over as it is stored, for the
+// caller to clean and draw. →
+//   { title, sub, job: [[label, text]], hazardous: [text], hrcw: [text], ppe: [text], tasks: [{ id, name, hazards: [{ hazard, before, after, controls | null, responsible }] }],
+//     overall: rating | null, management: [{ key, label, value }], plant: [text], supervision: [text], references | null }
+export function readModel(content, details, fmtDate) {
+  const c = { ...emptyBody(), ...content }, d = { ...emptyJobDetails(), ...details };
+  const picks = (list, chosen, other) => [...(chosen || []).map(k => labelOf(list, k)), ...(other ? [other] : [])];
+  const job = [['Principal contractor', [d.principalContractor, d.principalContractorAddress, d.principalContractorPhone].filter(Boolean).join(' · ')], ['Site', d.siteAddress],
+    ['Given to the principal contractor', d.providedOn && fmtDate(d.providedOn)], ['Our contact', [d.businessContact, d.businessPhone].filter(Boolean).join(' · ')],
+    ['Responsible for monitoring the work', d.responsiblePerson], ['Permits', [...new Set([...(c.permits || []), ...d.permits])].map(k => labelOf(PERMITS, k)).join(', ')],
+    ['Part of a construction project', d.constructionProject === true ? 'Yes' : d.constructionProject === false ? 'No' : ''], ['Hazardous substances', d.hazardousSubstances.join(', ')],
+    ['Notes for this site', d.siteNotes]].filter(([, v]) => v);
+  return {
+    title: c.title || 'Safe work method statement',
+    sub: [c.code && `Document ${c.code}`, 'Safe Work Method Statement'].filter(Boolean).join(' · '),
+    job,
+    hazardous: picks(HAZARDOUS_WORK, c.hazardous, c.hazardous_other),
+    hrcw: picks(HRCW, c.hrcw, c.hrcw_other),
+    ppe: picks(PPE, c.ppe, c.ppe_note),
+    tasks: c.tasks.map((t, i) => ({ id: t.id || i, name: t.name, hazards: t.hazards.map(x => ({ hazard: x.hazard, before: x.before, after: x.after, controls: richBlank(x.controls) ? null : x.controls, responsible: x.responsible || '' })) })),
+    overall: overallRating(c) || null,
+    management: MANAGEMENT.filter(([k]) => listCount(c.management?.[k]) > 0).map(([k, label]) => ({ key: k, label, value: c.management[k] })),
+    plant: c.plant.map(x => x.control ? `${x.item}: ${x.control}` : x.item),
+    supervision: picks(SUPERVISION, c.supervision),
+    references: richBlank(c.references) ? null : c.references,
+  };
+}
