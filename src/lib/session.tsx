@@ -9,7 +9,8 @@ import { API_URL, APP_VERSION } from './config';
 import { fingerprintOf, makeOffline, onBackOnline } from './offline';
 import type { Offline } from './offline-core';
 
-const SESSION_KEY = 'hrhead_session', TENANT_KEY = 'hrhead_tenant', EMAIL_KEY = 'hrhead_last_email';
+import { EMAIL_KEY, SESSION_KEY, TENANT_KEY } from './keys';
+import { sendInBackground, setLiveOutbox } from './background';
 
 // What GET /me and a sign-in answer with (AccurateHR's scripts/test-mobile-contract.mjs lists the fields the app may rely on).
 export type Grant = { scope: string; edit: boolean; approve: boolean };
@@ -93,7 +94,10 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   useEffect(() => { void load(); }, [load]);
 
   // Send what is waiting on the phone: when the app opens or comes back to the front, when the signal returns, and every minute while it is open.
-  const signedIn = state.status === 'signedIn';
+  const signedIn = state.status === 'signedIn', loaded = state.status !== 'loading';
+  // With the app closed the phone sends it too, now and then, for as long as someone is signed in; it uses this outbox while the app is in memory.
+  useEffect(() => { setLiveOutbox(offline); return () => setLiveOutbox(null); }, [offline]);
+  useEffect(() => { if (loaded) void sendInBackground(signedIn); }, [signedIn, loaded]);
   useEffect(() => {
     if (!signedIn) return;
     const send = async () => { try { const r = await offline.replay(); if (r?.sent.length) setRefreshed(n => n + 1); } catch { /* the next try will say */ } };

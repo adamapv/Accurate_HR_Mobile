@@ -31,6 +31,8 @@ module.exports = {
       ['expo-audio', { microphonePermission: 'AccurateHR uses the microphone to record a voice message in a chat.', enableBackgroundRecording: false, enableBackgroundPlayback: false }],
       // The app lock asks the phone who is holding it; the app never sees a face or a fingerprint.
       ['expo-local-authentication', { faceIDPermission: 'AccurateHR uses Face ID to unlock the app when you have switched the app lock on.' }],
+      // What is waiting on the phone is also sent now and then with the app closed.
+      'expo-background-task',
       ['expo-splash-screen', { backgroundColor: '#0A0A12', image: './assets/images/splash-icon.png', imageWidth: 120 }],
     ],
     extra: { apiUrl: staging ? 'https://staging.accuratehr.co' : 'https://app.accuratehr.co', env: staging ? 'staging' : 'production', build, commit },
