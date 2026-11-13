@@ -4,7 +4,7 @@
 // page: today, the time and how a date is written are passed in, so the web app and the phone app say the same thing from the same data.
 // Dates are 'YYYY-MM-DD' and times 'HH:MM' (24 hour).
 import { pad2 } from './pickers-core.js';
-import { NIGHT_MAX_MINS, isOvernight, addDaysYmd, wallMins, inWindow, restHold } from './pay-rules.js';
+import { NIGHT_MAX_MINS, isOvernight, addDaysYmd, wallMins, inWindow, restHold, cardMins } from './pay-rules.js';
 
 export const hmMins = s => { const [hh, mm] = String(s || '0:0').split(':').map(Number); return hh * 60 + mm; };
 export const minsHM = m => `${pad2(Math.floor(m / 60))}:${pad2(m % 60)}`;
@@ -58,6 +58,98 @@ export function planJobCard(on, off, lunch, splits) {
 export const runsPastMidnight = c => !!c?.clock_on && !!c?.clock_off && hmMins(c.clock_off) < hmMins(c.clock_on);
 // The card's date and the next, for a card that runs past midnight; just its own otherwise. A card is "on" a date when it starts then or carries on into it.
 export const cardOnDate = (c, date) => c.work_date === date || (isOvernight(c) && c.clock_off !== '00:00' && addDaysYmd(c.work_date, 1) === date);
+
+// ---- the job card's form ----
+// From a Monday on, a person's job time can come from AccurateJobs instead (employees.time_source / time_source_from): on a day from then on they do not clock on here.
+export const timeFromJobs = (emp, date) => emp?.time_source === 'jobs' && !!emp.time_source_from && String(date) >= emp.time_source_from;
+// A job in the list (GET /jobs), by its number and, where there is more than one company, its company.
+export const findJob = (jobs, companyId, id) => id ? jobs.find(j => j.id === String(id) && (!companyId || j.company_id === String(companyId))) : undefined;
+// A job with one section holding one cost centre needs no choosing: { section_id, cost_centre_id }, else null.
+export const onlyCostCentre = j => j?.sections?.length === 1 && j.sections[0].cost_centres?.length === 1
+  ? { section_id: j.sections[0].id, cost_centre_id: j.sections[0].cost_centres[0].id } : null;
+// The cost centres a job offers: [{ value: 'section:cost centre', label }], the section named only when the job has more than one.
+export const costCentreOptions = job => {
+  const sections = job?.sections || [];
+  return sections.flatMap(s => s.cost_centres.map(c => ({ value: `${s.id}:${c.id}`, label: sections.length > 1 ? `${s.name} · ${c.name}` : c.name })));
+};
+// The section and cost centre the person last put time on for this job, if the job still has them (GET /job-cards/recent → cost_centres).
+export const rememberedCostCentre = (job, lastCc) => {
+  const m = job && (lastCc || []).find(c => c.company_id === job.company_id && c.job_id === job.id);
+  const s = m && (job.sections || []).find(x => x.id === m.section_id);
+  return s?.cost_centres?.some(c => c.id === m.cost_centre_id) ? { section_id: m.section_id, cost_centre_id: m.cost_centre_id } : null;
+};
+// The rows of a card each carry a share (pct) and the shares always make 100. Rows are told apart by `key`.
+export const splitEvenly = list => list.map((r, i) => ({ ...r, pct: Math.floor(100 / list.length) + (i < 100 % list.length ? 1 : 0) }));
+// A new row takes half the biggest row's share, so the rest don't move much.
+export function insertSplit(rs, at, row) {
+  const big = rs.reduce((b, r, i) => r.pct > rs[b].pct ? i : b, 0);
+  if (rs[big].pct < 2) return splitEvenly([...rs.slice(0, at), { ...row, pct: 0 }, ...rs.slice(at)]);
+  const give = Math.floor(rs[big].pct / 2);
+  return [...rs.slice(0, at), { ...row, pct: give }, ...rs.slice(at)].map(r => r === rs[big] ? { ...r, pct: r.pct - give } : r);
+}
+// Taking rows out (by their keys) shares the whole between the ones left.
+export function dropSplits(rs, keys) {
+  const left = rs.filter(r => !keys.has(r.key));
+  return left.length === 1 ? [{ ...left[0], pct: 100 }] : splitEvenly(left);
+}
+// Changing one row's % moves the last row (or the one before it, when editing the last) so the total stays 100, never below 1% each.
+export function setSplitPct(rs, key, raw) {
+  if (rs.length === 1) return rs;
+  const i = rs.findIndex(r => r.key === key);
+  const bal = i === rs.length - 1 ? rs.length - 2 : rs.length - 1;
+  const fixed = rs.reduce((n, r, j) => j === i || j === bal ? n : n + r.pct, 0);
+  const v = Math.max(1, Math.min(Math.round(Number(raw) || 0), 100 - fixed - 1));
+  return rs.map((r, j) => j === i ? { ...r, pct: v } : j === bal ? { ...r, pct: 100 - fixed - v } : r);
+}
+// Catches what the server would refuse, before the round trip: '' when the card can be saved, else the words to show.
+// `form` is { work_date, clock_on, clock_off, activity_id }, `rows` the job rows, `night` the person's Night shift rule or null, `dayEntries` their other time
+// ([{ card_id, work_date, start_time, end_time }]), `cardId` the card being changed, `needsApproval` the name of a chosen activity that goes in as leave instead.
+export function cardProblem({ form, rows, onActivity, night, dayEntries, cardId, needsApproval }) {
+  if (needsApproval) return `${needsApproval} needs approval — request it as leave instead`;
+  if (!form.clock_off) return '';
+  if (hmMins(form.clock_off) === hmMins(form.clock_on)) return 'Finish has to be after start';
+  const dayMins = form.clock_on && form.clock_off && form.clock_off !== form.clock_on ? cardMins(form) : 0;   // lunch included; a night shift runs into the next day
+  // Only a night shift may run past midnight: the profile has a Night shift rule and the shift starts inside its window (what the server checks).
+  if (runsPastMidnight(form)) {
+    if (!night) return 'Finish has to be after start — a shift can’t run past midnight';
+    if (!inWindow(night.window, form.clock_on)) return `A shift can only run past midnight if it starts between ${night.window.start} and ${night.window.end}`;
+    if (dayMins > NIGHT_MAX_MINS) return `A night shift can’t be longer than ${NIGHT_MAX_MINS / 60} hours`;
+  }
+  // Other time is checked as moments, so a night shift is checked against both of its dates.
+  const from = wallMins(form.work_date, form.clock_on), to = from + dayMins;
+  const clash = (dayEntries || []).find(t => t.card_id !== cardId && wallMins(t.work_date, t.start_time) < to && from < wallMins(t.work_date, t.end_time));
+  if (clash) return `That overlaps your ${clash.start_time}–${clash.end_time} time on ${clash.work_date === form.work_date ? 'the same day' : 'the next day'}`;
+  if (onActivity) return form.activity_id ? '' : 'Choose the activity';
+  if (rows.some(r => !r.job_id)) return 'Choose a job on every row';
+  if (rows.some(r => !r.cost_centre_id)) return 'Choose a cost centre on every row';
+  const total = rows.reduce((n, r) => n + (Number(r.pct) || 0), 0);
+  if (total !== 100) return `The cost centres add up to ${total}% — they need to make 100%`;
+  return '';
+}
+// What saving the form sends, as a draft for the outbox, and what the screen that opened it is told.
+// `card` is what the form was opened on: {} or { kind: 'clock-on' | 'activity' } for a new one, else the card (a card still waiting on the phone has a 'local:' id, and
+// a change to it rewrites what is waiting). `firstJob` is the first row's job from the list, `activityName` the chosen activity's name.
+// → { draft: { kind, method, path, body, local_card }, done: { clockedOff, finished, work_date } }
+export function cardDraft({ card, form, rows, onActivity, firstJob, activityName }) {
+  const isNew = !card.id;
+  const clockingOn = isNew && card.kind === 'clock-on';            // Start on a job: clocks on now, no finish yet
+  const manual = (isNew && !clockingOn) || card.source === 'manual'; // a start and finish rather than a clock on/off
+  const isLocal = String(card.id || '').startsWith('local:');
+  const body = onActivity
+    ? { ...form, clock_off: form.clock_off || null, company_id: '', job_id: '', splits: [] }
+    : { ...form, clock_off: form.clock_off || null, activity_id: '', company_id: rows[0].company_id, job_id: rows[0].job_id,
+        splits: rows.map(({ job_id, company_id, section_id, cost_centre_id, pct }) => ({ job_id, company_id, section_id, cost_centre_id, pct })) };
+  // Exact times stay exact: a clock on/off (not by-hand time) says so, since a clock-off that waited
+  // on the phone arrives as one new card. A server card also says when the phone last saw it.
+  if (!manual && body.clock_off) body.source = 'clock';
+  if (!isNew && !isLocal && card.updated_at) body.expected_updated_at = card.updated_at;
+  const local_card = { ...card, ...body, id: undefined, updated_at: undefined, expected_updated_at: undefined, source: card.source || (manual ? 'manual' : 'clock'),
+    job_label: onActivity ? null : firstJob ? `#${firstJob.id} ${firstJob.name || ''}`.trim() : card.job_label || (rows[0].job_id ? `#${rows[0].job_id}` : null),
+    activity_label: onActivity ? activityName || null : null };
+  const draft = { kind: clockingOn && !form.clock_off ? 'clock-on' : isNew ? 'add' : !card.clock_off && form.clock_off ? 'clock-off' : 'change',
+    method: isNew ? 'POST' : 'PUT', path: isNew ? '/job-cards' : `/job-cards/${card.id}`, body, local_card };
+  return { draft, done: { clockedOff: !isNew && !card.clock_off && !!form.clock_off, finished: !!form.clock_off, work_date: form.work_date } };
+}
 
 // ---- the clock ----
 // When a rest period ends, in words: "6:30 pm today", "4:00 pm tomorrow", else the date as `fmtDate` writes it.
