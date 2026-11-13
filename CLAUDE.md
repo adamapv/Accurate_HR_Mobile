@@ -19,7 +19,7 @@ Decisions already taken (13 Nov 2026): a full native app, not a web page in a wr
 
 - `src/app/`: the screens (Expo Router: one file per screen, `_layout.tsx` is the navigator).
 - `src/lib/`: `api-core.ts` (how the app talks to the Worker) and `offline-core.ts` (the outbox and the copies kept for reading with no signal), both with no React Native in them, so Node tests them; `offline.ts` (the phone's store, signal and session fingerprint behind `offline-core.ts`); `session.tsx` (who is signed in, and when what is waiting is sent); `use-read.ts` and `use-outbox.ts` (what a screen reads and what is waiting); `config.ts`, `dates.ts`. A write a person can make with no signal goes through `offline.submit`, never straight to `api`.
-- `src/ui.tsx`, `src/theme/`: the building blocks and colours. The colours are the web app's.
+- `src/ui.tsx`, `src/pickers.tsx`, `src/theme/`: the building blocks, the date, time and searchable-list boxes, and the colours. The colours are the web app's. A date or time is always a `WhenField` and a long list a `ChooseField`.
 - `shared/`: copied logic. `scripts/shared-list.mjs` is the list.
 
 ## Commands

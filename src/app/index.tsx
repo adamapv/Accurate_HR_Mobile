@@ -2,7 +2,7 @@
 // the outbox (shared/offline-queue.js), so a clock-on with no signal is kept on the phone and sent once when the signal returns.
 import { useEffect, useState } from 'react';
 import { View } from 'react-native';
-import { Redirect } from 'expo-router';
+import { Redirect, router } from 'expo-router';
 import { openCardState, restHoldText } from '@shared/field-core.js';
 import { applyToOpenCard, applyToRecent, describe } from '@shared/offline-queue.js';
 import { useSession, type Me } from '@/lib/session';
@@ -77,15 +77,21 @@ function SignedIn({ me }: { me: Me }) {
               <Body tone="ok">On the clock since {card.clock_on}</Body>
               <Body>{fmtMins(clock.elapsed)} so far{card.job_label ? ` · ${card.job_label}` : card.activity_label ? ` · ${card.activity_label}` : ''}</Body>
               {card.pending && <Body tone="muted">Saved on your phone. It’s sent when you have signal.</Body>}
-              <Body tone="muted">Clock off in the Field view in your browser for now.</Body>
+              <Button onPress={() => router.push({ pathname: '/job-card', params: { id: card.id } })}>Clock off</Button>
             </>
-          ) : card ? <Body tone="danger">Still clocked on from {fmtDate(card.work_date)}. Enter your clock-off time in the Field view in your browser.</Body>
+          ) : card ? (
+            <>
+              <Body tone="danger">Still clocked on from {fmtDate(card.work_date)}.</Body>
+              <Button onPress={() => router.push({ pathname: '/job-card', params: { id: card.id } })}>Enter your clock-off time</Button>
+            </>
+          )
           : fromJobs ? <Body tone="muted">Your job time is recorded in AccurateJobs.</Body>
           : (
             <>
               <Body>{view.clockedOff ? 'Clocked off. Saved on your phone until you have signal.' : 'Not on the clock.'}</Body>
               {clock.rest && <Body tone="danger">{restHoldText(clock.rest, today, fmtDate)}</Body>}
               <Button onPress={clockOn} busy={busy} disabled={!!clock.rest}>{`Clock on · ${now}`}</Button>
+              <Button kind="plain" onPress={() => router.push('/job-card')} disabled={busy}>Add time</Button>
             </>
           )}
         <Problem>{problem || open.error}</Problem>
@@ -106,7 +112,7 @@ function SignedIn({ me }: { me: Me }) {
       )}
 
       <Card>
-        <Body tone="muted">This is an early build of the app. Your job card and the rest of your day are in the Field view in your browser for now.</Body>
+        <Body tone="muted">This is an early build of the app. Your week, Safety, Chat and the rest are in the Field view in your browser for now.</Body>
       </Card>
       <Button kind="plain" onPress={() => { void signOut(); }}>Sign out</Button>
     </Screen>

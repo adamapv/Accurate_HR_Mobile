@@ -28,6 +28,7 @@ type Session = {
   api: Api;
   offline: Offline;        // the outbox and the copies kept for reading with no signal
   refreshed: number;       // goes up each time something waiting on the phone was sent, so screens read again
+  changed: () => void;     // a screen saved something: every screen reads again
   tenantCode: string | null;
   lastEmail: string;
   setTenantCode: (code: string | null) => Promise<void>;
@@ -94,7 +95,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   }, [signedIn, offline]);
 
   const value = useMemo<Session>(() => ({
-    state, api, offline, refreshed, tenantCode, lastEmail, retry: () => { void load(); },
+    state, api, offline, refreshed, changed: () => setRefreshed(n => n + 1), tenantCode, lastEmail, retry: () => { void load(); },
     // A new company code, or none ("Not your company?"): nothing of the last company's is kept.
     async setTenantCode(code) {
       offline.forgetAll();
