@@ -458,6 +458,67 @@ export const teamLeaveList = (rows, fmtDate) => [...(rows || [])].sort((a, b) =>
   .map(r => ({ row: r, title: r.employee_name, meta: `${r.type_name} · ${range(r.start_date, r.end_date, fmtDate)}${r.status === 'submitted' ? ' · waiting for approval' : ''}` }));
 export const NOBODY_AWAY = 'Nobody is away this month.';
 
+// ---- expense claims ----
+// Dollars typed into a box, as cents.
+export const toCents = v => Math.round((parseFloat(v) || 0) * 100);
+const sumCents = list => list.reduce((s, r) => s + (r.total_cents || 0), 0);
+// The four figures over a person's claims: drafts, what is waiting, what is approved and not yet paid, and what was paid this year. `year` is the caller's own ('2026').
+export function expenseTiles(rows, year, fmtMoney) {
+  const by = st => (rows || []).filter(r => r.status === st);
+  const paid = (rows || []).filter(r => r.status === 'paid' && String(r.claim_date || '').startsWith(year));
+  return [
+    { key: 'draft', label: 'Drafts', value: by('draft').length, sub: by('draft').length ? 'Not sent yet' : 'Nothing half-done' },
+    { key: 'submitted', label: 'Awaiting approval', value: fmtMoney(sumCents(by('submitted')), { whole: true }), tone: by('submitted').length ? 'warn' : undefined, sub: plural(by('submitted').length, 'claim') },
+    { key: 'approved', label: 'Approved, to be paid', value: fmtMoney(sumCents(by('approved')), { whole: true }), tone: by('approved').length ? 'ok' : undefined, sub: plural(by('approved').length, 'claim') },
+    { key: 'paid', label: `Paid in ${year}`, value: fmtMoney(sumCents(paid), { whole: true }), sub: plural(paid.length, 'claim') }];
+}
+// One of a person's claims as its row. `title` is '' while it has no description (the caller says NO_CLAIM_TITLE, greyed).
+export const claimRow = (r, { fmtDate, fmtMoney }) => ({ title: r.description || '', meta: [fmtDate(r.claim_date), r.line_count && plural(r.line_count, 'line'), r.jobs].filter(Boolean).join(' · '), amount: fmtMoney(r.total_cents) });
+export const NO_CLAIM_TITLE = 'No description yet';
+export const NO_CLAIMS = 'No claims yet — start one with New claim.';
+// A claim can be changed by the person it belongs to while it is a draft or was sent back.
+export const claimEditable = claim => !claim.status || claim.status === 'draft' || claim.status === 'rejected';
+export const claimTitle = (claim, fmtMoney) => claim.id ? `Claim · ${fmtMoney(claim.total_cents)}` : 'New claim';
+export const claimSubmitLabel = claim => claim.status === 'rejected' ? 'Resubmit' : 'Submit for approval';
+export const CLAIM_SENT = 'Claim sent for approval';
+// What is said over a claim that was sent back, or paid ('' otherwise).
+export const claimSentBack = claim => claim.status === 'rejected' && claim.decision_note ? `Sent back: ${claim.decision_note}` : '';
+export const claimPaidText = (claim, fmtDate) => claim.status !== 'paid' ? '' : `Paid${claim.payment_reference ? ` · ref ${claim.payment_reference}` : ''}${claim.paid_at ? ` · ${fmtDate(claim.paid_at)}` : ''}`;
+// A claim opened new and closed with nothing in it is not kept as an empty draft.
+export const claimIsEmpty = (claim, lines) => (lines || []).length === 0 && !claim.description;
+export const claimDeleteConfirm = lines => ({ title: 'Delete this claim?', body: (lines || []).length ? `Its ${plural(lines.length, 'line')} and receipts are deleted too.` : undefined, danger: true, confirmLabel: 'Delete claim' });
+export const LINE_DELETE_CONFIRM = { title: 'Delete this line?', danger: true, confirmLabel: 'Delete' };
+// One line of a claim: what it says under its description, and the job it is charged to ('' when it is not).
+export const claimLineMeta = (l, fmtDate) => `${fmtDate(l.line_date)}${l.category_name ? ` · ${l.category_name}` : ''}${l.mileage_km != null ? ` · ${l.mileage_km} km` : ''}`;
+export const claimLineJob = l => l.job_id ? `Charged to ${l.job_label} · ${l.cost_centre_label}` : '';
+// Where a cost stands in simPRO, for a claim line or an allowance: { text, failed } or null when there is nothing to say.
+export function simproCostText(state, error) {
+  if (!state || state === 'withdrawn') return null;
+  if (state === 'posted') return { text: 'In simPRO', failed: false };
+  if (state === 'pending' || state === 'removing') return { text: 'Waiting to go to simPRO', failed: false };
+  return { text: `Not sent to simPRO: ${error || 'unknown'}`, failed: true };
+}
+// A new line as its form opens: today, the first category, and the job another line on this claim was charged to (`lastLine`), if one was.
+export const lineFormStart = (cats, today, lastLine) => ({ description: '', amount_cents: 0, gst_cents: 0, category_id: (cats || [])[0]?.id || '', line_date: today, mileage_km: null, receipt_r2_key: null,
+  company_id: lastLine?.company_id || '', job_id: lastLine?.job_id || '', section_id: lastLine?.section_id || '', cost_centre_id: lastLine?.cost_centre_id || '' });
+export const lastJobLine = lines => [...(lines || [])].reverse().find(l => l.job_id);
+export const linePlaceholder = mode => mode === 'mileage' ? 'e.g. Site visit, Coles Brunswick' : 'e.g. BP fuel — van #4';
+// What stands in the way of adding a line ('' when nothing does).
+export const lineProblem = (form, onJob) => !String(form.description || '').trim() ? 'Description is required'
+  : onJob && !(form.job_id && form.section_id && form.cost_centre_id) ? 'Choose the job, section and cost centre this is charged to' : '';
+// What a line is sent as: no job unless it is charged to one, and either an amount or a distance (the server works a distance out at the rate).
+export function lineDraft(form, claimId, onJob, mode) {
+  const body = { ...form, claim_id: claimId };
+  if (!onJob) Object.assign(body, { company_id: '', job_id: '', section_id: '', cost_centre_id: '' });
+  if (mode === 'mileage') body.amount_cents = 0;
+  else body.mileage_km = null;
+  return body;
+}
+// Under the Distance box: what it comes to, the rate, or that there is no rate yet.
+export const mileageHint = (km, rate, fmtMoney) => !rate ? 'No mileage rate is set yet — ask an admin to set one in Settings.'
+  : km ? `Comes to ${fmtMoney(Math.round(km * rate.rate_cents_per_km))} at ${fmtMoney(rate.rate_cents_per_km)}/km` : `Paid at ${fmtMoney(rate.rate_cents_per_km)}/km`;
+export const lineJobHint = onJob => onJob ? 'Once approved, the cost is recorded on that job’s cost centre in simPRO.' : 'Not charged to a job: it is reimbursed and goes nowhere else.';
+
 // ---- the session and links ----
 // The session's fingerprint: the first 8 bytes of SHA-256 over "Bearer <session id>", as 16 hex characters. Everything kept on a device for one session (the outbox,
 // the offline copies) is tagged with it, and the service worker keys its copies with the same value, so one person's never show for the next. '' with no session.
