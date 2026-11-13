@@ -142,3 +142,36 @@ export const CHAT_DROP_MAX = 5;   // files taken at once by paste or drag and dr
 export const chatFileSize = n => !n ? '' : n < 1024 ? `${n} B` : n < 1048576 ? `${Math.round(n / 1024)} KB` : `${(n / 1048576).toFixed(1)} MB`;
 // What is said under a document's name: its kind and size.
 export const chatFileLine = f => [String(f.name).split('.').pop().toUpperCase(), chatFileSize(f.size)].filter(Boolean).join(' · ');
+
+// ---- what can be done with a message ----
+// The choices on a message, in order: [{ act, label, danger }]. act is 'reply' | 'copy' | 'delete'. `sendable` is whether the person may send in chats (the
+// Chat area's edit), `moderator` whether they may delete other people's messages in a group or the office's chat (its approve), `kind` the chat's kind.
+export function chatActions(m, { me, sendable, moderator, kind }) {
+  if (m.deleted) return [];
+  return [
+    sendable && { act: 'reply', label: 'Reply', danger: false },
+    m.body && { act: 'copy', label: 'Copy', danger: false },
+    sendable && (m.sender_id === me || (moderator && kind !== 'dm')) && { act: 'delete', label: 'Delete for everyone', danger: true }].filter(Boolean);
+}
+// Whether the reactions row is offered on a message (never on a deleted one, or one still waiting on the phone).
+export const chatCanReact = (m, sendable) => !!sendable && !m.deleted && !m.local;
+// What is sent when a reaction is picked: the same one again takes it back.
+export const chatReactionDraft = (reactions, emoji) => ({ emoji: emoji === (reactions || []).find(r => r.mine)?.emoji ? null : emoji });
+export const CHAT_DELETE_CONFIRM = { title: 'Delete this message?', body: 'It is deleted for everyone in the chat.', confirmLabel: 'Delete' };
+// A message once it has been deleted, as the chat then shows it.
+export const chatDeleted = m => ({ ...m, deleted: true, body: null, photo_key: null });
+export const CHAT_COPIED = 'Copied';
+// A photo as a message: `key` is what the upload answered with, `ref` a new id so a retry is the one message, never two.
+export const chatPhotoDraft = ({ key, ref, caption, reply }) => ({ photo_key: key, client_ref: ref, ...(caption ? { body: caption } : {}), ...(reply ? { reply_to_id: reply.id } : {}) });
+export const CHAT_PHOTO_FAILED = 'Couldn’t upload the photo';
+export const CHAT_SEND_PHOTO = 'Send a photo';
+
+// ---- starting a chat ----
+export const CHAT_NEW = { title: 'New chat', group: 'New group', groupName: 'Group name', groupExample: 'For example: Crew 2', create: 'Create group', search: 'Search for a person…', none: 'Nobody matches that.' };
+export const CHAT_GROUP_NAME_MAX = 60;
+// The people offered, leaving out any already chosen elsewhere (the members of a group being added to).
+export const chatPeopleShown = (rows, exclude) => (rows || []).filter(p => !(exclude || []).includes(p.id));
+export const chatDmDraft = person => ({ kind: 'dm', to_employee_id: person.id });
+export const chatGroupReady = (title, ids) => !!String(title || '').trim() && (ids || []).length > 0;
+export const chatGroupDraft = (title, ids) => ({ kind: 'group', title: String(title).trim(), people_ids: ids });
+export const chatPickToggle = (ids, person) => ids.includes(person.id) ? ids.filter(x => x !== person.id) : [...ids, person.id];
