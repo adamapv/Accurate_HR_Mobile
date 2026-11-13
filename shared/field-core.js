@@ -1177,6 +1177,41 @@ export const sharedFilePath = (folderId, path, inline) => `/dropbox/file?folder=
 export const sharedListPath = (folderId, path) => `/dropbox/list?folder=${encodeURIComponent(folderId)}&path=${encodeURIComponent(path)}`;
 export const SHARED_VIEWABLE = /\.(pdf|png|jpe?g|gif|webp|txt|csv)$/i;
 
+// ---- a contract ----
+// A contract or an offer of employment, read and signed by the person it is for. `c` is the contract of GET contracts/:id (with can_sign and can_decline);
+// `fmt` is the client's { fmtDate, fmtDateTime }.
+export const isOffer = c => c?.kind === 'offer';
+// The line above the contract that says where it stands: { tone, text }.
+export function contractNote(c, { fmtDate, fmtDateTime }) {
+  const offer = isOffer(c);
+  if (c.can_sign) return { tone: 'info', text: offer ? 'Read all of it, then accept it by signing at the bottom of the page, or decline it.' : 'Read all of it, then sign at the bottom of the page.' };
+  if (c.status === 'signed') return { tone: 'ok', text: `${offer ? 'Accepted' : 'Signed'} by ${c.signature_name} on ${fmtDateTime(c.signed_at)}. Print this page to keep a copy.` };
+  if (c.status === 'declined') return { tone: 'warn', text: `Declined on ${fmtDate(c.declined_at)}${c.decline_reason ? `: “${c.decline_reason}”` : ''}. ${c.employee_name} has been archived.` };
+  if (c.expired) return { tone: 'warn', text: 'This contract has expired and can no longer be signed. Ask for a new one.' };
+  if (c.status === 'sent') return { tone: 'info', text: `Sent ${fmtDate(c.sent_at)}${c.expires_on ? `, valid until ${fmtDate(c.expires_on)}` : ''}. Waiting for ${c.employee_name} to sign.` };
+  if (c.status === 'withdrawn') return { tone: 'warn', text: `Withdrawn on ${fmtDate(c.withdrawn_at)}. It can’t be signed.` };
+  return { tone: 'info', text: 'A draft: it hasn’t been sent yet.' };
+}
+// The two signatures under the contract: [{ label, name, when, waiting }] (name and when are empty until that side has signed).
+export const contractParties = (c, fmtDateTime) => [
+  { label: 'Signed for the company', name: c.employer_name || '', when: c.employer_name ? fmtDateTime(c.employer_signed_at) : '', waiting: 'Not sent yet' },
+  { label: 'Signed by the employee', name: c.signature_name || '', when: c.signature_name ? fmtDateTime(c.signed_at) : '', waiting: 'Waiting for their signature' }];
+// The record kept under a signed contract.
+export const contractReference = c => `Signed electronically. Contract ${c.id}${c.body_sha256 ? ` · text fingerprint (SHA-256) ${c.body_sha256}` : ''}${c.signature_ip ? ` · signed from ${c.signature_ip}` : ''}`;
+export const contractFor = c => `For ${c.employee_name}`;
+export const CONTRACT_GONE = 'This contract isn’t available to you.';
+export const CONTRACT_NONE = 'Open a contract from My documents, or from a person’s page.';
+// Signing: the words of the panel, what stands in the way, and what is sent.
+export const contractSignWords = offer => ({ head: offer ? 'Accept this offer' : 'Sign this contract', agree: offer ? 'I have read all of this offer and I accept it' : 'I have read all of this contract and I agree to it',
+  name: offer ? 'Type your full name to accept' : 'Type your full name to sign', hint: 'Typing your name is your signature. We keep your name, the time, and the address of the device you are using.',
+  submit: offer ? 'Accept and sign' : 'Sign', said: offer ? 'Offer accepted. Thank you.' : 'Signed. Thank you.' });
+export const contractSignProblem = ({ name, agree }) => !agree ? 'Tick the box to say you have read all of it and agree' : String(name || '').trim().length < 2 ? 'Type your full name to sign' : '';
+export const contractSignDraft = name => ({ signature_name: String(name).trim(), agree: true });
+// Declining an offer ends it and archives the person, who is then signed out.
+export const CONTRACT_DECLINE = { open: 'Decline the offer', about: 'If you decline, this offer ends and your record is archived. You can’t undo it yourself, but whoever sent it can talk to you about it.',
+  reason: 'Anything you would like to tell them? (optional)', confirm: 'Yes, decline the offer', doneTitle: 'Offer declined', done: 'You have declined this offer and we have let them know. Thank you for telling us.' };
+export const contractDeclineDraft = reason => ({ reason: String(reason || '').trim() });
+
 // ---- the session and links ----
 // The session's fingerprint: the first 8 bytes of SHA-256 over "Bearer <session id>", as 16 hex characters. Everything kept on a device for one session (the outbox,
 // the offline copies) is tagged with it, and the service worker keys its copies with the same value, so one person's never show for the next. '' with no session.

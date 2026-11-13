@@ -51,7 +51,7 @@ export default function OnboardingScreen() {
     if (i.kind === 'module') router.push(`/induction?id=${encodeURIComponent(i.id)}`);
     else if (i.kind === 'form') router.push(`/form?id=${encodeURIComponent(i.form_id || '')}`);
     else if (i.kind === 'policy') router.push(`/policy?id=${encodeURIComponent(i.id)}`);
-    else if (i.contract) setSaid('This is a contract. Read and sign it in the Field view in your browser for now.');
+    else if (i.contract) router.push(`/contract?id=${encodeURIComponent(i.contract)}`);
     else router.push(`/sign-document?id=${encodeURIComponent(i.id)}`);
   };
   const download = (i: OnbItem) => run(onbKey(i) as string, async () => {

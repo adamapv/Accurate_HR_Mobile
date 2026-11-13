@@ -1,6 +1,6 @@
 // My documents: the three figures over them, the ones waiting on the person (Sign or Acknowledge with a typed name), and everything else on file, each with its
 // file to open where it has one. What waits, what each says, where it stands and what can be done are the web app's own rules (shared/field-core.js).
-// A contract is read and signed on its own page, which the app does not have yet.
+// A contract is read and signed on its own screen.
 import { useState } from 'react';
 import { View } from 'react-native';
 import { Redirect, router } from 'expo-router';
@@ -43,7 +43,8 @@ export default function Documents() {
         <Body tone={docExpired(d, today) ? 'danger' : 'muted'}>{docMeta(d, today, day) as string}</Body>
         <Pill tone={d.signed_at || d.acknowledged_at ? 'ok' : d.requires_signature ? 'warn' : 'neutral'}>{docStatus(d) as string}</Pill>
         {acts.confirm && acts.confirm.kind !== 'contract' && <Button onPress={() => router.push(`/sign-document?id=${encodeURIComponent(d.id)}`)} disabled={!!busy}>{acts.confirm.label}</Button>}
-        {(acts.view || acts.confirm?.kind === 'contract') && <Body tone="muted">{acts.view ? 'This is a contract. View and print it in the Field view in your browser for now.' : 'This is a contract. Read and sign it in the Field view in your browser for now.'}</Body>}
+        {acts.confirm?.kind === 'contract' && !!d.contract_id && <Button onPress={() => router.push(`/contract?id=${encodeURIComponent(d.contract_id!)}`)} disabled={!!busy}>{acts.confirm.label}</Button>}
+        {acts.view && !!d.contract_id && <Button kind="plain" icon="document-text-outline" onPress={() => router.push(`/contract?id=${encodeURIComponent(d.contract_id!)}`)} disabled={!!busy}>View the contract</Button>}
         {acts.download && <Button kind="plain" icon="open-outline" onPress={() => { void open(d); }} busy={busy === d.id} disabled={!!busy}>Open the file</Button>}
       </Card>
     );
