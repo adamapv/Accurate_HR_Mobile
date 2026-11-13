@@ -59,6 +59,12 @@ export default function More() {
         <Row icon="clipboard-outline" tint="pink" title="My forms" sub="Banking, super and other details" onPress={() => router.push('/forms')} last />
       </List>
 
+      <Heading>Company and growth</Heading>
+      <List>
+        <Row icon="flag-outline" tint="teal" title="My onboarding" sub="Your first weeks: tasks, induction, forms and policies" onPress={() => router.push('/onboarding')} />
+        <Row icon="exit-outline" tint="slate" title="My departure" sub="Your offboarding tasks and exit interview" onPress={() => router.push('/departure')} last />
+      </List>
+
       <Heading>This phone and you</Heading>
       <List>
         {!!me.email_configured && !!me.employee.email && <Row icon="mail-outline" tint="violet" title={emailSw.label} sub={emailOn ? `On, to ${me.employee.email}` : 'Off'} onPress={() => { void toggleEmail(); }} />}

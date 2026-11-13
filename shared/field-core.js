@@ -822,6 +822,112 @@ export const uteSub = data => data?.asset ? [data.asset.registration_number && `
 export const uteDraft = ({ date, check, notes }) => ({ checked_on: date, items: check.items, notes });
 export const uteSaid = (res, asset) => res?.short_count ? `Check saved — ${res.short_count} ${res.short_count === 1 ? 'tool' : 'tools'} short (${(res.short || []).join(', ')}). The workshop has been told.` : `Check saved — everything is on ${asset.name}.`;
 
+// ---- My onboarding ----
+// A new starter's first weeks: one list of everything on their plate (tasks, induction modules, forms, documents to sign and policies to read), nearest deadline
+// first, with one thing to do next. The Worker (GET onboarding/mine?full=1) works out what is theirs and in what order; this words it. `fmtDate` is the client's.
+const daysApart = (from, to) => Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 864e5);
+export const ONB_KIND_LABEL = { task: 'Task', module: 'Induction', form: 'Form', document: 'Document', policy: 'Policy' };
+export const onbKey = i => `${i.kind}${i.id}`;
+// What the button of something still to do says.
+export const onbVerb = i => ({ task: 'Mark done', module: 'Start', form: 'Fill in', document: i.contract ? 'Read & sign' : i.sign ? 'Review & sign' : 'Acknowledge', policy: 'Read & acknowledge' })[i.kind];
+export const onbDue = (i, today, fmtDate) => !i.due_date ? '' : i.due_date === today ? 'due today' : i.due_date < today ? `was due ${fmtDate(i.due_date)}` : `due ${fmtDate(i.due_date)}`;
+export const onbMeta = (i, today, fmtDate, short) => [ONB_KIND_LABEL[i.kind], i.minutes ? `${i.minutes} min` : null, short ? null : i.description,
+  i.done ? (i.done_at ? `done ${fmtDate(i.done_at)}` : 'done') : onbDue(i, today, fmtDate)].filter(Boolean).join(' · ');
+export const onbIsLate = (i, today) => !i.done && !!i.due_date && i.due_date < today;
+export const onbLate = (data, today) => data.items.filter(i => onbIsLate(i, today)).length;
+// Where someone is in their program: before the start day, day N of the plan, or past its finish date.
+export function onbPhase(run, today) {
+  const toStart = daysApart(today, run.start_date);
+  if (toStart > 0) return { before: true, day: 0, text: toStart === 1 ? 'Starts tomorrow' : `Starts in ${toStart} days` };
+  const day = 1 - toStart;
+  const length = run.target_date ? daysApart(run.start_date, run.target_date) : 0;
+  return { before: false, day, text: length >= day ? `Day ${day} of ${length}` : `Day ${day}` };
+}
+// What is left, grouped by how soon it is due: [{ key, label, rows }]. Anything finished is shown separately.
+export function onbGroups(items, today) {
+  const week = addDaysYmd(today, 7);
+  const groups = [{ key: 'overdue', label: 'Overdue' }, { key: 'today', label: 'Today' }, { key: 'week', label: 'This week' },
+    { key: 'later', label: 'Later' }, { key: 'anytime', label: 'Whenever you can' }].map(g => ({ ...g, rows: [] }));
+  for (const i of items.filter(x => !x.done)) {
+    const key = !i.due_date ? 'anytime' : i.due_date < today ? 'overdue' : i.due_date === today ? 'today' : i.due_date <= week ? 'week' : 'later';
+    groups.find(g => g.key === key).rows.push(i);
+  }
+  return groups.filter(g => g.rows.length > 0);
+}
+export const onbGroupHead = g => `${g.label} · ${g.rows.length}`;
+// The page as lists: what is up next (shown on its own, not twice), the groups of what is left, and what is finished.
+export function onbPlan(data, today) {
+  const items = data?.items || [];
+  const next = items.find(i => !i.done) || null;
+  return { next, finished: !!data?.run && data.total > 0 && !next, groups: onbGroups(items.filter(i => i !== next), today), done: items.filter(i => i.done) };
+}
+export const onbFinishedHead = done => `Finished · ${done.length}`;
+export const ONB_UP_NEXT = 'Up next';
+export const ONB_ALL_DONE = { title: 'Everything’s done', text: 'Your documents and policies stay under Me whenever you need them.' };
+// The top of the page: { eyebrow, template, greeting, name, strong, rest, pct, tone, ring, others }. `strong` is the part of the line in bold.
+export function onbHero(data, first, fmtDate) {
+  const { run, total, done, others } = data, today = data.today;
+  const phase = onbPhase(run, today), left = total - done, late = onbLate(data, today), finished = total > 0 && left === 0, welcome = phase.before || phase.day <= 7;
+  const line = total === 0 ? { strong: '', rest: 'Nothing has been given to you yet — your manager is getting things ready.' }
+    : finished ? { strong: 'You’ve finished everything.', rest: ' Nice work. Your manager will close this off.' }
+    : { strong: `${plural(left, 'thing')} to go`, rest: `${run.target_date ? `, finish by ${fmtDate(run.target_date)}` : ''}${late ? ` · ${late} overdue` : ''}` };
+  return { eyebrow: phase.text, template: run.template_name || '', greeting: welcome ? 'Welcome, ' : 'Your onboarding', name: welcome ? (first || 'there') : '', ...line,
+    pct: total ? Math.round((done / total) * 100) : 0, tone: finished ? 'ok' : late ? 'warn' : 'accent', ring: `${done} of ${total} done`,
+    others: others?.total > 0 ? `Behind the scenes, your manager and the office have done ${others.done} of ${plural(others.total, 'step')} for you.` : '' };
+}
+// Whether a row opens something when tapped, and its buttons in order: [{ act, label }]. act is 'done' | 'undo' | 'open' | 'download'.
+export const onbOpens = i => i.kind === 'module' || i.kind === 'form' || (!i.done && i.kind !== 'task');
+export function onbActions(i) {
+  if (i.done) return [i.kind === 'task' && { act: 'undo', label: 'Undo' }, i.kind === 'module' && { act: 'open', label: 'View' }, i.kind === 'form' && { act: 'open', label: 'Edit answers' }].filter(Boolean);
+  return [i.kind === 'document' && i.file && { act: 'download', label: 'Download' }, { act: i.kind === 'task' ? 'done' : 'open', label: onbVerb(i) }].filter(Boolean);
+}
+export const ONB_DONE_PILL = 'Done';
+export const onbTaskDraft = (item, status) => ({ id: item.id, status });
+export const onbTaskSaid = status => status === 'completed' ? 'Done' : 'Back on your list';
+export const onbModuleDraft = item => ({ id: item.id, status: 'completed' });
+export const ONB_MODULE_SAID = 'Module completed';
+export const ONB_MODULE_DONE = 'I’ve completed this';
+export const NO_CONTENT = 'No content provided.';
+export const moduleSub = m => { const mins = m.minutes ?? m.estimated_minutes; return [mins ? `About ${mins} min` : null, m.description].filter(Boolean).join(' · '); };
+// Nothing in progress: finished before, or not started yet.
+export const onbEmpty = (data, fmtDate) => data.past?.[0]?.status === 'completed'
+  ? `Your onboarding was completed${data.past[0].completed_at ? ` on ${fmtDate(data.past[0].completed_at)}` : ''}. Everything you signed is under My documents.`
+  : 'No onboarding in progress. When your manager starts yours, it shows up here.';
+// Tasks the person owes on someone else's onboarding.
+export const ONB_OWED_HEAD = 'Waiting on you for new starters';
+export const onbOwedMeta = (t, fmtDate) => [t.description, `for ${t.for_name}`, t.due_date && `due ${fmtDate(t.due_date)}`].filter(Boolean).join(' · ');
+
+// ---- My departure ----
+// A leaver's own tasks and the exit interview. `detail` is GET offboarding-runs/:id ({ run, tasks, interview }).
+export const NO_DEPARTURE = 'You have no departure in progress. Speak to your manager if this is unexpected.';
+const said = s => { const t = String(s || '').replace(/_/g, ' '); return t ? t[0].toUpperCase() + t.slice(1) : ''; };
+export const departureSub = (run, fmtDate) => `Last day ${fmtDate(run.last_day)} · ${said(run.kind)}`;
+export const departureTasks = (detail, employeeId) => (detail?.tasks || []).filter(t => t.assignee_id === employeeId);
+// The three figures at the top: [{ key, label, value, sub, tone }].
+export function departureTiles(detail, employeeId, today, fmtDate) {
+  const mine = departureTasks(detail, employeeId), pending = mine.filter(t => t.status === 'pending').length, left = daysApart(today, detail.run.last_day), interview = detail.interview;
+  return [
+    { key: 'last', label: 'Last day', value: fmtDate(detail.run.last_day), sub: left > 0 ? `${plural(left, 'day')} to go` : left === 0 ? 'Today' : 'Passed' },
+    { key: 'tasks', label: 'Tasks for you', value: pending, sub: `${mine.length - pending} of ${plural(mine.length, 'task')} done`, tone: pending ? 'warn' : 'ok' },
+    { key: 'interview', label: 'Exit interview', value: interview ? 'Done' : 'To do', sub: interview ? 'Thank you' : 'A few minutes, when you can', tone: interview ? 'ok' : undefined }];
+}
+export const NO_DEPARTURE_TASKS = 'No tasks assigned to you.';
+export const departureTaskMeta = (t, fmtDate) => t.due_date ? `Due ${fmtDate(t.due_date)}` : '';
+export const departureTaskDraft = id => ({ id, status: 'completed' });
+export const DEPARTURE_TASK_SAID = 'Task done';
+// The exit interview.
+export const EXIT_HEAD = 'Exit interview';
+export const EXIT_ABOUT = 'Your feedback is confidential and helps us improve. 1 = poor · 5 = excellent';
+export const EXIT_ALREADY = 'You’ve already sent your feedback. You can update it below.';
+export const EXIT_RATINGS = [['rating_role', 'Your role'], ['rating_manager', 'Your manager'], ['rating_culture', 'Team culture'], ['rating_compensation', 'Pay & benefits']];
+export const EXIT_SCORES = [1, 2, 3, 4, 5];
+export const EXIT_TEXTS = [['reason_for_leaving', 'Reason for leaving'], ['what_worked', 'What worked well?'], ['what_didnt', 'What could be better?']];
+export const EXIT_RECOMMEND = 'Would you recommend us as a place to work?';
+export const exitStart = existing => existing || { rating_role: '', rating_manager: '', rating_culture: '', rating_compensation: '', what_worked: '', what_didnt: '', reason_for_leaving: '', would_recommend: null };
+export const exitDraft = (form, run) => ({ ...form, run_id: run.id });
+export const exitSubmitLabel = existing => existing ? 'Update feedback' : 'Send feedback';
+export const EXIT_SAID = 'Thank you — your feedback has been recorded.';
+
 // ---- the session and links ----
 // The session's fingerprint: the first 8 bytes of SHA-256 over "Bearer <session id>", as 16 hex characters. Everything kept on a device for one session (the outbox,
 // the offline copies) is tagged with it, and the service worker keys its copies with the same value, so one person's never show for the next. '' with no session.
