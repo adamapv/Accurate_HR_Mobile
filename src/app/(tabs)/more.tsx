@@ -62,6 +62,7 @@ export default function More() {
 
       <Heading>Company and growth</Heading>
       <List>
+        <Row icon="star-outline" tint="pink" title="My performance" sub="Your goals, reviews and 1:1s" onPress={() => router.push('/performance')} />
         <Row icon="flag-outline" tint="teal" title="My onboarding" sub="Your first weeks: tasks, induction, forms and policies" onPress={() => router.push('/onboarding')} />
         <Row icon="exit-outline" tint="slate" title="My departure" sub="Your offboarding tasks and exit interview" onPress={() => router.push('/departure')} last />
       </List>
