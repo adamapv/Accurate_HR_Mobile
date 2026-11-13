@@ -15,6 +15,9 @@ jobs:
     runs-on: ubuntu-latest
     env:
       APP_ENV: ${{ inputs.server }}
+      # The build's own number and commit, shown on the More tab (app.config.js).
+      BUILD_NUMBER: ${{ github.run_number }}
+      BUILD_COMMIT: ${{ github.sha }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

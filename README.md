@@ -40,6 +40,8 @@ No store account is needed.
 
 The staging build installs beside the production one as "AccurateHR (staging)".
 
+Every build has its own number: the one at the end of the file's name under Artifacts (`AccurateHR-production-57`). The bottom of the More tab says which build is on the phone, with the commit it was made from: "Version 0.1.0 · build 57 (1a2b3c4)". Android also uses the number to know a newer build from an older one.
+
 An iPhone cannot install an app this way. iPhone builds need the Apple Developer account.
 
 ## Working on it
