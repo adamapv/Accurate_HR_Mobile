@@ -17,3 +17,17 @@ export async function uploadPhoto(api: Api, session: string | null, uri: string,
   }
   return prep.r2_key;
 }
+
+// A picture for a support request: its bytes go straight to the Worker, which answers with the id the message then names. `failed` is what to say when
+// the Worker gives no reason of its own.
+export async function uploadSupportPic(session: string | null, uri: string, mime = 'image/jpeg', failed = 'Upload failed. Try again.'): Promise<string> {
+  const bytes = await (await fetch(uri)).blob();
+  let res: Response;
+  try {
+    res = await fetch(`${API_URL.replace(/\/+$/, '')}/api/hr/support/files`, { method: 'PUT', body: bytes, headers: { 'content-type': mime, ...(session ? { Authorization: `Bearer ${session}` } : {}) } });
+  } catch { throw new Error('No connection. A photo needs signal.'); }
+  let j: { ok?: boolean; error?: string; file?: { id: string } } = {};
+  try { j = await res.json(); } catch { /* not JSON */ }
+  if (!res.ok || j.ok === false || !j.file?.id) throw new Error(j.error ? String(j.error).charAt(0).toUpperCase() + String(j.error).slice(1) : failed);
+  return j.file.id;
+}
