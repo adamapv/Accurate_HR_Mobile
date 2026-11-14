@@ -17,7 +17,7 @@ const TONE: Record<string, Tone> = { ok: 'ok', info: 'neutral', warn: 'warn', da
 // One statement or checklist, set a little apart from the job's own details.
 function Block({ children }: { children: React.ReactNode }) {
   const t = useTheme();
-  return <View style={{ gap: 6, padding: 12, borderRadius: 12, backgroundColor: t.surface2, borderWidth: 1, borderColor: t.line2 }}>{children}</View>;
+  return <View style={{ gap: 8, padding: 14, borderRadius: 16, backgroundColor: t.surface2 }}>{children}</View>;
 }
 
 export function JobSafety({ job, swms, lists, queued, today, showFinish, keys }: { job: JobRef; swms: SwmsEntry[]; lists: CheckList[]; queued: Entry[]; today: string; showFinish: boolean; keys: string }) {

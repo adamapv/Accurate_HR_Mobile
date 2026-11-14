@@ -24,7 +24,7 @@ export function WhenField({ label, mode, value, onChange, maxDate, minDate, step
   return (
     <View style={styles.field}>
       <Text style={[styles.label, { color: t.muted }]}>{label}</Text>
-      <Pressable accessibilityRole="button" accessibilityLabel={`${label}: ${shown}`} onPress={() => setOpen(true)} style={[styles.box, { backgroundColor: t.surface2, borderColor: t.line }]}>
+      <Pressable accessibilityRole="button" accessibilityLabel={`${label}: ${shown}`} onPress={() => setOpen(true)} style={[styles.box, { backgroundColor: t.surface2 }]}>
         <Text style={[styles.value, { color: value ? t.fg : t.dim }]}>{shown}</Text>
       </Pressable>
       {open && (
@@ -51,7 +51,7 @@ export function ChooseField<T>({ label, value, placeholder, options, search, onC
   return (
     <View style={styles.field}>
       <Text style={[styles.label, { color: t.muted }]}>{label}</Text>
-      <Pressable accessibilityRole="button" accessibilityLabel={`${label}: ${value || placeholder}`} onPress={() => { setQuery(''); setOpen(true); }} style={[styles.box, { backgroundColor: t.surface2, borderColor: t.line }]}>
+      <Pressable accessibilityRole="button" accessibilityLabel={`${label}: ${value || placeholder}`} onPress={() => { setQuery(''); setOpen(true); }} style={[styles.box, { backgroundColor: t.surface2 }]}>
         <Text numberOfLines={1} style={[styles.value, { color: value ? t.fg : t.dim }]}>{value || placeholder}</Text>
       </Pressable>
       <Modal visible={open} animationType="slide" onRequestClose={() => setOpen(false)}>
@@ -78,16 +78,16 @@ export function ChooseField<T>({ label, value, placeholder, options, search, onC
 
 const styles = StyleSheet.create({
   fill: { flex: 1 },
-  field: { gap: space.xs },
-  label: { fontSize: 13, fontWeight: '600' },
-  box: { minHeight: TOUCH + 4, borderRadius: radius.md, borderWidth: 1, paddingHorizontal: space.md, justifyContent: 'center' },
+  field: { gap: 7 },
+  label: { fontSize: 13.5, fontWeight: '600', marginLeft: 4 },
+  box: { minHeight: 54, borderRadius: radius.lg, paddingHorizontal: space.lg, justifyContent: 'center' },
   value: { fontSize: 17 },
   detail: { fontSize: 14, marginTop: 2 },
   done: { minHeight: TOUCH, justifyContent: 'center', alignItems: 'flex-end' },
   head: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: space.xl, paddingTop: space.md },
   title: { fontSize: 22, fontWeight: '700' },
   close: { minHeight: TOUCH, justifyContent: 'center' },
-  search: { minHeight: TOUCH + 4, borderRadius: radius.md, borderWidth: 1, paddingHorizontal: space.md, fontSize: 17, marginHorizontal: space.xl, marginVertical: space.md },
-  row: { minHeight: TOUCH + 8, paddingHorizontal: space.xl, paddingVertical: space.md, justifyContent: 'center', borderBottomWidth: 1 },
+  search: { minHeight: 50, borderRadius: 25, borderWidth: 0, paddingHorizontal: space.md, fontSize: 17, marginHorizontal: space.xl, marginVertical: space.md },
+  row: { minHeight: TOUCH + 8, paddingHorizontal: space.xl, paddingVertical: space.md, justifyContent: 'center', borderBottomWidth: StyleSheet.hairlineWidth },
   empty: { padding: space.xl, fontSize: 16 },
 });

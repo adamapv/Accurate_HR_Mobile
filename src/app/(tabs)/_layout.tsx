@@ -1,5 +1,6 @@
 // The tab bar: Home, Job card, Safety, My week and More, as in the web Field view. Nothing here opens for someone who is not signed in.
-import type { ColorValue } from 'react-native';
+import { StyleSheet, View, type ColorValue } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Redirect } from 'expo-router';
 import { Tabs } from 'expo-router/tabs';
 import { feel } from '@/lib/haptics';
@@ -16,6 +17,7 @@ export default function TabsLayout() {
   const { state, retry, signOut } = useSession();
   const t = useTheme();
   const failed = useOutbox().filter(e => e.status === 'failed').length;
+  const insets = useSafeAreaInsets();
   if (state.status === 'loading') return <Loading />;
   if (state.status === 'signedOut') return <Redirect href="/sign-in" />;
   if (state.status === 'unreachable') {
@@ -29,12 +31,17 @@ export default function TabsLayout() {
     );
   }
   if (state.me.employee.must_change_pin) return <Redirect href="/change-pin" />;
-  const icon = (name: keyof typeof Ionicons.glyphMap) => ({ color, size }: { color: ColorValue; size: number }) => <Ionicons name={name} color={typeof color === "string" ? color : undefined} size={size} />;
+  // The tab someone is on has its icon filled, on a soft pill of the app's colour; the others are outlines.
+  const icon = (name: string) => ({ color, focused }: { color: ColorValue; size: number; focused: boolean }) => (
+    <View style={{ width: 56, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center', backgroundColor: focused ? 'rgba(84,104,255,0.18)' : 'transparent' }}>
+      <Ionicons name={(focused ? name : `${name}-outline`) as keyof typeof Ionicons.glyphMap} color={typeof color === 'string' ? color : undefined} size={22} />
+    </View>
+  );
   return (
     <>
     {!SAFE_MODE && <ClockNotice />}
     {!SAFE_MODE && <PushTaps />}
-    <Tabs screenListeners={{ tabPress: () => feel.pick() }} screenOptions={{ headerShown: false, tabBarActiveTintColor: t.accent2, tabBarInactiveTintColor: t.muted, tabBarStyle: { backgroundColor: t.topbar, borderTopColor: t.line }, tabBarLabelStyle: { fontSize: 11.5, fontWeight: '600' }, sceneStyle: { backgroundColor: t.bg } }}>
+    <Tabs screenListeners={{ tabPress: () => feel.pick() }} screenOptions={{ headerShown: false, tabBarActiveTintColor: t.accent2, tabBarInactiveTintColor: t.muted, tabBarStyle: { backgroundColor: t.topbar, borderTopColor: t.line2, borderTopWidth: StyleSheet.hairlineWidth, height: 64 + insets.bottom, paddingTop: 8, elevation: 0 }, tabBarLabelStyle: { fontSize: 11, fontWeight: '700', marginTop: 4 }, tabBarHideOnKeyboard: true, animation: 'fade', sceneStyle: { backgroundColor: t.bg } }}>
       <Tabs.Screen name="index" options={{ title: 'Home', tabBarIcon: icon('home'), tabBarBadge: failed || undefined }} />
       <Tabs.Screen name="day" options={{ title: 'Job card', tabBarIcon: icon('time') }} />
       <Tabs.Screen name="safety" options={{ title: 'Safety', tabBarIcon: icon('shield-checkmark') }} />
