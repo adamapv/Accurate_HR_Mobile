@@ -4,6 +4,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { SessionProvider } from '@/lib/session';
 import { LockProvider } from '@/lock';
 import { useTheme } from '@/theme';
+// Loaded here, by the first file the app runs, so an error anywhere after it is written down.
 import { markStarting, noteCrash, startedCleanly } from '@/lib/crash';
 import { AppState } from 'react-native';
 import { APP_BUILD } from '@/lib/config';

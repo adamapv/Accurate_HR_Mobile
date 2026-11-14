@@ -11,8 +11,8 @@ const drop = (k: string) => { try { Storage.removeItemSync(k); } catch { /* alre
 
 // Safe mode. Each start with a screen leaves a mark (markStarting, from the first screen drawn; a start the phone makes with no screen, to send what is
 // waiting, leaves none) that is wiped once the app has been open for a few seconds or is put away (startedCleanly). A start that finds the mark still there
-// knows the last one never got that far, whatever stopped it, and from then on the app opens without its extras (the app lock, sending with the app closed,
-// and notifications), whose native parts are not even loaded, until the person turns them back on. If that start fails too, the next one is safe again.
+// knows the last one never got that far, whatever stopped it, and from then on the app opens without its extras (the app lock and notifications),
+// whose native parts are not even loaded, until the person turns them back on. If that start fails too, the next one is safe again.
 const unfinished = get(STARTING) === '1';
 if (unfinished) set(SAFE, '1');
 export const SAFE_MODE = get(SAFE) === '1';
