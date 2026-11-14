@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 import { Alert, Pressable, View } from 'react-native';
 import { router } from 'expo-router';
 import { can } from '@shared/access.js';
-import { cardNotes, copyWeekPlan, copyWeekSaid, dayIsMine, dayRowOf, daysSubmittedText, daysToSend, entryHours, nothingToSubmit, periodLabel, planJobCard, sendChecks, sentBackText, submitHelp, submitLabel,
+import { cardNotes, copyWeekPlan, hoursByRate, LEAVE_BALANCES_SHOWN, copyWeekSaid, dayIsMine, dayRowOf, daysSubmittedText, daysToSend, entryHours, nothingToSubmit, periodLabel, planJobCard, sendChecks, sentBackText, submitHelp, submitLabel,
   timeFromJobs, weekByDay, weekPillLabel, weekState } from '@shared/field-core.js';
 import { applyToWeek } from '@shared/offline-queue.js';
 import { useSession } from '@/lib/session';
@@ -20,7 +20,7 @@ type Period = { id: string; period_start: string; period_end: string; label: str
 type WeekCard = { id: string; work_date: string; clock_on: string; clock_off: string | null; job_label: string | null; activity_label: string | null; notes: string | null; lunch?: number | boolean; carry_in?: boolean; pending?: boolean; splits?: unknown[] };
 type Entry = { id: string; card_id: string | null; work_date: string; start_time: string; end_time: string; job_label?: string | null; cost_centre_label?: string | null; activity_label?: string | null; notes?: string | null };
 type DayRow = { id: string; work_date: string; status: string; decision_note?: string | null; auto?: number };
-type Week = { period: Period | null; cards: WeekCard[]; entries: Entry[]; days: DayRow[]; flags: unknown[]; total_hours: number; pending?: number };
+type Week = { rate_summary?: { rate_id?: string; rate_name?: string; hours: number }[]; rate_profile?: { name: string } | null; period: Period | null; cards: WeekCard[]; entries: Entry[]; days: DayRow[]; flags: unknown[]; total_hours: number; pending?: number };
 type Check = { key: string; block: boolean; kind?: string; date?: string; text: string };
 
 const hours = (n: number) => `${Number(n || 0).toFixed(1)}h`;
@@ -99,9 +99,19 @@ export default function WeekTab() {
       <Problem>{ts.error}</Problem>
 
       <WeekHoursCard week={data} expected={Number(me.employee.expected_weekly_hours) || 38} fromJobs={fromJobs} today={today} />
+      {(() => {
+        const by = hoursByRate(data) as { several: boolean; rows: { key: string; label: string; hours: string }[]; note: string };
+        return by.several ? (
+          <Card>
+            <Body strong>Hours by rate</Body>
+            <Figures figures={by.rows.map(r => ({ key: r.key, label: r.label, value: r.hours })) as Figure[]} />
+            <Body tone="muted">{by.note}</Body>
+          </Card>
+        ) : null;
+      })()}
       <Figures figures={[
         { key: 'total', label: 'Job cards', value: data.cards.filter(c => !c.carry_in).length, sub: `${days.length} ${days.length === 1 ? 'day' : 'days'} worked` },
-        ...(canLeave && balances.length ? balances.slice(0, 1).map(b => ({ key: `leave-${b.id}`, label: b.type_name, value: hours(b.balance_hours), sub: 'Leave balance' })) : []),
+        ...(canLeave && balances.length ? balances.slice(0, LEAVE_BALANCES_SHOWN as number).map(b => ({ key: `leave-${b.id}`, label: b.type_name, value: hours(b.balance_hours), sub: 'Leave balance' })) : []),
         ...(canSafety ? [{ key: 'swms', label: 'SWMS signed on', value: counts.data ? counts.data.swms_signed : '—' },
           { key: 'checks', label: 'Checklists done', value: counts.data ? counts.data.checklists_done : '—', tone: counts.data && counts.data.checklists_not_ok > 0 ? 'danger' as const : undefined,
             sub: counts.data && counts.data.checklists_not_ok > 0 ? `${counts.data.checklists_not_ok} not OK` : undefined }] : []),

@@ -1534,6 +1534,17 @@ export const goesToText = (plan, nameOf) => `Goes to simPRO as: ${plan.blocks.ma
 // A share's label: its cost centre's name, with the job's number first when the card has more than one job.
 export const shareName = (costCentreLabel, jobId, severalJobs) => { const cc = costCentreLabel || 'Cost centre'; return severalJobs ? `#${jobId} ${cc}` : cc; };
 
+// ---- the week's hours by rate ----
+// When the week's time goes at more than one rate (ordinary and overtime, say), My week lists the hours at each, in the profile's own order. `week` is
+// /timesheets/mine's answer. → { several, rows: [{ key, label, hours (text) }], note } (rows is empty when only one rate is used).
+export const fmtRateHours = n => `${Math.round(n * 100) / 100}h`;
+export function hoursByRate(week) {
+  const rows = week?.rate_summary || [], several = (week?.entries || []).length > 0 && rows.length > 1;
+  return { several, rows: several ? rows.map(r => ({ key: r.rate_id || r.rate_name || 'none', label: r.rate_name || 'No rate chosen', hours: fmtRateHours(r.hours) })) : [],
+    note: `From your timesheet profile (${week?.rate_profile?.name || 'company default'}): ordinary hours first, then overtime.` };
+}
+export const LEAVE_BALANCES_SHOWN = 3;
+
 // ---- the session and links ----
 // The session's fingerprint: the first 8 bytes of SHA-256 over "Bearer <session id>", as 16 hex characters. Everything kept on a device for one session (the outbox,
 // the offline copies) is tagged with it, and the service worker keys its copies with the same value, so one person's never show for the next. '' with no session.
