@@ -7,6 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useSegments } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { radius, space, TOUCH, useTheme } from '@/theme';
+import { Dots, dotsCan } from '@/dots';
 import { feel } from '@/lib/haptics';
 import { useSessionMaybe } from '@/lib/session';
 
@@ -114,7 +115,10 @@ export function Title({ children }: { children: ReactNode }) {
 // The one big figure on a screen (the time on the clock).
 export function Display({ children }: { children: ReactNode }) {
   const t = useTheme();
-  return <Text style={[styles.display, { color: useContext(OnHeroCtx) ? WHITE : t.fg }]}>{children}</Text>;
+  const color = useContext(OnHeroCtx) ? WHITE : t.fg;
+  // A number is drawn in dots, like a dot matrix display; words stay as text.
+  if (typeof children === 'string' && dotsCan(children)) return <View style={styles.displayDots}><Dots text={children} size={52} color={color} /></View>;
+  return <Text style={[styles.display, { color }]}>{children}</Text>;
 }
 // The panel that leads a screen, in the app's own colour (or green for something under way), with everything on it in white.
 export function Hero({ children, tone = 'accent' }: { children: ReactNode; tone?: 'accent' | 'ok' }) {
@@ -190,7 +194,9 @@ export function Figures({ figures }: { figures: Figure[] }) {
       {figures.map(f => (
         <View key={f.key} style={[styles.figure, { backgroundColor: t.surface, borderColor: t.line2 }]}>
           <Text numberOfLines={1} style={[styles.figureLabel, { color: t.muted }]}>{f.label}</Text>
-          <Text numberOfLines={1} style={[styles.figureValue, { color: f.tone === 'warn' ? t.warn : f.tone === 'danger' ? t.danger : f.tone === 'ok' ? t.ok : t.fg }]}>{String(f.value)}</Text>
+          {dotsCan(String(f.value)) && String(f.value).length <= 7
+            ? <View style={styles.figureDots}><Dots text={String(f.value)} size={String(f.value).length > 5 ? 19 : 26} color={f.tone === 'warn' ? t.warn : f.tone === 'danger' ? t.danger : f.tone === 'ok' ? t.ok : t.fg} /></View>
+            : <Text numberOfLines={1} style={[styles.figureValue, { color: f.tone === 'warn' ? t.warn : f.tone === 'danger' ? t.danger : f.tone === 'ok' ? t.ok : t.fg }]}>{String(f.value)}</Text>}
           {!!f.sub && <Text numberOfLines={2} style={[styles.figureSub, { color: t.dim }]}>{f.sub}</Text>}
         </View>
       ))}
@@ -324,6 +330,8 @@ const styles = StyleSheet.create({
   under: { paddingTop: BAR + space.sm },
   centered: { justifyContent: 'center' },
   title: { fontSize: 36, fontWeight: '900', letterSpacing: -1.1, lineHeight: 41 },
+  displayDots: { height: 64, justifyContent: 'center' },
+  figureDots: { height: 39, justifyContent: 'center' },
   display: { fontSize: 60, fontWeight: '900', letterSpacing: -2.5, lineHeight: 64 },
   glow: { position: 'absolute', alignItems: 'center', justifyContent: 'center' },
   heroShadow: { borderRadius: 30, shadowOpacity: 0.55, shadowRadius: 22, shadowOffset: { width: 0, height: 12 }, elevation: 14 },
