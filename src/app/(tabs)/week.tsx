@@ -13,6 +13,7 @@ import { useRead } from '@/lib/use-read';
 import { useOutbox } from '@/lib/use-outbox';
 import { fmtDate, fmtTime, localToday, parseDay } from '@/lib/dates';
 import { ChooseField } from '@/pickers';
+import { WeekHoursCard } from '@/week-parts';
 import { Body, Button, Card, Field, Figures, List, Notice, Pill, Problem, Row, Screen, Title, type Figure } from '@/ui';
 
 type Period = { id: string; period_start: string; period_end: string; label: string | null };
@@ -97,8 +98,9 @@ export default function WeekTab() {
       {ts.offlineAt !== null && <Notice tone="warn" icon="cloud-offline-outline">{`No signal. Showing what was saved at ${fmtTime(ts.offlineAt)}.`}</Notice>}
       <Problem>{ts.error}</Problem>
 
+      <WeekHoursCard week={data} expected={Number(me.employee.expected_weekly_hours) || 38} fromJobs={fromJobs} today={today} />
       <Figures figures={[
-        { key: 'total', label: 'This week', value: hours(data.total_hours), sub: `${data.cards.filter(c => !c.carry_in).length} job cards · ${days.length} ${days.length === 1 ? 'day' : 'days'} worked` },
+        { key: 'total', label: 'Job cards', value: data.cards.filter(c => !c.carry_in).length, sub: `${days.length} ${days.length === 1 ? 'day' : 'days'} worked` },
         ...(canLeave && balances.length ? balances.slice(0, 1).map(b => ({ key: `leave-${b.id}`, label: b.type_name, value: hours(b.balance_hours), sub: 'Leave balance' })) : []),
         ...(canSafety ? [{ key: 'swms', label: 'SWMS signed on', value: counts.data ? counts.data.swms_signed : '—' },
           { key: 'checks', label: 'Checklists done', value: counts.data ? counts.data.checklists_done : '—', tone: counts.data && counts.data.checklists_not_ok > 0 ? 'danger' as const : undefined,

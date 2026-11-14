@@ -4,7 +4,7 @@
 // page: today, the time and how a date is written are passed in, so the web app and the phone app say the same thing from the same data.
 // Dates are 'YYYY-MM-DD' and times 'HH:MM' (24 hour).
 import { pad2 } from './pickers-core.js';
-import { NIGHT_MAX_MINS, isOvernight, addDaysYmd, wallMins, inWindow, restHold, cardMins } from './pay-rules.js';
+import { NIGHT_MAX_MINS, isOvernight, addDaysYmd, wallMins, inWindow, restHold, cardMins, weekdayOfYmd } from './pay-rules.js';
 
 export const hmMins = s => { const [hh, mm] = String(s || '0:0').split(':').map(Number); return hh * 60 + mm; };
 export const minsHM = m => `${pad2(Math.floor(m / 60))}:${pad2(m % 60)}`;
@@ -1447,6 +1447,59 @@ export function dayTimeline(cards, date, now) {
   return { blocks: raw.map(b => ({ ...b, left: pct(b.from), width: Math.max(1.2, pct(b.to) - pct(b.from)), named: pct(b.to) - pct(b.from) >= 9 })),
     ticks: ticks.map(m => ({ m, left: pct(m), label: hm(m) })), now: now >= lo && now <= hi ? pct(now) : null,
     summary: raw.map(b => `${b.label} ${b.card.clock_on}–${b.card.clock_off || 'now'}`).join(', ') };
+}
+
+// ---- the week on Home, the weeks ahead, and this week's hours ----
+const weekdayOf = weekdayOfYmd;   // 0 is Sunday
+export const mondayOf = iso => addDaysYmd(iso, -((weekdayOf(iso) + 6) % 7));
+// The seven days of the week a day is in, Monday first.
+export const weekDaysOf = today => Array.from({ length: 7 }, (_, i) => addDaysYmd(mondayOf(today), i));
+// What Home asks the schedule for: the week's days, always taking in today and tomorrow (the jobs with Start and their safety checks).
+export function homeScheduleRange(today) {
+  const monday = mondayOf(today), sunday = addDaysYmd(monday, 6), tomorrow = addDaysYmd(today, 1);
+  return { from: monday < today ? monday : today, to: sunday > tomorrow ? sunday : tomorrow };
+}
+export const SCHEDULE_AHEAD_DAYS = 27;   // My schedule shows four weeks from today
+export const byWorkDate = rows => (rows || []).reduce((m, r) => { (m[r.work_date] = m[r.work_date] || []).push(r); return m; }, {});
+export const SCHED_WORDS = { none: 'Nothing published', past: '—', more: 'See the next four weeks', sub: 'Where you’re working over the next four weeks. A day appears once it’s published.',
+  empty: 'Nothing scheduled for you yet. Days show up here when your manager publishes them.' };
+// "Same as <day>": the last day's cards copied onto today. `last` is /job-cards/open's last_card (day_cards says how many cards that day has).
+export const sameAsLabel = (last, fmtDate) => `Same as ${fmtDate(last.work_date)}${last.day_cards > 1 ? ` · ${last.day_cards} cards` : ''}`;
+export const SAME_AS = { busy: 'Copying…', needsSignal: 'Same as needs signal — or tap Add time and use that day’s times there.' };
+// What is said once a day has been copied (POST /job-cards/copy → { copied, skipped, from }). → { text, tone }
+export function copySaid(r, toDate, fmtDate) {
+  const note = `Copied ${plural(r.copied, 'card')}` + (r.skipped?.length ? `\nSkipped ${r.skipped.length}:\n${r.skipped.join('\n')}` : '');
+  return { text: `${note} from ${fmtDate(r.from)} to ${fmtDate(toDate)}`, tone: r.skipped?.length ? 'danger' : 'ok' };
+}
+// The week's hours by day as bars: each day's hours, how tall its bar is (of the tallest, never less than a day of eight hours), and where a weekday's
+// expected hours sit. → { days: [{ date, hours, height, weekday, today, future }], target } (height and target are percentages) or null with no period.
+export function weekBars(week, expected, today) {
+  const start = week?.period?.period_start;
+  if (!start) return null;
+  const hours = {};
+  for (const t of week.entries || []) hours[t.work_date] = (hours[t.work_date] || 0) + entryHours(t);
+  const days = Array.from({ length: 7 }, (_, i) => { const d = addDaysYmd(start, i); return { date: d, hours: hours[d] || 0, wd: weekdayOf(d) }; });
+  const max = Math.max(8, ...days.map(x => x.hours));
+  return { target: ((expected / 5) / max) * 100,
+    days: days.map(x => ({ date: x.date, hours: x.hours, height: x.hours > 0 ? Math.max(6, (x.hours / max) * 100) : 0, weekday: x.wd !== 0 && x.wd !== 6, today: x.date === today, future: x.date > today })) };
+}
+// This week's hours as a card: how far through the expected hours, where the week stands in a line and a pill, and what Submit says.
+// → { hours, pct, sub, pill: { tone, text } or null, foot, toSend, canSend, sendLabel, submitted }
+export function weekCard(week, { expected, fromJobs, canSubmit = true }) {
+  const hours = week ? week.total_hours : null;
+  const cards = week?.cards || [], stillOn = cards.some(c => !c.clock_off), waiting = (week?.pending || 0) > 0;
+  const wk = weekState(week), toSend = fromJobs ? [] : daysToSend(week);
+  const canSend = !!canSubmit && !!week && toSend.length > 0 && !waiting;
+  const pill = !week ? null : wk.status === 'approved' ? { tone: 'ok', text: 'Approved' }
+    : wk.status === 'submitted' ? { tone: 'info', text: `${plural(wk.submitted, 'day')} waiting for approval` }
+    : stillOn ? { tone: 'warn', text: 'Still clocked on' }
+    : waiting ? { tone: 'warn', text: 'Waiting to send from your phone' }
+    : wk.status === 'rejected' ? { tone: 'warn', text: `${plural(wk.rejected, 'day')} sent back` } : null;
+  const sub = !week ? 'Loading…' : fromJobs ? 'Paid from your approved AccurateJobs job cards' : !wk.status ? 'No time logged yet' : wk.status === 'approved' ? 'Every day approved'
+    : wk.unsent ? `${plural(wk.unsent, 'day')} not submitted yet` : wk.rejected ? 'Some days were sent back' : wk.approved ? `${plural(wk.approved, 'day')} approved, the rest waiting` : 'Waiting for approval';
+  return { hours, pct: hours == null ? 0 : Math.min(100, (hours / expected) * 100), sub, pill, toSend, canSend, submitted: wk.submitted || 0,
+    foot: canSend ? `${plural(toSend.length, 'day')} ready to submit` : fromJobs ? 'Nothing to send from here' : 'Nothing to send yet',
+    sendLabel: toSend.length === 1 ? 'Submit day' : `Submit ${toSend.length} days` };
 }
 
 // ---- the session and links ----

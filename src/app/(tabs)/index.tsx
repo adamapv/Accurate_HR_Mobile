@@ -6,9 +6,9 @@ import { useEffect, useState } from 'react';
 import { Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { can } from '@shared/access.js';
-import { findJob, onlyCostCentre, openCardState, restHoldText, timeFromJobs } from '@shared/field-core.js';
+import { copySaid, dayCards, findJob, homeScheduleRange, onlyCostCentre, openCardState, planJobCard, restHoldText, SAME_AS, sameAsLabel, timeFromJobs } from '@shared/field-core.js';
 import { finishChecks, holdText, safetyJobKeys, startButton, startGate, startStep } from '@shared/job-checks.js';
-import { applyToOpenCard, applyToRecent, describe } from '@shared/offline-queue.js';
+import { applyToOpenCard, applyToRecent, applyToWeek, describe } from '@shared/offline-queue.js';
 import { addDaysIso } from '@shared/pickers-core.js';
 import { JobRow, type SchedRow } from '@/job-row';
 import { JobSafety, type ForJobs } from '@/safety';
@@ -21,6 +21,7 @@ import { fmtDate, fmtMins, fmtTime, localNowHM, localToday, parseDay } from '@/l
 import { useTheme } from '@/theme';
 import { Avatar, Body, Button, Card, Display, Empty, Heading, Hero, List, Notice, Pill, Problem, Row, Screen, Title } from '@/ui';
 import { SafeModeCard } from '@/safe-mode';
+import { WeekHoursCard, WeekSchedule } from '@/week-parts';
 
 // The shared rules are plain JavaScript, so what these two take and give back is spelled out here.
 type Gate = { ready: boolean; held: boolean; outstanding: unknown[] };
@@ -45,7 +46,11 @@ function SignedIn({ me }: { me: Me }) {
   const open = useRead<OpenCard>('/job-cards/open');
   const queued = useOutbox();
   const day0 = localToday();
-  const sched = useRead<{ rows: SchedRow[] }>(`/schedule/mine?from=${day0}&to=${addDaysIso(day0, 1)}`);
+  // The week's days for the week strip, always taking in today and tomorrow (the jobs with Start and their safety checks).
+  const range = homeScheduleRange(day0) as { from: string; to: string };
+  const sched = useRead<{ rows: SchedRow[] }>(`/schedule/mine?from=${range.from}&to=${range.to}`);
+  const week = useRead<Record<string, unknown>>(`/timesheets/mine?date=${day0}`);
+  const [copying, setCopying] = useState(false);
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState('');
   const [, tick] = useState(0);
@@ -57,6 +62,10 @@ function SignedIn({ me }: { me: Me }) {
   const card = view.card as (NonNullable<OpenCard['card']> & { pending?: boolean }) | null;
   const clock = openCardState({ card, night: open.data?.night || null, recent: applyToRecent(open.data?.recent || [], queued), date: today, time: now });
   const failed = queued.filter(e => e.status === 'failed');
+  // This week with what is still waiting on the phone counted in.
+  const weekView = week.data ? (applyToWeek(week.data, queued, planJobCard) as Record<string, unknown>) : null;
+  const last = (open.data as { last_card?: { work_date: string; day_cards?: number } | null } | undefined)?.last_card || null;
+  const noTimeToday = !!weekView && (dayCards(weekView, today) as unknown[]).length === 0;
   // People whose job time comes from AccurateJobs do not clock on here.
   const fromJobs = timeFromJobs(me.employee, today) as boolean;
   const loaded = open.data !== undefined || !!card;
@@ -118,6 +127,20 @@ function SignedIn({ me }: { me: Me }) {
     );
   };
 
+  // Same as <day>: the last day's cards copied onto today. It needs signal (the phone cannot see what the copy would make), and then shows the day.
+  const sameAsLast = async () => {
+    setCopying(true); setProblem('');
+    try {
+      const r = await api<{ copied: number; skipped: string[]; from: string }>('/job-cards/copy', { method: 'POST', body: { to_date: today } });
+      const said = copySaid(r, today, fmtDate) as { text: string; tone: string };
+      await Promise.all([open.reload(), week.reload()]);
+      changed();
+      if (said.tone !== 'ok') setProblem(said.text);
+      if (r.copied) router.push({ pathname: '/day-review', params: { date: today } });
+    } catch (e) { setProblem(e instanceof Error ? `${e.message} ${SAME_AS.needsSignal}` : (SAME_AS.needsSignal as string)); }
+    setCopying(false);
+  };
+
   const clockOn = async () => {
     setBusy(true); setProblem('');
     const at = { work_date: localToday(), clock_on: localNowHM() };
@@ -173,6 +196,7 @@ function SignedIn({ me }: { me: Me }) {
               {clock.rest && <Notice tone="danger">{restHoldText(clock.rest, today, fmtDate) as string}</Notice>}
               <Button icon="play-circle-outline" onPress={clockOn} busy={busy} disabled={!!clock.rest}>{`Clock on · ${now}`}</Button>
               <Button kind="plain" icon="add-circle-outline" onPress={() => router.push('/job-card')} disabled={busy}>Add time</Button>
+              {last && noTimeToday && <Button kind="plain" icon="copy-outline" onPress={() => { void sameAsLast(); }} busy={copying} disabled={busy}>{sameAsLabel(last, fmtDate) as string}</Button>}
             </>
           )}
         <Problem>{problem || open.error}</Problem>
@@ -196,10 +220,19 @@ function SignedIn({ me }: { me: Me }) {
       {!sched.data ? <Body tone="muted">{sched.error || 'Loading…'}</Body>
         : sched.data.rows.filter(r => r.work_date === today).length === 0 ? <Empty icon="calendar-outline">Nothing published for you today.</Empty>
         : sched.data.rows.filter(r => r.work_date === today).map(r => jobRow(r, false))}
-      {!!sched.data && sched.data.rows.some(r => r.work_date > today) && (
+      {!!sched.data && sched.data.rows.some(r => r.work_date === addDaysIso(today, 1)) && (
         <>
           <Heading>Tomorrow</Heading>
-          {sched.data.rows.filter(r => r.work_date > today).map(r => jobRow(r, true))}
+          {sched.data.rows.filter(r => r.work_date === addDaysIso(today, 1)).map(r => jobRow(r, true))}
+        </>
+      )}
+
+      <Heading>This week’s schedule</Heading>
+      <WeekSchedule rows={sched.data?.rows} today={today} loading={!sched.data && !sched.error} />
+      {!fromJobs && (
+        <>
+          <Heading>This week’s hours</Heading>
+          <WeekHoursCard week={weekView} expected={Number(me.employee.expected_weekly_hours) || 38} fromJobs={false} today={today} onSubmit={() => router.push('/week')} />
         </>
       )}
 
