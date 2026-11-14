@@ -6,7 +6,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, View } from 'react-native';
 import { Redirect, router, useLocalSearchParams } from 'expo-router';
 import { can } from '@shared/access.js';
-import { activityAsksFirst, activityGroups, cardDefaults, cardDraft, cardProblem, dayIsMine, dayOffActivity, dayRowOf, dayOffBanner, dropSplits, findJob, hmMins, insertSplit, jobKeyOf, lastCardFill, lastCardLine, lunchHint, LUNCH_LABEL, NOTES_HINT, OFFLINE_CARD,
+import { activityAsksFirst, activityGroups, cardDefaults, cardDraft, cardProblem, costCentreOptions, dayIsMine, dayOffActivity, dayRowOf, dayOffBanner, dropSplits, findJob, goesToText, hoursToPct, pctToHours, shareName, SPLIT_WORDS, splitIsWhole, splitTotalText, hmMins, insertSplit, jobKeyOf, lastCardFill, lastCardLine, lunchHint, LUNCH_LABEL, NOTES_HINT, OFFLINE_CARD,
   onlyCostCentre, openCardHint, pastMidnightHint, planJobCard, rememberedCostCentre, runsPastMidnight, setSplitPct, soleScheduledJob, splitEvenly, usedLastHint, useLastLabel } from '@shared/field-core.js';
 import { applyToOpenCard, applyToWeek } from '@shared/offline-queue.js';
 import { useSession } from '@/lib/session';
@@ -21,7 +21,7 @@ import { Dots } from '@/dots';
 import { CostCentreField, JobField, type PickJob } from '@/job-pick';
 import { take } from '@/lib/handoff';
 import { ChooseField, WhenField, type Option } from '@/pickers';
-import { Choice, Toggle, Body, Button, Card, Field, Loading, Notice, Problem, Screen, Title } from '@/ui';
+import { Choice, Toggle, Body, Button, Card, Field, Loading, Notice, Pill, Problem, Screen, Title } from '@/ui';
 
 type Job = PickJob;
 type Split = { job_id: string; company_id: string; section_id: string; cost_centre_id: string; pct: number };
@@ -89,6 +89,7 @@ function Form({ card, open, date, start, preJob, review }: { card: CardRow | nul
   const [rows, setRows] = useState<Row[]>(() => (card?.splits?.length ? card.splits : start?.splits?.length ? start.splits : [{ pct: 100 } as Split])
     .map(s => blank({ ...s, job_id: s.job_id ?? card?.job_id ?? '', company_id: (s.job_id ?? card?.job_id) ? s.company_id || card?.company_id || '' : '' })));
   const week = useRead<Week>(`/timesheets/mine?date=${form.work_date}`);
+  const [inHours, setInHours] = useState(false);   // the shares are typed as hours, not percent
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState('');
   const [from, setFrom] = useState<string | null>(d0?.from || null);   // the day the times came from, if any
@@ -261,8 +262,16 @@ function Form({ card, open, date, start, preJob, review }: { card: CardRow | nul
             {r.remembered && <Body tone="muted">The one you used last time on this job.</Body>}
             {rows.length > 1 && (
               <>
-                <Field label={`Share (%)${plan.worked > 0 ? ` · ${fmtMins(rowMins(i))}` : ''}`} keyboardType="number-pad" value={String(r.pct)} maxLength={3}
-                  onChangeText={v => setRows(rs => setSplitPct(rs, r.key, v.replace(/\D/g, '')) as Row[])} />
+                {inHours && plan.worked > 0
+                  ? <Field label={`Hours · ${r.pct}%`} keyboardType="decimal-pad" defaultValue={String(pctToHours(r.pct, plan.worked))} key={`${r.key}-${r.pct}`} maxLength={5}
+                      onEndEditing={e => setRows(rs => setSplitPct(rs, r.key, String(hoursToPct(e.nativeEvent.text.replace(',', '.'), plan.worked))) as Row[])} />
+                  : <Field label={`Share (%)${plan.worked > 0 ? ` · ${fmtMins(rowMins(i))}` : ''}`} keyboardType="number-pad" value={String(r.pct)} maxLength={3}
+                      onChangeText={v => setRows(rs => setSplitPct(rs, r.key, v.replace(/\D/g, '')) as Row[])} />}
+                <View style={{ flexDirection: 'row', gap: 8 }}>
+                  {[-10, -5, 5, 10].map(d => (
+                    <View key={d} style={{ flex: 1 }}><Button kind="plain" onPress={() => setRows(rs => setSplitPct(rs, r.key, String(Math.max(1, Math.min(99, (Number(r.pct) || 0) + d)))) as Row[])}>{d > 0 ? `+${d}` : String(d)}</Button></View>
+                  ))}
+                </View>
                 <Button kind="plain" icon="trash-outline" onPress={() => setRows(rs => dropSplits(rs, new Set([r.key])) as Row[])}>Remove</Button>
               </>
             )}
@@ -275,7 +284,24 @@ function Form({ card, open, date, start, preJob, review }: { card: CardRow | nul
           <View style={{ flex: 1 }}><Button kind="plain" icon="add" onPress={() => setRows(rs => insertSplit(rs, rs.length, blank()) as Row[])}>Another job</Button></View>
         </View>
       )}
-      {!onActivity && rows.length > 1 && <Button kind="plain" onPress={() => setRows(rs => splitEvenly(rs) as Row[])}>Split evenly</Button>}
+      {!onActivity && rows.length > 1 && (
+        <Card>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+            <Body strong tone={splitIsWhole(rows) ? 'muted' : 'danger'}>{splitTotalText(rows) as string}</Body>
+            {plan.worked > 0 && <Pill tone="neutral">{fmtMins(plan.worked)} worked</Pill>}
+          </View>
+          <View style={{ flexDirection: 'row', gap: 10 }}>
+            <View style={{ flex: 1 }}><Button kind="plain" onPress={() => setRows(rs => splitEvenly(rs) as Row[])}>{SPLIT_WORDS.evenly as string}</Button></View>
+            {plan.worked > 0 && <View style={{ flex: 1 }}><Button kind="plain" onPress={() => setInHours(v => !v)}>{(inHours ? SPLIT_WORDS.asPercent : SPLIT_WORDS.asHours) as string}</Button></View>}
+          </View>
+          {plan.blocks.length > 0 && rows.every(r => r.cost_centre_id) && (
+            <Body tone="muted">{goesToText(plan, (i: number) => {
+              const r = rows[i], job = jobOf(r), label = (job && (costCentreOptions(job) as { value: string; label: string }[]).find(o => o.value === `${r.section_id}:${r.cost_centre_id}`)?.label) || '';
+              return shareName(label, r.job_id, new Set(rows.map(x => x.job_id)).size > 1) as string;
+            }) as string}</Body>
+          )}
+        </Card>
+      )}
 
       <Field label="Notes" value={form.notes} onChangeText={v => setForm(f => ({ ...f, notes: v }))} placeholder={NOTES_HINT} multiline />
       <Problem>{problem}</Problem>
