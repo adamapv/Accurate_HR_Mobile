@@ -3,7 +3,7 @@
 // nothing is held on a guess (only once what goes with the job has been read, for someone whose level has the Job safety area). The clock is read with the web Field view's own rules (shared/field-core.js) and written through
 // the outbox (shared/offline-queue.js), so a clock-on with no signal is kept on the phone and sent once when the signal returns.
 import { useEffect, useState } from 'react';
-import { View } from 'react-native';
+import { Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { can } from '@shared/access.js';
 import { findJob, onlyCostCentre, openCardState, restHoldText, timeFromJobs } from '@shared/field-core.js';
@@ -17,8 +17,9 @@ import type { Draft } from '@/lib/offline-core';
 import { useSession, type Me } from '@/lib/session';
 import { useRead } from '@/lib/use-read';
 import { useOutbox } from '@/lib/use-outbox';
-import { fmtDate, fmtMins, fmtTime, localNowHM, localToday } from '@/lib/dates';
-import { Avatar, Body, Button, Card, Empty, Heading, List, Notice, Pill, Problem, Row, Screen, Title } from '@/ui';
+import { fmtDate, fmtMins, fmtTime, localNowHM, localToday, parseDay } from '@/lib/dates';
+import { useTheme } from '@/theme';
+import { Avatar, Body, Button, Card, Display, Empty, Heading, Hero, List, Notice, Pill, Problem, Row, Screen, Title } from '@/ui';
 import { SafeModeCard } from '@/safe-mode';
 
 // The shared rules are plain JavaScript, so what these two take and give back is spelled out here.
@@ -40,6 +41,7 @@ export default function Home() {
 
 function SignedIn({ me }: { me: Me }) {
   const { api, offline, changed } = useSession();
+  const theme = useTheme();
   const open = useRead<OpenCard>('/job-cards/open');
   const queued = useOutbox();
   const day0 = localToday();
@@ -131,10 +133,11 @@ function SignedIn({ me }: { me: Me }) {
       <SafeModeCard />
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
         <View style={{ flex: 1 }}>
+          <Text style={{ color: theme.accent2, fontSize: 13.5, fontWeight: '800', letterSpacing: 0.8, textTransform: 'uppercase', marginBottom: 2 }}>{parseDay(today).toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long' })}</Text>
           <Title>Hi {me.employee.name.split(/\s+/)[0]}</Title>
           <Body tone="muted">{me.company.company_name}{me.access_level ? ` · ${me.access_level}` : ''}</Body>
         </View>
-        <Avatar name={me.employee.name} size={44} />
+        <Avatar name={me.employee.name} size={52} />
       </View>
       {open.offlineAt !== null && <Notice tone="warn" icon="cloud-offline-outline">{`No signal. Showing what was saved at ${fmtTime(open.offlineAt)}.`}</Notice>}
       {(seesPos || canChat) && (
@@ -145,12 +148,12 @@ function SignedIn({ me }: { me: Me }) {
         </List>
       )}
 
-      <Card>
+      <Hero tone={card && clock.sameDay ? 'ok' : 'accent'}>
         {!loaded ? <Body tone="muted">{open.error ? '' : 'Loading…'}</Body>
           : card && clock.sameDay ? (
             <>
               <Pill tone="ok">On the clock since {card.clock_on}</Pill>
-              <Title>{fmtMins(clock.elapsed)}</Title>
+              <Display>{fmtMins(clock.elapsed)}</Display>
               {!!(card.job_label || card.activity_label) && <Body tone="muted">{card.job_label || card.activity_label}</Body>}
               {card.pending && <Notice tone="info" icon="cloud-upload-outline">Saved on your phone. It’s sent when you have signal.</Notice>}
               <Button icon="stop-circle-outline" onPress={() => router.push({ pathname: '/job-card', params: { id: card.id } })}>Clock off</Button>
@@ -172,7 +175,7 @@ function SignedIn({ me }: { me: Me }) {
             </>
           )}
         <Problem>{problem || open.error}</Problem>
-      </Card>
+      </Hero>
 
       {failed.length > 0 && (
         <Card>

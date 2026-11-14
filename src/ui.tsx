@@ -40,6 +40,9 @@ const ScreenCtx = createContext<{ setTitle: (s: string) => void } | null>(null);
 const CompactCtx = createContext(false);
 // Inside a card, a card is a quieter panel and a heading a smaller one.
 const InCardCtx = createContext(false);
+// On a hero (a panel in the app's own colour) everything is drawn in white on it.
+const OnHeroCtx = createContext(false);
+const WHITE = '#FFFFFF', WHITE_SOFT = 'rgba(255,255,255,0.80)', WHITE_WASH = 'rgba(255,255,255,0.18)';
 const wordsOf = (children: ReactNode): string => typeof children === 'string' || typeof children === 'number' ? String(children) : Array.isArray(children) ? children.map(wordsOf).join('') : '';
 
 // A screen. Its content eases in; pulling it down reads everything again; and once the big title has scrolled away the title sits in a bar at the top.
@@ -63,9 +66,10 @@ export function Screen({ children, centered }: { children: ReactNode; centered?:
   };
   return (
     <SafeAreaView style={[styles.fill, { backgroundColor: t.bg }]}>
+      <Glow />
       <KeyboardAvoidingView style={styles.fill} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScreenCtx.Provider value={ctx}>
-          <Animated.ScrollView contentContainerStyle={[styles.screen, back && styles.under, centered && styles.centered]} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}
+          <Animated.ScrollView contentContainerStyle={[styles.screen, back && styles.under, centered && styles.centered, segments[0] === '(tabs)' && styles.overTabs]} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}
             scrollEventThrottle={16} onScroll={Animated.event([{ nativeEvent: { contentOffset: { y } } }], { useNativeDriver: true })}
             refreshControl={canRefresh ? <RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={t.accent2} colors={[t.accent]} progressBackgroundColor={t.surface2} progressViewOffset={back ? BAR : 0} /> : undefined}>
             <Animated.View style={[styles.content, centered && styles.centered, { opacity: enter, transform: [{ translateY: enter.interpolate({ inputRange: [0, 1], outputRange: [10, 0] }) }] }]}>{children}</Animated.View>
@@ -86,11 +90,45 @@ export function Screen({ children, centered }: { children: ReactNode; centered?:
     </SafeAreaView>
   );
 }
+// A soft light in the app's own colours behind the top of every screen. Rings of the same colour laid over each other, since nothing here can blur.
+function Glow() {
+  const t = useTheme();
+  const rings = (size: number, colour: string, style: ViewStyle) => (
+    <View pointerEvents="none" style={[styles.glow, { width: size, height: size }, style]}>
+      {Array.from({ length: 18 }, (_, i) => 1 - i / 18).map(k => <View key={k} style={{ position: 'absolute', width: size * k, height: size * k, borderRadius: size, backgroundColor: colour }} />)}
+    </View>
+  );
+  return (
+    <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+      {rings(520, wash(t.accent, 0.014), { top: -260, right: -190 })}
+      {rings(400, wash(t.tintViolet, 0.011), { top: -140, left: -220 })}
+    </View>
+  );
+}
 export function Title({ children }: { children: ReactNode }) {
   const t = useTheme();
-  const ctx = useContext(ScreenCtx), words = wordsOf(children);
-  useEffect(() => { ctx?.setTitle(words); }, [ctx, words]);
-  return <Text accessibilityRole="header" style={[styles.title, { color: t.fg }]}>{children}</Text>;
+  const ctx = useContext(ScreenCtx), words = wordsOf(children), onHero = useContext(OnHeroCtx);
+  useEffect(() => { if (!onHero) ctx?.setTitle(words); }, [ctx, words, onHero]);
+  return <Text accessibilityRole="header" style={[styles.title, { color: onHero ? WHITE : t.fg }]}>{children}</Text>;
+}
+// The one big figure on a screen (the time on the clock).
+export function Display({ children }: { children: ReactNode }) {
+  const t = useTheme();
+  return <Text style={[styles.display, { color: useContext(OnHeroCtx) ? WHITE : t.fg }]}>{children}</Text>;
+}
+// The panel that leads a screen, in the app's own colour (or green for something under way), with everything on it in white.
+export function Hero({ children, tone = 'accent' }: { children: ReactNode; tone?: 'accent' | 'ok' }) {
+  const t = useTheme();
+  const base = tone === 'ok' ? '#15803D' : t.accent;
+  return (
+    <View style={[styles.heroShadow, { shadowColor: base }]}>
+      <View style={[styles.hero, { backgroundColor: base }]}>
+        <View pointerEvents="none" style={[styles.heroBlob, { width: 260, height: 260, top: -120, right: -80, backgroundColor: 'rgba(255,255,255,0.13)' }]} />
+        <View pointerEvents="none" style={[styles.heroBlob, { width: 200, height: 200, bottom: -110, left: -60, backgroundColor: 'rgba(0,0,0,0.12)' }]} />
+        <OnHeroCtx.Provider value={true}>{children}</OnHeroCtx.Provider>
+      </View>
+    </View>
+  );
 }
 // The heading over a group of rows or cards. A button beside it is a small one.
 export function Heading({ children, right }: { children: ReactNode; right?: ReactNode }) {
@@ -105,7 +143,8 @@ export function Heading({ children, right }: { children: ReactNode; right?: Reac
 }
 export function Body({ children, tone = 'fg', strong }: { children: ReactNode; tone?: 'fg' | 'muted' | 'danger' | 'ok'; strong?: boolean }) {
   const t = useTheme();
-  return <Text style={[styles.body, strong && styles.strong, { color: t[tone] }]}>{children}</Text>;
+  const onHero = useContext(OnHeroCtx);
+  return <Text style={[styles.body, strong && styles.strong, { color: onHero ? (tone === 'muted' ? WHITE_SOFT : WHITE) : t[tone] }]}>{children}</Text>;
 }
 export function Card({ children, flush }: { children: ReactNode; flush?: boolean }) {
   const t = useTheme();
@@ -115,8 +154,8 @@ export function Card({ children, flush }: { children: ReactNode; flush?: boolean
 }
 // Where something stands, as a small coloured label.
 export function Pill({ children, tone = 'neutral' }: { children: ReactNode; tone?: Tone }) {
-  const c = toneOf(useTheme(), tone);
-  return <View style={[styles.pill, { backgroundColor: c.bg }]}><Text style={[styles.pillText, { color: c.fg }]}>{children}</Text></View>;
+  const c = toneOf(useTheme(), tone), onHero = useContext(OnHeroCtx);
+  return <View style={[styles.pill, { backgroundColor: onHero ? WHITE_WASH : c.bg }]}><Text style={[styles.pillText, { color: onHero ? WHITE : c.fg }]}>{children}</Text></View>;
 }
 // A line in a list: an icon on its own colour, what it is, a line under it, and what is on the right (a pill, a figure, or the arrow that says it opens).
 export function Row({ icon, tint = 'blue', title, sub, right, onPress, danger, last }: { icon?: IconName; tint?: Tint; title: string; sub?: string | null; right?: ReactNode; onPress?: () => void; danger?: boolean; last?: boolean }) {
@@ -124,8 +163,8 @@ export function Row({ icon, tint = 'blue', title, sub, right, onPress, danger, l
   const c = tintOf(t, tint);
   const inner = (
     <View style={styles.row}>
-      {!last && <View style={[styles.rowLine, { left: icon ? space.lg + 40 + space.md : space.lg, backgroundColor: t.line }]} />}
-      {icon && <View style={[styles.rowIcon, { backgroundColor: danger ? wash(t.danger, 0.16) : c.bg }]}><Ionicons name={icon} size={20} color={danger ? t.danger : c.fg} /></View>}
+      {!last && <View style={[styles.rowLine, { left: icon ? space.lg + 42 + space.md : space.lg, backgroundColor: t.line }]} />}
+      {icon && <View style={[styles.rowIcon, { backgroundColor: danger ? t.danger : c.fg }]}><Ionicons name={icon} size={21} color={t.bg} /></View>}
       <View style={styles.rowText}>
         <Text numberOfLines={2} style={[styles.rowTitle, { color: danger ? t.danger : t.fg }]}>{title}</Text>
         {!!sub && <Text numberOfLines={2} style={[styles.rowSub, { color: t.muted }]}>{sub}</Text>}
@@ -160,7 +199,8 @@ export function Figures({ figures }: { figures: Figure[] }) {
 }
 // Something the person should read, on its own colour: a warning, what to do next, that something was saved.
 export function Notice({ children, tone = 'info', icon }: { children: ReactNode; tone?: Tone; icon?: IconName }) {
-  const c = toneOf(useTheme(), tone);
+  const onHero = useContext(OnHeroCtx);
+  const c = onHero ? { fg: WHITE, bg: 'rgba(0,0,0,0.22)' } : toneOf(useTheme(), tone);
   const name: IconName = icon || (tone === 'ok' ? 'checkmark-circle' : tone === 'danger' ? 'alert-circle' : tone === 'warn' ? 'warning' : 'information-circle');
   return (
     <View style={[styles.notice, { backgroundColor: c.bg }]}>
@@ -197,11 +237,12 @@ export function Button({ children, onPress, kind = 'primary', busy, disabled, ic
   const t = useTheme();
   const compact = useContext(CompactCtx);
   const off = !!busy || !!disabled;
-  const fg = kind === 'primary' ? '#FFFFFF' : kind === 'danger' ? t.danger : compact ? t.accent2 : t.fg;
-  const bg = kind === 'primary' ? t.accent : kind === 'danger' ? wash(t.danger, 0.14) : compact ? wash(t.accent, 0.16) : t.surface2;
+  const onHero = useContext(OnHeroCtx);
+  const fg = onHero ? (kind === 'primary' ? t.bg : WHITE) : kind === 'primary' ? WHITE : kind === 'danger' ? t.danger : compact ? t.accent2 : t.fg;
+  const bg = onHero ? (kind === 'primary' ? WHITE : WHITE_WASH) : kind === 'primary' ? t.accent : kind === 'danger' ? wash(t.danger, 0.14) : compact ? wash(t.accent, 0.16) : t.surface2;
   return (
     <Touch accessibilityRole="button" accessibilityState={{ disabled: off, busy: !!busy }} disabled={off} onPress={() => { feel.tap(); onPress(); }}
-      style={[compact ? styles.buttonSmall : styles.button, kind !== 'primary' && !compact && styles.buttonQuiet, { backgroundColor: bg }, off && styles.dim]}>
+      style={[compact ? styles.buttonSmall : styles.button, kind !== 'primary' && !compact && styles.buttonQuiet, kind === 'primary' && !compact && !onHero && !off && [styles.buttonGlow, { shadowColor: t.accent }], { backgroundColor: bg }, off && styles.dim]}>
       {busy ? <ActivityIndicator color={fg} size={compact ? 'small' : undefined} /> : (
         <View style={styles.buttonIn}>
           {icon && <Ionicons name={icon} size={compact ? 15 : 19} color={fg} />}
@@ -268,7 +309,7 @@ export function Loading() {
 export function Avatar({ name, size = 52 }: { name: string; size?: number }) {
   const t = useTheme();
   const initials = name.split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0]?.toUpperCase()).join('');
-  return <View style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: t.accent, alignItems: 'center', justifyContent: 'center' }}><Text style={{ color: '#FFFFFF', fontSize: size * 0.38, fontWeight: '700' }}>{initials}</Text></View>;
+  return <View style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: t.accent, borderWidth: 2, borderColor: wash(t.accent2, 0.55), alignItems: 'center', justifyContent: 'center' }}><Text style={{ color: '#FFFFFF', fontSize: size * 0.38, fontWeight: '800' }}>{initials}</Text></View>;
 }
 
 const BAR = 52;
@@ -282,9 +323,16 @@ const styles = StyleSheet.create({
   content: { gap: space.lg, flexGrow: 1 },
   under: { paddingTop: BAR + space.sm },
   centered: { justifyContent: 'center' },
-  title: { fontSize: 32, fontWeight: '800', letterSpacing: -0.8, lineHeight: 38 },
+  title: { fontSize: 36, fontWeight: '900', letterSpacing: -1.1, lineHeight: 41 },
+  display: { fontSize: 60, fontWeight: '900', letterSpacing: -2.5, lineHeight: 64 },
+  glow: { position: 'absolute', alignItems: 'center', justifyContent: 'center' },
+  heroShadow: { borderRadius: 30, shadowOpacity: 0.55, shadowRadius: 22, shadowOffset: { width: 0, height: 12 }, elevation: 14 },
+  hero: { borderRadius: 30, padding: 22, gap: space.md, overflow: 'hidden' },
+  heroBlob: { position: 'absolute', borderRadius: 999 },
+  overTabs: { paddingBottom: 124 },
+  buttonGlow: { shadowOpacity: 0.5, shadowRadius: 14, shadowOffset: { width: 0, height: 6 }, elevation: 8 },
   heading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: space.md, marginTop: space.md, marginBottom: -space.xs, minHeight: 34 },
-  headingText: { flex: 1, fontSize: 19, fontWeight: '700', letterSpacing: -0.3 },
+  headingText: { flex: 1, fontSize: 22, fontWeight: '800', letterSpacing: -0.6 },
   body: { fontSize: 16, lineHeight: 23 },
   strong: { fontWeight: '600' },
   card: { borderRadius: radius.xl, borderWidth: StyleSheet.hairlineWidth, padding: space.lg, gap: space.sm },
@@ -293,19 +341,19 @@ const styles = StyleSheet.create({
   headingInText: { fontSize: 13.5, fontWeight: '700', letterSpacing: 0.2 },
   flush: { padding: 0, gap: 0, overflow: 'hidden' },
   pill: { alignSelf: 'flex-start', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 },
-  pillText: { fontSize: 12.5, fontWeight: '700' },
+  pillText: { fontSize: 12.5, fontWeight: '800', letterSpacing: 0.1 },
   list: { borderRadius: radius.xl, borderWidth: StyleSheet.hairlineWidth, overflow: 'hidden' },
   row: { flexDirection: 'row', alignItems: 'center', gap: space.md, minHeight: 64, paddingHorizontal: space.lg, paddingVertical: space.md },
   rowLine: { position: 'absolute', right: 0, bottom: 0, height: StyleSheet.hairlineWidth },
-  rowIcon: { width: 40, height: 40, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
+  rowIcon: { width: 42, height: 42, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
   rowArrow: { marginRight: -4 },
   rowText: { flex: 1, minWidth: 0 },
-  rowTitle: { fontSize: 16.5, fontWeight: '600', letterSpacing: -0.1 },
+  rowTitle: { fontSize: 17, fontWeight: '700', letterSpacing: -0.2 },
   rowSub: { fontSize: 13.5, lineHeight: 19, marginTop: 2 },
   figures: { flexDirection: 'row', flexWrap: 'wrap', gap: space.md },
   figure: { flexBasis: '46%', flexGrow: 1, borderRadius: radius.xl, borderWidth: StyleSheet.hairlineWidth, paddingHorizontal: space.lg, paddingVertical: space.lg, gap: 3 },
   figureLabel: { fontSize: 13, fontWeight: '600' },
-  figureValue: { fontSize: 26, fontWeight: '800', letterSpacing: -0.5 },
+  figureValue: { fontSize: 32, fontWeight: '900', letterSpacing: -1 },
   figureSub: { fontSize: 12.5, lineHeight: 17 },
   notice: { flexDirection: 'row', gap: space.md, borderRadius: radius.lg, paddingHorizontal: space.lg, paddingVertical: 14 },
   noticeIcon: { marginTop: 1 },
@@ -320,11 +368,11 @@ const styles = StyleSheet.create({
   choice: { flexDirection: 'row', gap: 4, padding: 4, borderRadius: radius.lg },
   choiceItem: { flex: 1, minHeight: TOUCH, borderRadius: radius.lg - 4, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6 },
   choiceText: { fontSize: 14.5, fontWeight: '700', textAlign: 'center' },
-  button: { minHeight: 54, borderRadius: 27, alignItems: 'center', justifyContent: 'center', paddingHorizontal: space.xl },
+  button: { minHeight: 58, borderRadius: 29, alignItems: 'center', justifyContent: 'center', paddingHorizontal: space.xl },
   buttonQuiet: { minHeight: 50, borderRadius: 25 },
   buttonSmall: { minHeight: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 14 },
   buttonIn: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
-  buttonText: { fontSize: 16.5, fontWeight: '700', letterSpacing: -0.1 },
+  buttonText: { fontSize: 17, fontWeight: '800', letterSpacing: -0.2 },
   buttonSmallText: { fontSize: 14, fontWeight: '700' },
   dim: { opacity: 0.5 },
 });
