@@ -42,7 +42,7 @@ const DAY_MS = 86400000;
 // A public holiday wins over the day of the week.
 export function dayType(date, holidays) {
   if (holidays && (holidays.has ? holidays.has(date) : holidays.includes(date))) return 'public_holiday';
-  const dow = new Date(`${date}T00:00:00Z`).getUTCDay();
+  const dow = weekdayOfYmd(date);
   return dow === 6 ? 'saturday' : dow === 0 ? 'sunday' : 'weekday';
 }
 
@@ -381,3 +381,6 @@ export function describeRule(rule) {
   const text = tiers.map((t, i) => i === tiers.length - 1 ? (tiers.length > 1 ? `then ${name(t)}` : `All hours at ${name(t)}`) : `${t.hours}h ${name(t)}`).join(', ');
   return rule?.window && tiers.length > 1 ? `${text} (ordinary ${rule.window.start}–${rule.window.end})` : text;
 }
+
+// The day of the week of a 'YYYY-MM-DD' date: 0 is Sunday, 6 Saturday.
+export function weekdayOfYmd(date) { return new Date(`${date}T00:00:00Z`).getUTCDay(); }
