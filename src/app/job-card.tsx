@@ -6,7 +6,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, View } from 'react-native';
 import { Redirect, router, useLocalSearchParams } from 'expo-router';
 import { can } from '@shared/access.js';
-import { activityAsksFirst, activityGroups, cardDefaults, cardDraft, cardProblem, dayOffActivity, dayOffBanner, dropSplits, findJob, hmMins, insertSplit, jobKeyOf, lastCardFill, lastCardLine, lunchHint, LUNCH_LABEL, NOTES_HINT, OFFLINE_CARD,
+import { activityAsksFirst, activityGroups, cardDefaults, cardDraft, cardProblem, dayIsMine, dayOffActivity, dayRowOf, dayOffBanner, dropSplits, findJob, hmMins, insertSplit, jobKeyOf, lastCardFill, lastCardLine, lunchHint, LUNCH_LABEL, NOTES_HINT, OFFLINE_CARD,
   onlyCostCentre, openCardHint, pastMidnightHint, planJobCard, rememberedCostCentre, runsPastMidnight, setSplitPct, soleScheduledJob, splitEvenly, usedLastHint, useLastLabel } from '@shared/field-core.js';
 import { applyToOpenCard, applyToWeek } from '@shared/offline-queue.js';
 import { useSession } from '@/lib/session';
@@ -31,7 +31,7 @@ type CardRow = { id: string; work_date: string; clock_on: string; clock_off: str
 // What Start hands over (shared/job-checks.js startStep): a clock-on to a job whose cost centre has to be chosen, or the open card moved onto another job.
 type StartInit = { kind?: 'clock-on'; id?: string; work_date: string; clock_on: string; company_id: string; job_id: string; splits: Split[] } & Partial<CardRow>;
 type Open = { card: CardRow | null; last_card: (CardRow & { splits: Split[] | null }) | null; night: { rest_hours: number; window: { start: string; end: string } } | null };
-type Week = { period: { period_start: string; period_end: string }; cards: CardRow[]; entries: { card_id: string | null; work_date: string; start_time: string; end_time: string }[]; holidays?: { date: string; name: string }[]; rdos?: { date: string; name: string }[] };
+type Week = { period: { period_start: string; period_end: string }; days?: { work_date: string; status: string }[]; cards: CardRow[]; entries: { card_id: string | null; work_date: string; start_time: string; end_time: string }[]; holidays?: { date: string; name: string }[]; rdos?: { date: string; name: string }[] };
 type Ref = { company_id: string; job_id: string; work_date?: string };
 type Banner = { strong: string; rest: string; button: string };
 type Activity = { id: string; name: string; needs_approval?: number | boolean; ask_first?: number | boolean; day_off?: string | null; leave_type_id?: string | null };
@@ -41,7 +41,8 @@ const blank = (over: Partial<Row> = {}): Row => ({ key: ++nextKey, job_id: '', c
 
 export default function JobCardScreen() {
   const { state } = useSession();
-  const { id, date, init, edit } = useLocalSearchParams<{ id?: string; date?: string; init?: string; edit?: string }>();
+  const { id, date, init, edit, job, quiet } = useLocalSearchParams<{ id?: string; date?: string; init?: string; edit?: string; job?: string; quiet?: string }>();
+  const review = !quiet;   // a finished card shows the day afterwards, unless the screen that opened it shows the day itself (?quiet=1)
   const open = useRead<Open>('/job-cards/open');
   // A finished card is found in its day's week (the Job card tab passes the date).
   const week = useRead<Week>(id && date ? `/timesheets/mine?date=${date}` : null);
@@ -50,9 +51,9 @@ export default function JobCardScreen() {
   if (open.data === undefined) return open.error ? <Screen centered><Problem>{open.error}</Problem><Button kind="plain" onPress={() => router.back()}>Back</Button></Screen> : <Loading />;
   // From Start: clock on to a job (no card yet), or the open card with another job put on it.
   const started = take<StartInit>(init);
-  if (started && !started.id) return <Form key={`start:${init}`} card={null} start={started} open={open.data} />;
-  if (started) return <Form key={`switch:${init}`} card={started as CardRow} open={open.data} />;
-  if (!id) return <Form key={`new:${date || ''}`} card={null} open={open.data} date={date} />;
+  if (started && !started.id) return <Form key={`start:${init}`} card={null} start={started} open={open.data} review={review} />;
+  if (started) return <Form key={`switch:${init}`} card={started as CardRow} open={open.data} review={review} />;
+  if (!id) return <Form key={`new:${date || ''}:${job || ''}`} card={null} open={open.data} date={date} preJob={job} review={review} />;
   // The open card as the phone sees it, with what is still waiting laid over it; else one of the day's cards the same way.
   const live = applyToOpenCard(open.data.card, queued).card as CardRow | null;
   let card = live && live.id === id ? live : null;
@@ -62,10 +63,11 @@ export default function JobCardScreen() {
   }
   if (!card) return <Redirect href="/" />;   // it was clocked off or deleted somewhere else
   // Opened to change the job or the notes while still on the clock (?edit=1): the clock off stays empty, as it does on the web.
-  return <Form key={id} card={edit && !card.clock_off ? { ...card, prefill_off: '' } : card} open={open.data} />;
+  return <Form key={id} card={edit && !card.clock_off ? { ...card, prefill_off: '' } : card} open={open.data} review={review} />;
 }
 
-function Form({ card, open, date, start }: { card: CardRow | null; open: Open; date?: string; start?: StartInit }) {
+// `preJob` ("company:job") is a job to open a new card on: a job published for the day with no time against it.
+function Form({ card, open, date, start, preJob, review }: { card: CardRow | null; open: Open; date?: string; start?: StartInit; preJob?: string; review?: boolean }) {
   const { state, offline, changed } = useSession();
   const isNew = !card;
   const finished = !!card?.clock_off;                 // a finished card being changed, not a clock-off
@@ -127,7 +129,13 @@ function Form({ card, open, date, start }: { card: CardRow | null; open: Open; d
   // A card with no job yet on a day with one job published for the person: that job, picked (once a day; clearing it stands).
   const autoPicked = useRef('');
   useEffect(() => {
-    if (onActivity || !sched.data || !jobsRead.data || rows.some(r => r.job_id) || autoPicked.current === form.work_date) return;
+    if (!preJob || !jobsRead.data || autoPicked.current) return;
+    const j = jobs.find(x => jobKeyOf(x) === preJob);
+    autoPicked.current = form.work_date;
+    if (j && !rows.some(r => r.job_id)) pickJob(rows[0].key, j);
+  }, [preJob, jobsRead.data]);
+  useEffect(() => {
+    if (preJob || onActivity || !sched.data || !jobsRead.data || rows.some(r => r.job_id) || autoPicked.current === form.work_date) return;
     const j = soleScheduledJob(sched.data.rows, form.work_date, jobs) as Job | null;
     if (!j) return;
     autoPicked.current = form.work_date;
@@ -165,11 +173,14 @@ function Form({ card, open, date, start }: { card: CardRow | null; open: Open; d
     const bad = cardProblem({ form, rows, onActivity, night: open.night, dayEntries: week.data?.entries || [], cardId: card?.id, needsApproval: askFirst ? picked!.name : null });
     if (bad) return setProblem(bad);
     setBusy(true); setProblem('');
-    const { draft } = cardDraft({ card: card || start || {}, form, rows, onActivity, firstJob: onActivity ? null : jobOf(rows[0]) || null, activityName });
+    const { draft, done } = cardDraft({ card: card || start || {}, form, rows, onActivity, firstJob: onActivity ? null : jobOf(rows[0]) || null, activityName });
     try {
       await offline.submit(draft as Draft);
       changed();
-      router.back();
+      // A finished card on a day that is still the person's own shows the day: its hours, what is missing, and Submit day.
+      const told = done as { finished: boolean; work_date: string };
+      if (review && told.finished && dayIsMine(week.data ? dayRowOf(week.data, told.work_date) : null)) router.replace({ pathname: '/day-review', params: { date: told.work_date } });
+      else router.back();
     } catch (e) { setProblem(e instanceof Error ? e.message : 'Something went wrong. Try again.'); setBusy(false); }
   };
 

@@ -1,7 +1,7 @@
 // The building blocks every screen uses, in the app's own colours and touch sizes: the screen itself (its way back and its title in a bar at the top, content
 // that eases in, pull down to read again), headings, cards, rows with an icon, pills, figures, notices, boxes to type in and buttons that give under the thumb.
 // The motion is React Native's own Animated, so nothing extra is loaded for it.
-import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { Children, createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { ActivityIndicator, Animated, Easing, KeyboardAvoidingView, Platform, Pressable, RefreshControl, StyleSheet, Switch, Text, TextInput, View, type PressableProps, type StyleProp, type TextInputProps, type ViewStyle } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useSegments } from 'expo-router';
@@ -211,7 +211,7 @@ export function Notice({ children, tone = 'info', icon }: { children: ReactNode;
   return (
     <View style={[styles.notice, { backgroundColor: c.bg }]}>
       <Ionicons name={name} size={18} color={c.fg} style={styles.noticeIcon} />
-      <View style={styles.rowText}>{typeof children === 'string' ? <Text style={[styles.noticeText, { color: c.fg }]}>{children}</Text> : children}</View>
+      <View style={styles.rowText}>{Children.map(children, ch => (typeof ch === 'string' || typeof ch === 'number' ? <Text style={[styles.noticeText, { color: c.fg }]}>{ch}</Text> : ch))}</View>
     </View>
   );
 }
