@@ -1296,6 +1296,100 @@ export const photoAction = key => key ? 'Change photo' : 'Add a photo';
 export const PHOTO_WORDS = { choose: 'Choose a photo', remove: 'Remove photo', updated: 'Photo updated', removed: 'Photo removed', failed: 'Upload failed — try again', onlyYou: 'Only you can see your photo.' };
 export const PHOTO_REMOVE_CONFIRM = { title: 'Remove your photo?', body: 'Your initials will show instead.', confirmLabel: 'Remove' };
 
+// ---- choosing a job and a cost centre on a job card ----
+// A job is known by its company and its number together (the same number can be two companies' jobs).
+export const jobKeyOf = j => j?.id ? `${j.company_id || ''}:${j.id}` : '';
+// A job as two lines: its number and name, then who it is for and where (the site is left out when it is the customer's own name).
+export const jobTitleOf = j => `#${j.id} ${j.name || ''}`.trim();
+export const jobMetaOf = j => [j.customer_name, j.site_name && j.site_name !== j.customer_name ? j.site_name : null].filter(Boolean).join(' · ');
+export const JOB_LIST_LIMIT = 200;   // rows drawn at once; searching narrows the rest
+export const JOB_WORDS = { scheduled: 'Scheduled for you', recent: 'Recent', choose: 'Choose a job…', none: 'No jobs yet — they’re copied from simPRO overnight', hint: 'Number, name, customer or site', closed: 'closed' };
+export const jobCapText = found => found.length > JOB_LIST_LIMIT ? `Showing the first ${JOB_LIST_LIMIT} of ${found.length}: type to narrow them down.` : '';
+// Jobs under their company's name when there is more than one company (a job of a company no longer listed goes last, under Other).
+export function jobGroups(list, companies) {
+  if ((companies || []).length < 2) return [{ key: 'all', title: null, list }];
+  const groups = companies.map(c => ({ key: c.id, title: c.name, list: list.filter(j => j.company_id === c.id) }));
+  const rest = list.filter(j => !companies.some(c => c.id === j.company_id));
+  return [...groups, ...(rest.length ? [{ key: 'other', title: 'Other', list: rest }] : [])].filter(g => g.list.length);
+}
+// What a search found, as the list is drawn: the jobs published for the person that day in a group of their own at the top (`scheduled` is rows of
+// /schedule/mine for the day), then the rest under their companies, capped.
+export function jobSearchGroups(found, scheduled, companies) {
+  const keys = new Set((scheduled || []).map(r => `${r.company_id || ''}:${r.job_id}`));
+  const mine = found.filter(j => keys.has(jobKeyOf(j)));
+  return [...(mine.length ? [{ key: 'sched', title: JOB_WORDS.scheduled, list: mine }] : []), ...jobGroups(found.filter(j => !keys.has(jobKeyOf(j))).slice(0, JOB_LIST_LIMIT), companies)];
+}
+// The one-tap jobs over the box: the day's published jobs, and the ones lately worked on (`recent` is /job-cards/recent's rows), leaving out the one chosen.
+export function jobShortcuts({ jobs, scheduled, recent, value }) {
+  const pick = rows => { const seen = new Set(); return (rows || []).map(r => findJob(jobs || [], r.company_id, r.job_id)).filter(j => j && jobKeyOf(j) !== value && !seen.has(jobKeyOf(j)) && seen.add(jobKeyOf(j))); };
+  const sched = pick(scheduled);
+  return { scheduled: sched, recent: pick(recent).filter(j => !sched.some(s => jobKeyOf(s) === jobKeyOf(j))) };
+}
+// The one job published for the person on a day, when there is exactly one: a card with no job yet opens on it.
+export function soleScheduledJob(schedule, date, jobs) {
+  const todays = (schedule || []).filter(r => r.work_date === date && r.job_id);
+  return todays.length === 1 ? findJob(jobs || [], todays[0].company_id, todays[0].job_id) || null : null;
+}
+// A job's cost centres as the list is drawn. `starKeys` are this person's stars on this job ("section:cost centre"). The starred ones come first under a
+// heading of their own; then each section (named when there is more than one). → { groups: [{ key, title, rows }], mine: the starred rows }
+// A row is { key, title, meta, text (what a search reads), section_id, cost_centre_id, section_name, disabled? }.
+export const CC_WORDS = { starred: 'Your starred cost centres', all: 'All cost centres', none: 'No cost centres in this section', chips: 'Starred:', choose: 'Choose a cost centre…', title: 'Choose a cost centre', hint: 'Section or cost centre',
+  empty: 'This job has no cost centres', star: 'Star', unstar: 'Take the star off' };
+export function costCentreGroups(sections, starKeys) {
+  const list = sections || [], several = list.length > 1, on = new Set(starKeys || []);
+  const rowOf = (s, c) => ({ key: `${s.id}:${c.id}`, title: c.name, meta: several ? s.name : null, text: `${s.name} ${c.name}`, section_id: s.id, cost_centre_id: c.id, section_name: s.name });
+  const mine = list.flatMap(s => (s.cost_centres || []).filter(c => on.has(`${s.id}:${c.id}`)).map(c => rowOf(s, c)));
+  const rest = list.map(s => {
+    const left = (s.cost_centres || []).filter(c => !on.has(`${s.id}:${c.id}`));
+    return { key: s.id, title: several ? s.name : mine.length ? CC_WORDS.all : null,
+      rows: left.length ? left.map(c => ({ ...rowOf(s, c), meta: null })) : s.cost_centres?.length ? [] : [{ key: `${s.id}:`, title: CC_WORDS.none, text: s.name, disabled: true }] };
+  });
+  return { mine, groups: mine.length ? [{ key: 'star', title: CC_WORDS.starred, rows: mine }, ...rest] : rest };
+}
+export const costCentreLabel = sections => (sections || []).length > 1 ? 'Section and cost centre' : 'Cost centre';
+// A starred cost centre as a one-tap button: two of one name (the same trade under two stages) say which section they are in. Six at most are offered.
+export const STARRED_CC_MAX = 6;
+export const costCentreChipName = (r, mine) => mine.filter(m => m.title === r.title).length > 1 ? `${r.section_name} · ${r.title}` : r.title;
+// A person's stars (GET /cost-centres/favourites → rows: [{ company_id, job_id, section_id, cost_centre_id }]): the ones on a job, a list with one put on
+// or taken off, what is sent, and what is said when it could not be saved.
+const sameStar = (a, b) => a.company_id === b.company_id && a.job_id === b.job_id && a.section_id === b.section_id && a.cost_centre_id === b.cost_centre_id;
+export const starKeysFor = (rows, job) => job?.id ? (rows || []).filter(r => r.company_id === job.company_id && r.job_id === job.id).map(r => `${r.section_id}:${r.cost_centre_id}`) : [];
+export const starRow = (job, sectionId, costCentreId) => ({ company_id: job.company_id, job_id: job.id, section_id: sectionId, cost_centre_id: costCentreId });
+export const starPut = (rows, row, on) => on ? [...(rows || []).filter(r => !sameStar(r, row)), row] : (rows || []).filter(r => !sameStar(r, row));
+export const starDraft = (row, on) => ({ ...row, favourite: on });
+export const starFailed = (on, why) => `Couldn’t ${on ? 'star' : 'take the star off'} that cost centre — ${why}`;
+
+// ---- what a job card says about the day ----
+// A public holiday or an RDO: every day is logged, so the card says which it is, and one tap logs the day as that activity (`activity` is the company's
+// own for it, when the list has one; no button when it is the one already chosen).
+export function dayOffBanner(kind, day, activity, chosenId) {
+  const holiday = kind === 'holiday';
+  return { kind, strong: holiday ? `${day.name}: a public holiday.` : `${day.name}: an RDO for you.`,
+    rest: holiday ? ' Log the day as the public holiday, or the hours you worked (they go at the public holiday rate).' : ' Log the day as your RDO, or the hours you worked if you were put on a job.',
+    button: activity && activity.id !== chosenId ? (holiday ? 'Log as public holiday' : 'Log as RDO') : '', activityId: activity?.id || '' };
+}
+export const dayOffActivity = (activities, kind) => (activities || []).find(a => a.day_off === kind) || null;
+// Under the times: a card left open, a shift that runs past midnight, and where lunch falls.
+export const openCardHint = clockingOn => clockingOn ? 'Leave clock off empty to clock on now — you clock off when you finish.' : 'Still on the clock — leave clock off empty until you finish.';
+export const pastMidnightHint = night => night ? 'Finishes the next day: a night shift. Its time after midnight goes on the next date.' : 'A shift can’t run past midnight.';
+export const LUNCH_LABEL = '30 min lunch (unpaid)';
+export const lunchHint = ({ planned, dayMins, lunch, manual }) => planned ? planned : dayMins && lunch ? 'only fits a day over 4 hours' : manual ? '3.5 hours after start' : '3.5 hours after clock on';
+export const lunchTooShort = dayMins => !!dayMins && dayMins <= LUNCH_AFTER + LUNCH_MINS;
+export const NOTES_HINT = 'Shows on the schedule in simPRO';
+export const OFFLINE_CARD = { noSignal: 'No signal — this is saved on your phone and sent when you’re back in range.', waiting: 'This card is still waiting to be sent from your phone; the change goes with it.' };
+// "Use <day>'s times": the last day's card as one line, what the button says, and what it puts in the form (times, lunch, and its job with its shares or
+// its activity). `jobs` is the job list, for the sole cost centre of a job that had none kept.
+export const lastCardLine = l => l ? [`${l.clock_on}–${l.clock_off}`, l.job_label || l.activity_label || 'no job', l.lunch ? 'lunch' : null].filter(Boolean).join(' · ') : '';
+export const useLastLabel = (l, fmtDate) => `Use ${fmtDate(l.work_date)}’s times`;
+export const usedLastHint = (from, fmtDate) => `Start, finish and lunch are from ${fmtDate(from)} — change them if today was different`;
+export function lastCardFill(l, jobs) {
+  const d = cardDefaults(l);
+  const splits = l.activity_id ? [] : l.splits?.length ? l.splits
+    : l.job_id ? [{ job_id: l.job_id, company_id: l.company_id, pct: 100, ...(onlyCostCentre(findJob(jobs || [], l.company_id, l.job_id)) || { section_id: '', cost_centre_id: '' }) }] : [];
+  return { kind: l.activity_id ? 'activity' : 'job', clock_on: d.clock_on, clock_off: d.clock_off, lunch: d.lunch, activity_id: l.activity_id || '', from: l.work_date,
+    splits: splits.map(sp => ({ section_id: '', cost_centre_id: '', ...sp })) };
+}
+
 // ---- the session and links ----
 // The session's fingerprint: the first 8 bytes of SHA-256 over "Bearer <session id>", as 16 hex characters. Everything kept on a device for one session (the outbox,
 // the offline copies) is tagged with it, and the service worker keys its copies with the same value, so one person's never show for the next. '' with no session.

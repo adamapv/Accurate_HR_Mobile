@@ -10,7 +10,7 @@
     "typecheck": "tsc --noEmit",
     "sync:shared": "node scripts/sync-shared.mjs",
     "check:shared": "node scripts/check-shared.mjs",
-    "test": "node --no-warnings scripts/test-shared.mjs && node --no-warnings scripts/test-api.mjs && node --no-warnings scripts/test-offline.mjs && node --no-warnings scripts/test-rich.mjs && node --no-warnings scripts/test-lock.mjs && node --no-warnings scripts/test-clock-notice.mjs",
+    "test": "node --no-warnings scripts/test-shared.mjs && node --no-warnings scripts/test-api.mjs && node --no-warnings scripts/test-offline.mjs && node --no-warnings scripts/test-rich.mjs && node --no-warnings scripts/test-lock.mjs && node --no-warnings scripts/test-flip.mjs && node --no-warnings scripts/test-clock-notice.mjs",
     "check": "npm run check:shared && npm run typecheck && npm test"
   },
   "dependencies": {
