@@ -48,6 +48,9 @@ const wordsOf = (children: ReactNode): string => typeof children === 'string' ||
 
 // A screen. Its content eases in; pulling it down reads everything again; and once the big title has scrolled away the title sits in a bar at the top.
 // One opened over the tabs has its way back in that bar; `centered` is for the few that say one thing (signed out, sent, saved).
+// Room a tab's screen leaves at the bottom beyond the tab bar itself (the strip that shows while on the clock sets it).
+let tabsExtra = 0;
+export function setTabsExtra(n: number) { tabsExtra = n; }
 export function Screen({ children, centered }: { children: ReactNode; centered?: boolean }) {
   const t = useTheme();
   const session = useSessionMaybe();
@@ -70,7 +73,7 @@ export function Screen({ children, centered }: { children: ReactNode; centered?:
       <Glow />
       <KeyboardAvoidingView style={styles.fill} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScreenCtx.Provider value={ctx}>
-          <Animated.ScrollView contentContainerStyle={[styles.screen, back && styles.under, centered && styles.centered, segments[0] === '(tabs)' && styles.overTabs]} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}
+          <Animated.ScrollView contentContainerStyle={[styles.screen, back && styles.under, centered && styles.centered, segments[0] === '(tabs)' && styles.overTabs, segments[0] === '(tabs)' && tabsExtra > 0 && { paddingBottom: 124 + tabsExtra }]} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}
             scrollEventThrottle={16} onScroll={Animated.event([{ nativeEvent: { contentOffset: { y } } }], { useNativeDriver: true })}
             refreshControl={canRefresh ? <RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={t.accent2} colors={[t.accent]} progressBackgroundColor={t.surface2} progressViewOffset={back ? BAR : 0} /> : undefined}>
             <Animated.View style={[styles.content, centered && styles.centered, { opacity: enter, transform: [{ translateY: enter.interpolate({ inputRange: [0, 1], outputRange: [10, 0] }) }] }]}>{children}</Animated.View>
