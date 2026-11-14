@@ -30,7 +30,7 @@ async function ask(prompt: string): Promise<{ ok: boolean; problem: string }> {
 export function LockProvider({ children }: { children: ReactNode }) {
   const { state, signOut } = useSession();
   const t = useTheme();
-  const [available, setAvailable] = useState(false);
+  const [available, setAvailable] = useState(!SAFE_MODE);   // taken to be possible until the phone says otherwise; never in safe mode
   const [on, setOnState] = useState(false);
   const [locked, setLocked] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -44,11 +44,13 @@ export function LockProvider({ children }: { children: ReactNode }) {
     if (SAFE_MODE) return;
     let live = true;
     void (async () => {
-      let hardware = false, level = 0, kept: string | null = null;
-      try {
-        const la = native();
-        [hardware, level, kept] = await Promise.all([la.hasHardwareAsync().catch(() => false), la.getEnrolledLevelAsync().catch(() => 0), SecureStore.getItemAsync(LOCK_KEY).catch(() => null)]);
-      } catch { /* this phone cannot lock the app */ }
+      // Someone who has never switched the lock on never touches the phone's unlock at all when the app opens.
+      const kept = await SecureStore.getItemAsync(LOCK_KEY).catch(() => null);
+      let hardware = true, level = 1;
+      if (kept === '1') {
+        try { const la = native(); [hardware, level] = await Promise.all([la.hasHardwareAsync().catch(() => false), la.getEnrolledLevelAsync().catch(() => 0)]); }
+        catch { hardware = false; level = 0; /* this phone cannot lock the app */ }
+      }
       if (!live) return;
       const can = lockAvailable({ hardware, level: Number(level) });
       onRef.current = can && kept === '1'; ready.current = true;
@@ -99,6 +101,11 @@ export function LockProvider({ children }: { children: ReactNode }) {
     // Switching it on asks once first, so nobody is locked out by a lock that cannot be opened.
     async setOn(next) {
       if (next) {
+        // Whether this phone has a way of its own to unlock is asked now, the first time it matters.
+        let can = false;
+        try { const la = native(); const [hardware, level] = await Promise.all([la.hasHardwareAsync().catch(() => false), la.getEnrolledLevelAsync().catch(() => 0)]); can = lockAvailable({ hardware, level: Number(level) }); }
+        catch { can = false; }
+        if (!can) { setAvailable(false); throw new Error(LOCK_WORDS.rowNone); }
         const r = await ask(LOCK_WORDS.turnOn);
         if (!r.ok) { if (r.problem) throw new Error(r.problem); return ''; }
         await SecureStore.setItemAsync(LOCK_KEY, '1');
