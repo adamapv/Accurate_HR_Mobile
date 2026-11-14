@@ -33,7 +33,7 @@ export default function TabsLayout() {
   if (state.me.employee.must_change_pin) return <Redirect href="/change-pin" />;
   // The tab someone is on has its icon filled, on a soft pill of the app's colour; the others are outlines.
   const icon = (name: string) => ({ color, focused }: { color: ColorValue; size: number; focused: boolean }) => (
-    <View style={{ width: 56, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center', backgroundColor: focused ? 'rgba(84,104,255,0.18)' : 'transparent' }}>
+    <View style={{ width: 56, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center', backgroundColor: focused ? 'rgba(84,104,255,0.26)' : 'transparent' }}>
       <Ionicons name={(focused ? name : `${name}-outline`) as keyof typeof Ionicons.glyphMap} color={typeof color === 'string' ? color : undefined} size={22} />
     </View>
   );
@@ -41,7 +41,7 @@ export default function TabsLayout() {
     <>
     {!SAFE_MODE && <ClockNotice />}
     {!SAFE_MODE && <PushTaps />}
-    <Tabs screenListeners={{ tabPress: () => feel.pick() }} screenOptions={{ headerShown: false, tabBarActiveTintColor: t.accent2, tabBarInactiveTintColor: t.muted, tabBarStyle: { backgroundColor: t.topbar, borderTopColor: t.line2, borderTopWidth: StyleSheet.hairlineWidth, height: 64 + insets.bottom, paddingTop: 8, elevation: 0 }, tabBarLabelStyle: { fontSize: 11, fontWeight: '700', marginTop: 4 }, tabBarHideOnKeyboard: true, animation: 'fade', sceneStyle: { backgroundColor: t.bg } }}>
+    <Tabs screenListeners={{ tabPress: () => feel.pick() }} screenOptions={{ headerShown: false, tabBarActiveTintColor: t.accent2, tabBarInactiveTintColor: t.muted, tabBarStyle: { position: 'absolute', marginHorizontal: 14, bottom: Math.max(insets.bottom, 10) + 4, height: 74, paddingTop: 8, paddingBottom: 12, borderRadius: 37, backgroundColor: '#161625', borderTopWidth: StyleSheet.hairlineWidth, borderWidth: StyleSheet.hairlineWidth, borderColor: t.line, borderTopColor: t.line, shadowColor: '#000000', shadowOpacity: 0.5, shadowRadius: 18, shadowOffset: { width: 0, height: 10 }, elevation: 18 }, tabBarLabelStyle: { fontSize: 11, fontWeight: '800', marginTop: 2, lineHeight: 14 }, tabBarItemStyle: { paddingVertical: 0, height: 54 }, tabBarIconStyle: { height: 30, marginTop: 0 }, tabBarLabelPosition: 'below-icon', tabBarHideOnKeyboard: true, animation: 'fade', sceneStyle: { backgroundColor: t.bg } }}>
       <Tabs.Screen name="index" options={{ title: 'Home', tabBarIcon: icon('home'), tabBarBadge: failed || undefined }} />
       <Tabs.Screen name="day" options={{ title: 'Job card', tabBarIcon: icon('time') }} />
       <Tabs.Screen name="safety" options={{ title: 'Safety', tabBarIcon: icon('shield-checkmark') }} />
