@@ -7,7 +7,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { contactStep, crewLine, ringStep, schedRowTitle, showAddress } from '@shared/field-core.js';
 import { useSession } from '@/lib/session';
 import { useTheme } from '@/theme';
-import { Body, Card, Notice, Pill, type IconName } from '@/ui';
+import { Body, Card, Notice, Pill, Touch, type IconName } from '@/ui';
 
 export type SchedRow = {
   work_date: string; company_id: string; job_id: string; job_name: string | null; activity: boolean; customer_name: string | null; site_name: string | null;
@@ -82,10 +82,10 @@ function Line({ icon, children }: { icon: IconName; children: React.ReactNode })
 function Chip({ icon, label, full, busy, onPress }: { icon: IconName; label: string; full?: string; busy: boolean; onPress: () => void }) {
   const t = useTheme();
   return (
-    <Pressable accessibilityRole="button" accessibilityLabel={full || label} accessibilityState={{ busy }} disabled={busy} onPress={onPress}
-      style={({ pressed }) => ({ flex: 1, minHeight: 56, borderRadius: 12, borderWidth: 1, borderColor: t.line, backgroundColor: t.surface2, alignItems: 'center', justifyContent: 'center', gap: 3, opacity: pressed || busy ? 0.6 : 1 })}>
-      {busy ? <ActivityIndicator color={t.accent2} /> : <Ionicons name={icon} size={19} color={t.accent2} />}
+    <Touch accessibilityRole="button" accessibilityLabel={full || label} accessibilityState={{ busy }} disabled={busy} onPress={onPress} outer={{ flex: 1 }}
+      style={{ minHeight: 60, borderRadius: 18, backgroundColor: t.surface2, alignItems: 'center', justifyContent: 'center', gap: 4, opacity: busy ? 0.6 : 1 }}>
+      {busy ? <ActivityIndicator color={t.accent2} /> : <Ionicons name={icon} size={20} color={t.accent2} />}
       <Text style={{ color: t.fg, fontSize: 12.5, fontWeight: '600' }}>{label}</Text>
-    </Pressable>
+    </Touch>
   );
 }

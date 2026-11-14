@@ -1,12 +1,14 @@
-// The building blocks every screen uses, in the app's own colours and touch sizes: the screen itself (with its way back), headings, cards, rows with an icon, pills,
-// figures, notices, boxes to type in and buttons.
-import { useEffect, type ReactNode } from 'react';
-import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View, type TextInputProps } from 'react-native';
+// The building blocks every screen uses, in the app's own colours and touch sizes: the screen itself (its way back and its title in a bar at the top, content
+// that eases in, pull down to read again), headings, cards, rows with an icon, pills, figures, notices, boxes to type in and buttons that give under the thumb.
+// The motion is React Native's own Animated, so nothing extra is loaded for it.
+import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { ActivityIndicator, Animated, Easing, KeyboardAvoidingView, Platform, Pressable, RefreshControl, StyleSheet, Switch, Text, TextInput, View, type PressableProps, type StyleProp, type TextInputProps, type ViewStyle } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useSegments } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { radius, space, TOUCH, useTheme } from '@/theme';
 import { feel } from '@/lib/haptics';
+import { useSessionMaybe } from '@/lib/session';
 
 export type IconName = keyof typeof Ionicons.glyphMap;
 export type Tone = 'ok' | 'warn' | 'danger' | 'info' | 'neutral';
@@ -22,38 +24,82 @@ const TINTS: Record<Tint, keyof Theme> = { blue: 'tintBlue', amber: 'tintAmber',
 const tintOf = (t: Theme, tint: Tint) => { const fg = t[TINTS[tint]] as string; return { fg, bg: wash(fg, 0.16) }; };
 const toneOf = (t: Theme, tone: Tone) => { const fg = tone === 'ok' ? t.ok : tone === 'warn' ? t.warn : tone === 'danger' ? t.danger : tone === 'info' ? t.accent2 : t.muted; return { fg, bg: wash(fg, tone === 'neutral' ? 0.14 : 0.16) }; };
 
-// A screen. One opened over the tabs has its way back at the top; `centered` is for the few that say one thing (signed out, sent, saved).
+// Something that can be pressed gives a little under the thumb: it shrinks a touch while held and springs back.
+export function Touch({ children, onPress, disabled, style, outer, scale = 0.97, ...rest }: { children: ReactNode; onPress: () => void; disabled?: boolean; style?: StyleProp<ViewStyle>; outer?: StyleProp<ViewStyle>; scale?: number } & Pick<PressableProps, 'accessibilityRole' | 'accessibilityLabel' | 'accessibilityState' | 'hitSlop'>) {
+  const v = useRef(new Animated.Value(1)).current;
+  const to = (x: number) => Animated.spring(v, { toValue: x, useNativeDriver: true, speed: 50, bounciness: 0 }).start();
+  return (
+    <Pressable {...rest} disabled={disabled} onPress={onPress} onPressIn={() => to(scale)} onPressOut={() => to(1)} style={outer}>
+      <Animated.View style={[style, { transform: [{ scale: v }] }]}>{children}</Animated.View>
+    </Pressable>
+  );
+}
+
+// What a screen tells its own top bar (its title, shown there once the big one has scrolled away) and its buttons (one in a heading is a small one).
+const ScreenCtx = createContext<{ setTitle: (s: string) => void } | null>(null);
+const CompactCtx = createContext(false);
+// Inside a card, a card is a quieter panel and a heading a smaller one.
+const InCardCtx = createContext(false);
+const wordsOf = (children: ReactNode): string => typeof children === 'string' || typeof children === 'number' ? String(children) : Array.isArray(children) ? children.map(wordsOf).join('') : '';
+
+// A screen. Its content eases in; pulling it down reads everything again; and once the big title has scrolled away the title sits in a bar at the top.
+// One opened over the tabs has its way back in that bar; `centered` is for the few that say one thing (signed out, sent, saved).
 export function Screen({ children, centered }: { children: ReactNode; centered?: boolean }) {
   const t = useTheme();
+  const session = useSessionMaybe();
   const segments = useSegments() as string[];
   const back = !centered && segments[0] !== '(tabs)' && segments[0] !== 'sign-in' && router.canGoBack();
+  const [title, setTitle] = useState('');
+  const [refreshing, setRefreshing] = useState(false);
+  const y = useRef(new Animated.Value(0)).current, enter = useRef(new Animated.Value(0)).current;
+  useEffect(() => { Animated.timing(enter, { toValue: 1, duration: 240, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start(); }, [enter]);
+  const ctx = useMemo(() => ({ setTitle }), []);
+  const shown = y.interpolate({ inputRange: [24, 56], outputRange: [0, 1], extrapolate: 'clamp' });
+  const canRefresh = !centered && session?.state.status === 'signedIn';
+  const refresh = () => {
+    if (!session) return;
+    setRefreshing(true); session.changed(true);
+    setTimeout(() => setRefreshing(false), 700);
+  };
   return (
     <SafeAreaView style={[styles.fill, { backgroundColor: t.bg }]}>
       <KeyboardAvoidingView style={styles.fill} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        {back && (
-          <View style={styles.bar}>
-            <Pressable accessibilityRole="button" accessibilityLabel="Back" hitSlop={8} onPress={() => router.back()} style={({ pressed }) => [styles.back, pressed && styles.dim]}>
-              <Ionicons name="chevron-back" size={22} color={t.accent2} />
-              <Text style={[styles.backText, { color: t.accent2 }]}>Back</Text>
-            </Pressable>
+        <ScreenCtx.Provider value={ctx}>
+          <Animated.ScrollView contentContainerStyle={[styles.screen, back && styles.under, centered && styles.centered]} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}
+            scrollEventThrottle={16} onScroll={Animated.event([{ nativeEvent: { contentOffset: { y } } }], { useNativeDriver: true })}
+            refreshControl={canRefresh ? <RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={t.accent2} colors={[t.accent]} progressBackgroundColor={t.surface2} progressViewOffset={back ? BAR : 0} /> : undefined}>
+            <Animated.View style={[styles.content, centered && styles.centered, { opacity: enter, transform: [{ translateY: enter.interpolate({ inputRange: [0, 1], outputRange: [10, 0] }) }] }]}>{children}</Animated.View>
+          </Animated.ScrollView>
+        </ScreenCtx.Provider>
+        {!centered && (
+          <View pointerEvents="box-none" style={styles.bar}>
+            <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: t.topbar, borderBottomColor: t.line, borderBottomWidth: StyleSheet.hairlineWidth, opacity: shown }]} />
+            {back && (
+              <Touch accessibilityRole="button" accessibilityLabel="Back" hitSlop={10} scale={0.9} onPress={() => { feel.pick(); router.back(); }} outer={styles.backAt} style={[styles.back, { backgroundColor: t.surface2 }]}>
+                <Ionicons name="chevron-back" size={22} color={t.fg} />
+              </Touch>
+            )}
+            <Animated.Text numberOfLines={1} style={[styles.barTitle, { color: t.fg, opacity: shown }]}>{title}</Animated.Text>
           </View>
         )}
-        <ScrollView contentContainerStyle={[styles.screen, back && styles.under, centered && styles.centered]} keyboardShouldPersistTaps="handled">{children}</ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
 export function Title({ children }: { children: ReactNode }) {
   const t = useTheme();
+  const ctx = useContext(ScreenCtx), words = wordsOf(children);
+  useEffect(() => { ctx?.setTitle(words); }, [ctx, words]);
   return <Text accessibilityRole="header" style={[styles.title, { color: t.fg }]}>{children}</Text>;
 }
-// The small heading over a group of rows or cards.
+// The heading over a group of rows or cards. A button beside it is a small one.
 export function Heading({ children, right }: { children: ReactNode; right?: ReactNode }) {
   const t = useTheme();
+  const inCard = useContext(InCardCtx);
   return (
-    <View style={styles.heading}>
-      <Text accessibilityRole="header" style={[styles.headingText, { color: t.dim }]}>{children}</Text>
-      {right}
+    <View style={[styles.heading, inCard && styles.headingIn]}>
+      <Text accessibilityRole="header" style={[styles.headingText, inCard && styles.headingInText, { color: inCard ? t.muted : t.fg }]}>{children}</Text>
+      {!!right && <CompactCtx.Provider value={true}>{right}</CompactCtx.Provider>}
     </View>
   );
 }
@@ -63,7 +109,9 @@ export function Body({ children, tone = 'fg', strong }: { children: ReactNode; t
 }
 export function Card({ children, flush }: { children: ReactNode; flush?: boolean }) {
   const t = useTheme();
-  return <View style={[styles.card, flush && styles.flush, { backgroundColor: t.surface, borderColor: t.line }]}>{children}</View>;
+  const inCard = useContext(InCardCtx);
+  if (inCard) return <View style={[styles.cardIn, flush && styles.flush, { backgroundColor: t.surface2 }]}>{children}</View>;
+  return <InCardCtx.Provider value={true}><View style={[styles.card, flush && styles.flush, { backgroundColor: t.surface, borderColor: t.line2 }]}>{children}</View></InCardCtx.Provider>;
 }
 // Where something stands, as a small coloured label.
 export function Pill({ children, tone = 'neutral' }: { children: ReactNode; tone?: Tone }) {
@@ -75,14 +123,15 @@ export function Row({ icon, tint = 'blue', title, sub, right, onPress, danger, l
   const t = useTheme();
   const c = tintOf(t, tint);
   const inner = (
-    <View style={[styles.row, !last && { borderBottomColor: t.line2, borderBottomWidth: StyleSheet.hairlineWidth }]}>
-      {icon && <View style={[styles.rowIcon, { backgroundColor: danger ? wash(t.danger, 0.16) : c.bg }]}><Ionicons name={icon} size={18} color={danger ? t.danger : c.fg} /></View>}
+    <View style={styles.row}>
+      {!last && <View style={[styles.rowLine, { left: icon ? space.lg + 40 + space.md : space.lg, backgroundColor: t.line }]} />}
+      {icon && <View style={[styles.rowIcon, { backgroundColor: danger ? wash(t.danger, 0.16) : c.bg }]}><Ionicons name={icon} size={20} color={danger ? t.danger : c.fg} /></View>}
       <View style={styles.rowText}>
         <Text numberOfLines={2} style={[styles.rowTitle, { color: danger ? t.danger : t.fg }]}>{title}</Text>
         {!!sub && <Text numberOfLines={2} style={[styles.rowSub, { color: t.muted }]}>{sub}</Text>}
       </View>
       {right}
-      {onPress && <Ionicons name="chevron-forward" size={18} color={t.dim} />}
+      {onPress && <Ionicons name="chevron-forward" size={17} color={t.dim} style={styles.rowArrow} />}
     </View>
   );
   if (!onPress) return inner;
@@ -91,7 +140,7 @@ export function Row({ icon, tint = 'blue', title, sub, right, onPress, danger, l
 // Rows kept together in one card.
 export function List({ children }: { children: ReactNode }) {
   const t = useTheme();
-  return <View style={[styles.list, { backgroundColor: t.surface, borderColor: t.line }]}>{children}</View>;
+  return <View style={[styles.list, { backgroundColor: t.surface, borderColor: t.line2 }]}>{children}</View>;
 }
 // A row of figures: what it counts, the figure, and a line under it.
 export type Figure = { key: string; label: string; value: string | number; sub?: string; tone?: 'warn' | 'ok' | 'danger' };
@@ -100,7 +149,7 @@ export function Figures({ figures }: { figures: Figure[] }) {
   return (
     <View style={styles.figures}>
       {figures.map(f => (
-        <View key={f.key} style={[styles.figure, { backgroundColor: t.surface, borderColor: t.line }]}>
+        <View key={f.key} style={[styles.figure, { backgroundColor: t.surface, borderColor: t.line2 }]}>
           <Text numberOfLines={1} style={[styles.figureLabel, { color: t.muted }]}>{f.label}</Text>
           <Text numberOfLines={1} style={[styles.figureValue, { color: f.tone === 'warn' ? t.warn : f.tone === 'danger' ? t.danger : f.tone === 'ok' ? t.ok : t.fg }]}>{String(f.value)}</Text>
           {!!f.sub && <Text numberOfLines={2} style={[styles.figureSub, { color: t.dim }]}>{f.sub}</Text>}
@@ -125,42 +174,48 @@ export function Empty({ children, icon = 'file-tray-outline' }: { children: Reac
   const t = useTheme();
   return (
     <View style={styles.empty}>
-      <View style={[styles.emptyIcon, { backgroundColor: t.surface2 }]}><Ionicons name={icon} size={22} color={t.dim} /></View>
+      <View style={[styles.emptyIcon, { backgroundColor: t.surface }]}><Ionicons name={icon} size={28} color={t.dim} /></View>
       <Text style={[styles.emptyText, { color: t.muted }]}>{children}</Text>
     </View>
   );
 }
+// A box to type in. It lights up in the app's colour while it is being typed in.
 export function Field({ label, ...input }: { label: string } & TextInputProps) {
   const t = useTheme();
+  const [focused, setFocused] = useState(false);
   return (
     <View style={styles.field}>
-      <Text style={[styles.label, { color: t.muted }]}>{label}</Text>
-      <TextInput accessibilityLabel={label} placeholderTextColor={t.dim} {...input}
-        style={[styles.input, input.multiline && styles.multiline, { color: t.fg, backgroundColor: t.surface2, borderColor: t.line }]} />
+      <Text style={[styles.label, { color: focused ? t.accent2 : t.muted }]}>{label}</Text>
+      <TextInput accessibilityLabel={label} placeholderTextColor={t.dim} selectionColor={t.accent2} {...input}
+        onFocus={e => { setFocused(true); input.onFocus?.(e); }} onBlur={e => { setFocused(false); input.onBlur?.(e); }}
+        style={[styles.input, input.multiline && styles.multiline, { color: t.fg, backgroundColor: t.surface2, borderColor: focused ? t.accent : 'transparent' }]} />
     </View>
   );
 }
+// A button. The main one is filled in the app's colour; a plain one is quieter; one beside a heading is a small one.
 export function Button({ children, onPress, kind = 'primary', busy, disabled, icon }: { children: string; onPress: () => void; kind?: 'primary' | 'plain' | 'danger'; busy?: boolean; disabled?: boolean; icon?: IconName }) {
   const t = useTheme();
+  const compact = useContext(CompactCtx);
   const off = !!busy || !!disabled;
-  const fg = kind === 'primary' ? '#FFFFFF' : kind === 'danger' ? t.danger : t.fg;
+  const fg = kind === 'primary' ? '#FFFFFF' : kind === 'danger' ? t.danger : compact ? t.accent2 : t.fg;
+  const bg = kind === 'primary' ? t.accent : kind === 'danger' ? wash(t.danger, 0.14) : compact ? wash(t.accent, 0.16) : t.surface2;
   return (
-    <Pressable accessibilityRole="button" accessibilityState={{ disabled: off, busy: !!busy }} disabled={off} onPress={() => { feel.tap(); onPress(); }}
-      style={({ pressed }) => [styles.button, kind === 'primary' ? { backgroundColor: t.accent } : { backgroundColor: t.surface2, borderColor: kind === 'danger' ? wash(t.danger, 0.4) : t.line, borderWidth: 1 }, (pressed || off) && styles.dim]}>
-      {busy ? <ActivityIndicator color={fg} /> : (
+    <Touch accessibilityRole="button" accessibilityState={{ disabled: off, busy: !!busy }} disabled={off} onPress={() => { feel.tap(); onPress(); }}
+      style={[compact ? styles.buttonSmall : styles.button, kind !== 'primary' && !compact && styles.buttonQuiet, { backgroundColor: bg }, off && styles.dim]}>
+      {busy ? <ActivityIndicator color={fg} size={compact ? 'small' : undefined} /> : (
         <View style={styles.buttonIn}>
-          {icon && <Ionicons name={icon} size={18} color={fg} />}
-          <Text style={[styles.buttonText, { color: fg }]}>{children}</Text>
+          {icon && <Ionicons name={icon} size={compact ? 15 : 19} color={fg} />}
+          <Text numberOfLines={1} style={[compact ? styles.buttonSmallText : styles.buttonText, { color: fg }]}>{children}</Text>
         </View>
       )}
-    </Pressable>
+    </Touch>
   );
 }
 // One of a few choices, side by side: the chosen one is filled in its colour (the accent, or green, amber or red when the choice itself is good, a caution or bad).
 export function Choice<T extends string>({ options, value, onChange, disabled }: { options: { key: T; label: string; tone?: Tone }[]; value: T | '' | undefined; onChange: (v: T) => void; disabled?: boolean }) {
   const t = useTheme();
   return (
-    <View accessibilityRole="radiogroup" style={[styles.choice, { backgroundColor: t.surface2, borderColor: t.line }]}>
+    <View accessibilityRole="radiogroup" style={[styles.choice, { backgroundColor: t.surface2 }]}>
       {options.map(o => {
         const on = o.key === value, c = on && o.tone && o.tone !== 'info' && o.tone !== 'neutral' ? toneOf(t, o.tone) : null;
         return (
@@ -185,9 +240,29 @@ export function Problem({ children }: { children: ReactNode }) {
   if (!children) return null;
   return <View accessibilityRole="alert"><Notice tone="danger">{children}</Notice></View>;
 }
+// While a screen is being read: the shape of what is coming, breathing, where a spinner would be.
 export function Loading() {
   const t = useTheme();
-  return <View style={[styles.fill, styles.centered, { backgroundColor: t.bg }]}><ActivityIndicator color={t.accent} size="large" /></View>;
+  const v = useRef(new Animated.Value(0.45)).current;
+  useEffect(() => {
+    const loop = Animated.loop(Animated.sequence([
+      Animated.timing(v, { toValue: 1, duration: 700, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+      Animated.timing(v, { toValue: 0.45, duration: 700, easing: Easing.inOut(Easing.quad), useNativeDriver: true })]));
+    loop.start();
+    return () => loop.stop();
+  }, [v]);
+  const block = (h: number, w: number | `${number}%` = '100%') => <View style={{ height: h, width: w, borderRadius: h > 40 ? 20 : 10, backgroundColor: t.surface }} />;
+  return (
+    <SafeAreaView accessibilityLabel="Loading" style={[styles.fill, { backgroundColor: t.bg }]}>
+      <Animated.View style={[styles.screen, { opacity: v }]}>
+        {block(30, '55%')}
+        {block(120)}
+        {block(18, '35%')}
+        {block(190)}
+        {block(72)}
+      </Animated.View>
+    </SafeAreaView>
+  );
 }
 // A person's initials on a colour, where a photo would go.
 export function Avatar({ name, size = 52 }: { name: string; size?: number }) {
@@ -196,49 +271,60 @@ export function Avatar({ name, size = 52 }: { name: string; size?: number }) {
   return <View style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: t.accent, alignItems: 'center', justifyContent: 'center' }}><Text style={{ color: '#FFFFFF', fontSize: size * 0.38, fontWeight: '700' }}>{initials}</Text></View>;
 }
 
+const BAR = 52;
 const styles = StyleSheet.create({
   fill: { flex: 1 },
-  bar: { height: TOUCH, paddingHorizontal: space.md, justifyContent: 'center' },
-  back: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', minHeight: TOUCH, paddingRight: space.md },
-  backText: { fontSize: 17, fontWeight: '500' },
-  screen: { padding: space.xl, gap: space.lg, flexGrow: 1 },
-  under: { paddingTop: space.xs },
+  bar: { position: 'absolute', top: 0, left: 0, right: 0, height: BAR, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingHorizontal: space.md },
+  backAt: { position: 'absolute', left: 14, top: 6 },
+  back: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
+  barTitle: { fontSize: 17, fontWeight: '700', maxWidth: '64%' },
+  screen: { paddingHorizontal: 20, paddingTop: space.xl, paddingBottom: space.xxl, flexGrow: 1 },
+  content: { gap: space.lg, flexGrow: 1 },
+  under: { paddingTop: BAR + space.sm },
   centered: { justifyContent: 'center' },
-  title: { fontSize: 28, fontWeight: '800', letterSpacing: -0.4 },
-  heading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: space.sm, marginBottom: -space.sm },
-  headingText: { fontSize: 13, fontWeight: '700', letterSpacing: 0.6, textTransform: 'uppercase' },
+  title: { fontSize: 32, fontWeight: '800', letterSpacing: -0.8, lineHeight: 38 },
+  heading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: space.md, marginTop: space.md, marginBottom: -space.xs, minHeight: 34 },
+  headingText: { flex: 1, fontSize: 19, fontWeight: '700', letterSpacing: -0.3 },
   body: { fontSize: 16, lineHeight: 23 },
   strong: { fontWeight: '600' },
-  card: { borderRadius: radius.lg, borderWidth: 1, padding: space.lg, gap: space.sm },
+  card: { borderRadius: radius.xl, borderWidth: StyleSheet.hairlineWidth, padding: space.lg, gap: space.sm },
+  cardIn: { borderRadius: radius.lg, padding: 14, gap: space.sm },
+  headingIn: { marginTop: space.xs, minHeight: 0 },
+  headingInText: { fontSize: 13.5, fontWeight: '700', letterSpacing: 0.2 },
   flush: { padding: 0, gap: 0, overflow: 'hidden' },
-  pill: { alignSelf: 'flex-start', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 3 },
+  pill: { alignSelf: 'flex-start', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 },
   pillText: { fontSize: 12.5, fontWeight: '700' },
-  list: { borderRadius: radius.lg, borderWidth: 1, overflow: 'hidden' },
-  row: { flexDirection: 'row', alignItems: 'center', gap: space.md, minHeight: TOUCH + 12, paddingHorizontal: space.lg, paddingVertical: space.md },
-  rowIcon: { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  list: { borderRadius: radius.xl, borderWidth: StyleSheet.hairlineWidth, overflow: 'hidden' },
+  row: { flexDirection: 'row', alignItems: 'center', gap: space.md, minHeight: 64, paddingHorizontal: space.lg, paddingVertical: space.md },
+  rowLine: { position: 'absolute', right: 0, bottom: 0, height: StyleSheet.hairlineWidth },
+  rowIcon: { width: 40, height: 40, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
+  rowArrow: { marginRight: -4 },
   rowText: { flex: 1, minWidth: 0 },
-  rowTitle: { fontSize: 16, fontWeight: '600' },
-  rowSub: { fontSize: 13.5, lineHeight: 19, marginTop: 1 },
-  figures: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm },
-  figure: { flexBasis: '47%', flexGrow: 1, borderRadius: radius.lg, borderWidth: 1, paddingHorizontal: space.md, paddingVertical: space.md, gap: 2 },
-  figureLabel: { fontSize: 12.5, fontWeight: '600' },
-  figureValue: { fontSize: 24, fontWeight: '800', letterSpacing: -0.3 },
+  rowTitle: { fontSize: 16.5, fontWeight: '600', letterSpacing: -0.1 },
+  rowSub: { fontSize: 13.5, lineHeight: 19, marginTop: 2 },
+  figures: { flexDirection: 'row', flexWrap: 'wrap', gap: space.md },
+  figure: { flexBasis: '46%', flexGrow: 1, borderRadius: radius.xl, borderWidth: StyleSheet.hairlineWidth, paddingHorizontal: space.lg, paddingVertical: space.lg, gap: 3 },
+  figureLabel: { fontSize: 13, fontWeight: '600' },
+  figureValue: { fontSize: 26, fontWeight: '800', letterSpacing: -0.5 },
   figureSub: { fontSize: 12.5, lineHeight: 17 },
-  notice: { flexDirection: 'row', gap: space.sm, borderRadius: radius.md, padding: space.md },
-  noticeIcon: { marginTop: 2 },
+  notice: { flexDirection: 'row', gap: space.md, borderRadius: radius.lg, paddingHorizontal: space.lg, paddingVertical: 14 },
+  noticeIcon: { marginTop: 1 },
   noticeText: { fontSize: 15, lineHeight: 21, fontWeight: '500' },
-  empty: { alignItems: 'center', gap: space.md, paddingVertical: space.xl },
-  emptyIcon: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center' },
-  emptyText: { fontSize: 15, lineHeight: 21, textAlign: 'center', maxWidth: 280 },
-  field: { gap: 6 },
-  label: { fontSize: 13, fontWeight: '600' },
-  input: { minHeight: TOUCH + 6, borderRadius: radius.md, borderWidth: 1, paddingHorizontal: space.md, fontSize: 17 },
-  multiline: { minHeight: 96, paddingTop: space.md, paddingBottom: space.md, textAlignVertical: 'top' },
-  choice: { flexDirection: 'row', gap: 4, padding: 4, borderRadius: radius.md, borderWidth: 1 },
-  choiceItem: { flex: 1, minHeight: TOUCH, borderRadius: radius.md - 3, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6 },
+  empty: { alignItems: 'center', gap: space.lg, paddingVertical: space.xxl },
+  emptyIcon: { width: 68, height: 68, borderRadius: 34, alignItems: 'center', justifyContent: 'center' },
+  emptyText: { fontSize: 15.5, lineHeight: 22, textAlign: 'center', maxWidth: 290 },
+  field: { gap: 7 },
+  label: { fontSize: 13.5, fontWeight: '600', marginLeft: 4 },
+  input: { minHeight: 54, borderRadius: radius.lg, borderWidth: 1.5, paddingHorizontal: space.lg, fontSize: 17 },
+  multiline: { minHeight: 104, paddingTop: 14, paddingBottom: 14, textAlignVertical: 'top' },
+  choice: { flexDirection: 'row', gap: 4, padding: 4, borderRadius: radius.lg },
+  choiceItem: { flex: 1, minHeight: TOUCH, borderRadius: radius.lg - 4, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6 },
   choiceText: { fontSize: 14.5, fontWeight: '700', textAlign: 'center' },
-  button: { minHeight: TOUCH + 6, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center', paddingHorizontal: space.lg },
+  button: { minHeight: 54, borderRadius: 27, alignItems: 'center', justifyContent: 'center', paddingHorizontal: space.xl },
+  buttonQuiet: { minHeight: 50, borderRadius: 25 },
+  buttonSmall: { minHeight: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 14 },
   buttonIn: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
-  buttonText: { fontSize: 16.5, fontWeight: '700' },
-  dim: { opacity: 0.6 },
+  buttonText: { fontSize: 16.5, fontWeight: '700', letterSpacing: -0.1 },
+  buttonSmallText: { fontSize: 14, fontWeight: '700' },
+  dim: { opacity: 0.5 },
 });

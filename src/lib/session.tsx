@@ -56,6 +56,9 @@ export function useSession() {
   return s;
 }
 
+// For a block that may be drawn where there is no session to ask (the screen that says the app broke).
+export function useSessionMaybe() { return useContext(Ctx); }
+
 export function SessionProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<State>({ status: 'loading' });
   const [tenantCode, setTenant] = useState<string | null>(null);

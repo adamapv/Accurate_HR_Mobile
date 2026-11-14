@@ -41,7 +41,7 @@ export default function RootLayout() {
       <SessionProvider>
         <StatusBar style="light" />
         <LockProvider>
-          <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: t.bg } }} />
+          <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: t.bg }, animation: 'slide_from_right', gestureEnabled: true }} />
         </LockProvider>
       </SessionProvider>
     </SafeAreaProvider>

@@ -284,7 +284,7 @@ export default function Chat() {
 
   const bubble = (m: Msg, mine: boolean, showName: boolean, tick: string) => (
     <Pressable accessibilityHint="Hold for more" onLongPress={() => { if (!m.deleted) { feel.hold(); setSheet(m); } }} delayLongPress={350} style={[styles.row, mine ? styles.mine : styles.theirs]}>
-      <View style={[styles.bubble, { backgroundColor: mine ? t.accent : t.surface2 }]}>
+      <View style={[styles.bubble, mine ? styles.bubbleMine : styles.bubbleTheirs, { backgroundColor: mine ? t.accent : t.surface2 }]}>
         {showName && !mine && <Text style={[styles.from, { color: `hsl(${chatHue(m.sender_id || m.sender_name || '')}, 70%, 72%)` }]}>{m.sender_name || 'Someone'}</Text>}
         {!!m.reply && <Text style={[styles.quote, { color: t.muted, borderLeftColor: t.line }]} numberOfLines={2}>{quoteLine(m.reply)}</Text>}
         {m.deleted ? <Text style={[styles.text, { color: t.muted, fontStyle: 'italic' }]}>{chatDeletedText(mine) as string}</Text> : (
@@ -317,7 +317,7 @@ export default function Chat() {
   );
   const local = (e: Entry) => (
     <View style={[styles.row, styles.mine]}>
-      <View style={[styles.bubble, { backgroundColor: t.accent, opacity: e.status === 'failed' ? 1 : 0.7 }]}>
+      <View style={[styles.bubble, styles.bubbleMine, { backgroundColor: t.accent, opacity: e.status === 'failed' ? 1 : 0.7 }]}>
         <Text style={[styles.text, { color: t.fg }]}>{e.local_card?.body ?? e.body?.body}</Text>
         <Text style={[styles.meta, { color: '#E6E8FF' }]}>{e.status === 'failed' ? e.error || 'Not sent' : 'Waiting to send'}</Text>
       </View>
@@ -334,12 +334,12 @@ export default function Chat() {
     <SafeAreaView style={[styles.fill, { backgroundColor: t.bg }]}>
       <KeyboardAvoidingView style={styles.fill} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <View style={[styles.head, { borderBottomColor: t.line, backgroundColor: t.topbar }]}>
-          <Pressable accessibilityRole="button" accessibilityLabel="Back to chats" onPress={() => router.back()} style={styles.back}><Ionicons name="chevron-back" size={24} color={t.accent2} /></Pressable>
+          <Pressable accessibilityRole="button" accessibilityLabel="Back to chats" onPress={() => router.back()} style={[styles.round, { backgroundColor: t.surface2 }]}><Ionicons name="chevron-back" size={22} color={t.fg} /></Pressable>
           <View style={{ flex: 1 }}>
             <Text accessibilityRole="header" numberOfLines={1} style={[styles.title, { color: t.fg, flex: 0 }]}>{head ? (chatName(head.thread) as string) : 'Chat'}</Text>
             {!!head && !!(chatSub(head.thread) as string) && <Text numberOfLines={1} style={{ fontSize: 13, color: t.muted }}>{`${chatSub(head.thread) as string}${head.thread.muted ? ' · Muted' : ''}`}</Text>}
           </View>
-          {!!head && <Pressable accessibilityRole="button" accessibilityLabel="Chat options" onPress={() => { setTold(''); setMenu(true); }} style={styles.back}><Ionicons name="ellipsis-horizontal" size={22} color={t.fg} /></Pressable>}
+          {!!head && <Pressable accessibilityRole="button" accessibilityLabel="Chat options" onPress={() => { setTold(''); setMenu(true); }} style={[styles.round, { backgroundColor: t.surface2 }]}><Ionicons name="ellipsis-horizontal" size={20} color={t.fg} /></Pressable>}
         </View>
         {!!told && <Text accessibilityRole="alert" style={[styles.note, { color: t.muted }]}>{told}</Text>}
         {!!error && <Text accessibilityRole="alert" style={[styles.note, { color: msgs ? t.muted : t.danger }]}>{error}</Text>}
@@ -448,7 +448,8 @@ export default function Chat() {
 
 const styles = StyleSheet.create({
   fill: { flex: 1 },
-  head: { flexDirection: 'row', alignItems: 'center', gap: space.md, paddingHorizontal: space.lg, minHeight: TOUCH + 8, borderBottomWidth: 1 },
+  head: { flexDirection: 'row', alignItems: 'center', gap: space.md, paddingHorizontal: 14, minHeight: 56, borderBottomWidth: StyleSheet.hairlineWidth },
+  round: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
   back: { minHeight: TOUCH, minWidth: 32, justifyContent: 'center' },
   title: { flex: 1, fontSize: 19, fontWeight: '700' },
   note: { padding: space.lg, fontSize: 15, textAlign: 'center' },
@@ -460,7 +461,9 @@ const styles = StyleSheet.create({
   row: { maxWidth: '86%', gap: 4 },
   mine: { alignSelf: 'flex-end', alignItems: 'flex-end' },
   theirs: { alignSelf: 'flex-start', alignItems: 'flex-start' },
-  bubble: { borderRadius: radius.lg, paddingHorizontal: 12, paddingVertical: 8, gap: 4 },
+  bubble: { borderRadius: 20, paddingHorizontal: 14, paddingVertical: 9, gap: 4 },
+  bubbleMine: { borderBottomRightRadius: 6 },
+  bubbleTheirs: { borderBottomLeftRadius: 6 },
   from: { fontSize: 13, fontWeight: '700' },
   quote: { fontSize: 14, borderLeftWidth: 3, paddingLeft: 8 },
   text: { fontSize: 16, lineHeight: 22 },
@@ -469,12 +472,12 @@ const styles = StyleSheet.create({
   meta: { fontSize: 12 },
   small: { minHeight: TOUCH, justifyContent: 'center' },
   bar: { flexDirection: 'row', alignItems: 'flex-end', gap: space.sm, padding: space.sm, borderTopWidth: 1 },
-  box: { flex: 1, minHeight: TOUCH, maxHeight: 132, borderRadius: 22, borderWidth: 1, paddingHorizontal: space.md, paddingVertical: 10, fontSize: 16 },
+  box: { flex: 1, minHeight: TOUCH, maxHeight: 132, borderRadius: 22, borderWidth: 0, paddingHorizontal: space.md, paddingVertical: 10, fontSize: 16 },
   send: { width: TOUCH, height: TOUCH, borderRadius: TOUCH / 2, alignItems: 'center', justifyContent: 'center' },
   replying: { flexDirection: 'row', alignItems: 'center', gap: space.sm, paddingHorizontal: space.md, paddingTop: space.sm, borderTopWidth: 1 },
   doc: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: TOUCH },
   shade: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'flex-end', padding: space.md },
-  sheet: { borderRadius: radius.lg, borderWidth: 1, overflow: 'hidden' },
+  sheet: { borderRadius: 24, borderWidth: StyleSheet.hairlineWidth, overflow: 'hidden' },
   emoji: { flexDirection: 'row', justifyContent: 'space-around', padding: space.sm },
   emojiBtn: { width: TOUCH, height: TOUCH, borderRadius: TOUCH / 2, alignItems: 'center', justifyContent: 'center' },
   choice: { minHeight: TOUCH + 6, justifyContent: 'center', paddingHorizontal: space.lg, borderTopWidth: 1 },
