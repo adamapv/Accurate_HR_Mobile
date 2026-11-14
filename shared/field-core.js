@@ -1502,6 +1502,24 @@ export function weekCard(week, { expected, fromJobs, canSubmit = true }) {
     sendLabel: toSend.length === 1 ? 'Submit day' : `Submit ${toSend.length} days` };
 }
 
+// ---- the clock strip, and Sync jobs ----
+// On the clock and not on Home: a slim bar above the tabs says since when, for how long and on what, with Clock off beside it.
+export const clockStripLine = (card, sameDay, elapsed, fmtDate) => sameDay ? `On the clock since ${card.clock_on} · ${Math.floor(elapsed / 60)}h ${pad2(elapsed % 60)}m` : `Still clocked on from ${fmtDate(card.work_date)}`;
+export const clockStripJob = card => card.job_label || card.activity_label || 'No job picked yet';
+// Sync jobs reads the company's open jobs from simPRO again (POST /jobs/refresh { company, relist }), once for each company in use: the first call lists
+// them again, and it is called again (without listing) while jobs are left to read and the last call read some, thirty calls at most.
+export const JOB_SYNC = { label: 'Sync jobs from simPRO', busy: 'Syncing jobs…', needsSignal: 'Needs signal to sync jobs', failed: 'Couldn’t sync jobs', sum: ['added', 'closed', 'refreshed', 'failed', 'throttled'], max: 30 };
+export const jobSyncBody = (company, first) => ({ company: company?.id || undefined, relist: !!first });
+export const jobSyncMore = d => d.remaining > 0 && d.refreshed > 0;
+export const jobSyncAdd = (total, d) => { const t = { ...total }; for (const k of JOB_SYNC.sum) t[k] = (t[k] || 0) + (Number(d?.[k]) || 0); return t; };
+// What is said when it is done. → { text, tone }
+export function jobSyncSaid(t) {
+  const bits = [t.added && plural(t.added, 'new job'), t.refreshed && `${t.refreshed} updated`, t.closed && `${t.closed} closed`].filter(Boolean);
+  if (t.failed) return { text: `Jobs synced, but ${plural(t.failed, 'job')} couldn’t be read. They’re tried again within the hour.`, tone: 'danger' };
+  if (t.throttled && !bits.length) return { text: 'Jobs were only just synced. Try again in a couple of minutes.', tone: 'info' };
+  return { text: bits.length ? `Jobs synced: ${bits.join(', ')}` : 'Jobs are up to date', tone: 'ok' };
+}
+
 // ---- the session and links ----
 // The session's fingerprint: the first 8 bytes of SHA-256 over "Bearer <session id>", as 16 hex characters. Everything kept on a device for one session (the outbox,
 // the offline copies) is tagged with it, and the service worker keys its copies with the same value, so one person's never show for the next. '' with no session.

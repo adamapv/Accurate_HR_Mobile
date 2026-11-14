@@ -6,7 +6,7 @@ import { useEffect, useState } from 'react';
 import { Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { can } from '@shared/access.js';
-import { copySaid, dayCards, findJob, homeScheduleRange, onlyCostCentre, openCardState, planJobCard, restHoldText, SAME_AS, sameAsLabel, timeFromJobs } from '@shared/field-core.js';
+import { copySaid, dayCards, findJob, homeScheduleRange, JOB_SYNC, jobSyncAdd, jobSyncBody, jobSyncMore, jobSyncSaid, onlyCostCentre, openCardState, planJobCard, restHoldText, SAME_AS, sameAsLabel, timeFromJobs } from '@shared/field-core.js';
 import { finishChecks, holdText, safetyJobKeys, startButton, startGate, startStep } from '@shared/job-checks.js';
 import { applyToOpenCard, applyToRecent, applyToWeek, describe } from '@shared/offline-queue.js';
 import { addDaysIso } from '@shared/pickers-core.js';
@@ -87,6 +87,7 @@ function SignedIn({ me }: { me: Me }) {
   const canChat = can(me.access, 'chat');
   const canPo = can(me.access, 'purchase_orders', 'edit'), seesPos = can(me.access, 'purchase_orders');
   const unread = useRead<{ unread: number }>(canChat ? '/chat/unread' : null);
+  const canSync = !!(me as unknown as { simpro_jobs_available?: boolean }).simpro_jobs_available;
 
   // One scheduled job: its details, its safety checks, why Start is held if it is, and Start.
   const jobRow = (r: SchedRow, tomorrow: boolean) => {
@@ -141,12 +142,35 @@ function SignedIn({ me }: { me: Me }) {
     setCopying(false);
   };
 
+  // Sync jobs: the company's open jobs read from simPRO again, so a job made there a minute ago is here for a job card or a PO. It needs signal.
+  const [syncing, setSyncing] = useState(false);
+  const [synced, setSynced] = useState('');
+  const syncJobs = async () => {
+    if (syncing) return;
+    setSyncing(true); setSynced('');
+    try {
+      let total: Record<string, number> = {};
+      const companies = (me as unknown as { companies?: { id: string }[] }).companies || [];
+      for (const c of companies.length ? companies : [{ id: '' }]) {
+        for (let i = 0, first = true; i < (JOB_SYNC.max as number); i++, first = false) {
+          const d = await api<Record<string, unknown>>('/jobs/refresh', { method: 'POST', body: jobSyncBody(c, first) });
+          total = jobSyncAdd(total, d) as Record<string, number>;
+          if (!jobSyncMore(d)) break;
+        }
+      }
+      setSynced((jobSyncSaid(total) as { text: string }).text);
+      changed(true);
+    } catch (e) { setSynced(e instanceof Error && e.message ? e.message : (JOB_SYNC.failed as string)); }
+    setSyncing(false);
+  };
+
   const clockOn = async () => {
     setBusy(true); setProblem('');
     const at = { work_date: localToday(), clock_on: localNowHM() };
     try {
       const r = await offline.submit({ kind: 'clock-on', method: 'POST', path: '/job-cards', body: at, local_card: { ...at, job_label: null, source: 'clock' } });
       if (r.outcome === 'sent') await open.reload();
+      changed();   // every screen reads again: the strip above the tabs and the notification show the clock too
     } catch (e) { setProblem(e instanceof Error ? e.message : 'Something went wrong. Try again.'); }
     setBusy(false);
   };
@@ -163,11 +187,12 @@ function SignedIn({ me }: { me: Me }) {
         <Avatar name={me.employee.name} size={52} />
       </View>
       {open.offlineAt !== null && <Notice tone="warn" icon="cloud-offline-outline">{`No signal. Showing what was saved at ${fmtTime(open.offlineAt)}.`}</Notice>}
-      {(seesPos || canChat) && (
+      {(seesPos || canChat || canSync) && (
         <List>
           {canChat && <Row icon="chatbubbles-outline" tint="violet" title="Chat" sub={unread.data && unread.data.unread > 0 ? `${unread.data.unread > 99 ? '99+' : unread.data.unread} unread` : 'Message the office and your crew'}
-            right={unread.data && unread.data.unread > 0 ? <Pill tone="info">{unread.data.unread > 99 ? '99+' : String(unread.data.unread)}</Pill> : undefined} onPress={() => router.push('/chats')} last={!seesPos} />}
-          {seesPos && <Row icon="receipt-outline" tint="violet" title="Purchase orders" sub="Raise one, and see yours" onPress={() => router.push('/pos')} last />}
+            right={unread.data && unread.data.unread > 0 ? <Pill tone="info">{unread.data.unread > 99 ? '99+' : String(unread.data.unread)}</Pill> : undefined} onPress={() => router.push('/chats')} last={!seesPos && !canSync} />}
+          {seesPos && <Row icon="receipt-outline" tint="violet" title="Purchase orders" sub="Raise one, and see yours" onPress={() => router.push('/pos')} last={!canSync} />}
+          {canSync && <Row icon="sync-outline" tint="teal" title={(syncing ? JOB_SYNC.busy : JOB_SYNC.label) as string} sub={synced || 'A job just made in simPRO shows up here'} onPress={() => { void syncJobs(); }} last />}
         </List>
       )}
 

@@ -5,6 +5,11 @@ import { Redirect } from 'expo-router';
 import { Tabs } from 'expo-router/tabs';
 import { feel } from '@/lib/haptics';
 import { ClockNotice } from '@/clock-notice';
+import { ClockStrip } from '@/clock-strip';
+import { daysToSend, planJobCard } from '@shared/field-core.js';
+import { applyToWeek } from '@shared/offline-queue.js';
+import { useRead } from '@/lib/use-read';
+import { localToday } from '@/lib/dates';
 import { PushTaps } from '@/push-taps';
 import { SAFE_MODE } from '@/lib/crash';
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -16,7 +21,14 @@ import { useTheme } from '@/theme';
 export default function TabsLayout() {
   const { state, retry, signOut } = useSession();
   const t = useTheme();
-  const failed = useOutbox().filter(e => e.status === 'failed').length;
+  const queued = useOutbox();
+  const failed = queued.filter(e => e.status === 'failed').length;
+  // Badges, as on the web: Job card while a day needs submitting, Safety for the policies still to read and the statements still to sign on to.
+  const signedIn = state.status === 'signedIn';
+  const week = useRead<Record<string, unknown>>(signedIn ? `/timesheets/mine?date=${localToday()}` : null);
+  const todos = useRead<{ policies?: unknown[]; swms_unsigned?: unknown[] }>(signedIn ? '/todos' : null);
+  const toSend = week.data ? (daysToSend(applyToWeek(week.data, queued, planJobCard), localToday()) as string[]).length : 0;
+  const safetyDue = (todos.data?.policies?.length || 0) + (todos.data?.swms_unsigned?.length || 0);
   const insets = useSafeAreaInsets();
   if (state.status === 'loading') return <Loading />;
   if (state.status === 'signedOut') return <Redirect href="/sign-in" />;
@@ -43,11 +55,12 @@ export default function TabsLayout() {
     {!SAFE_MODE && <PushTaps />}
     <Tabs screenListeners={{ tabPress: () => feel.pick() }} screenOptions={{ headerShown: false, tabBarActiveTintColor: t.accent2, tabBarInactiveTintColor: t.muted, tabBarStyle: { position: 'absolute', marginHorizontal: 14, bottom: Math.max(insets.bottom, 10) + 4, height: 74, paddingTop: 8, paddingBottom: 12, borderRadius: 37, backgroundColor: '#161625', borderTopWidth: StyleSheet.hairlineWidth, borderWidth: StyleSheet.hairlineWidth, borderColor: t.line, borderTopColor: t.line, shadowColor: '#000000', shadowOpacity: 0.5, shadowRadius: 18, shadowOffset: { width: 0, height: 10 }, elevation: 18 }, tabBarLabelStyle: { fontSize: 11, fontWeight: '800', marginTop: 2, lineHeight: 14 }, tabBarItemStyle: { paddingVertical: 0, height: 54 }, tabBarIconStyle: { height: 30, marginTop: 0 }, tabBarLabelPosition: 'below-icon', tabBarHideOnKeyboard: true, animation: 'fade', sceneStyle: { backgroundColor: t.bg } }}>
       <Tabs.Screen name="index" options={{ title: 'Home', tabBarIcon: icon('home'), tabBarBadge: failed || undefined }} />
-      <Tabs.Screen name="day" options={{ title: 'Job card', tabBarIcon: icon('time') }} />
-      <Tabs.Screen name="safety" options={{ title: 'Safety', tabBarIcon: icon('shield-checkmark') }} />
+      <Tabs.Screen name="day" options={{ title: 'Job card', tabBarIcon: icon('time'), tabBarBadge: toSend || undefined, tabBarAccessibilityLabel: toSend ? 'Job card. You have time to submit' : undefined }} />
+      <Tabs.Screen name="safety" options={{ title: 'Safety', tabBarIcon: icon('shield-checkmark'), tabBarBadge: safetyDue ? (safetyDue > 99 ? '99+' : safetyDue) : undefined }} />
       <Tabs.Screen name="week" options={{ title: 'My week', tabBarIcon: icon('calendar') }} />
       <Tabs.Screen name="more" options={{ title: 'More', tabBarIcon: icon('ellipsis-horizontal-circle') }} />
     </Tabs>
+    <ClockStrip />
     </>
   );
 }
