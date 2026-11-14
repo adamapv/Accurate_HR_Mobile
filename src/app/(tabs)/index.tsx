@@ -6,7 +6,7 @@ import { useEffect, useState } from 'react';
 import { Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { can } from '@shared/access.js';
-import { copySaid, dayCards, findJob, homeScheduleRange, JOB_SYNC, jobSyncAdd, jobSyncBody, jobSyncMore, jobSyncSaid, onlyCostCentre, openCardState, planJobCard, restHoldText, SAME_AS, sameAsLabel, timeFromJobs } from '@shared/field-core.js';
+import { copySaid, dayCards, findJob, meAttention, homeScheduleRange, JOB_SYNC, jobSyncAdd, jobSyncBody, jobSyncMore, jobSyncSaid, onlyCostCentre, openCardState, planJobCard, restHoldText, SAME_AS, sameAsLabel, timeFromJobs } from '@shared/field-core.js';
 import { finishChecks, holdText, safetyJobKeys, startButton, startGate, startStep } from '@shared/job-checks.js';
 import { applyToOpenCard, applyToRecent, applyToWeek, describe } from '@shared/offline-queue.js';
 import { addDaysIso } from '@shared/pickers-core.js';
@@ -22,6 +22,7 @@ import { useTheme } from '@/theme';
 import { Avatar, Body, Button, Card, Display, Empty, Heading, Hero, List, Notice, Pill, Problem, Row, Screen, Title } from '@/ui';
 import { SafeModeCard } from '@/safe-mode';
 import { WeekHoursCard, WeekSchedule } from '@/week-parts';
+import { screenFor } from '@/lib/links';
 
 // The shared rules are plain JavaScript, so what these two take and give back is spelled out here.
 type Gate = { ready: boolean; held: boolean; outstanding: unknown[] };
@@ -51,6 +52,9 @@ function SignedIn({ me }: { me: Me }) {
   const sched = useRead<{ rows: SchedRow[] }>(`/schedule/mine?from=${range.from}&to=${range.to}`);
   const week = useRead<Record<string, unknown>>(`/timesheets/mine?date=${day0}`);
   const [copying, setCopying] = useState(false);
+  // What is waiting on the person: a pre-start or ute check due, a card still clocked on from before, days sent back, days to submit, tickets expiring.
+  const plant = useRead<{ rows: unknown[] }>('/plant/available');
+  const quals = useRead<{ rows: { status: string }[] }>('/qualifications/mine');
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState('');
   const [, tick] = useState(0);
@@ -65,6 +69,8 @@ function SignedIn({ me }: { me: Me }) {
   // This week with what is still waiting on the phone counted in.
   const weekView = week.data ? (applyToWeek(week.data, queued, planJobCard) as Record<string, unknown>) : null;
   const last = (open.data as { last_card?: { work_date: string; day_cards?: number } | null } | undefined)?.last_card || null;
+  const waiting = (meAttention({ week: weekView, plant: plant.data, quals: quals.data?.rows, gaps: null, today: day0, onSubmit: undefined }, { fmtDate, fmtHours: (n: number) => `${n.toFixed(1).replace(/\.0$/, '')}h` }) as
+    { key: string; tone: string; title: string; meta: string; href?: string; cta?: string }[]).filter(a => a.tone !== 'info');
   const noTimeToday = !!weekView && (dayCards(weekView, today) as unknown[]).length === 0;
   // People whose job time comes from AccurateJobs do not clock on here.
   const fromJobs = timeFromJobs(me.employee, today) as boolean;
@@ -239,6 +245,19 @@ function SignedIn({ me }: { me: Me }) {
             </View>
           ))}
         </Card>
+      )}
+
+      {waiting.length > 0 && (
+        <>
+          <Heading>Waiting on you</Heading>
+          <List>
+            {waiting.map((a, i) => {
+              const to = screenFor(a.href);
+              return <Row key={a.key} icon={a.tone === 'danger' ? 'alert-circle-outline' : 'flag-outline'} tint={a.tone === 'danger' ? 'pink' : 'amber'} title={a.title} sub={a.meta}
+                right={<Pill tone={a.tone === 'danger' ? 'danger' : 'warn'}>{a.cta || 'Open'}</Pill>} onPress={to ? () => router.push(to as never) : a.key === 'submit' ? () => router.push('/week') : undefined} last={i === waiting.length - 1} />;
+            })}
+          </List>
+        </>
       )}
 
       <Heading>Scheduled today</Heading>
