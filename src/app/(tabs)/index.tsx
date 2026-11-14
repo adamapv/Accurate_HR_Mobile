@@ -157,6 +157,7 @@ function SignedIn({ me }: { me: Me }) {
               {!!(card.job_label || card.activity_label) && <Body tone="muted">{card.job_label || card.activity_label}</Body>}
               {card.pending && <Notice tone="info" icon="cloud-upload-outline">Saved on your phone. It’s sent when you have signal.</Notice>}
               <Button icon="stop-circle-outline" onPress={() => router.push({ pathname: '/job-card', params: { id: card.id } })}>Clock off</Button>
+              <Button kind="plain" icon="swap-horizontal-outline" onPress={() => router.push({ pathname: '/job-card', params: { id: card.id, edit: '1' } })}>{card.job_id || card.activity_label ? 'Change job' : 'Pick job'}</Button>
             </>
           ) : card ? (
             <>

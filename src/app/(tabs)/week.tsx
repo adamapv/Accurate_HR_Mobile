@@ -113,7 +113,7 @@ export default function WeekTab() {
       {canEdit && (
         <View style={{ flexDirection: 'row', gap: 12 }}>
           <View style={{ flex: 1 }}><Button kind="plain" onPress={copyLastWeek} disabled={busy}>Copy last week</Button></View>
-          <View style={{ flex: 1 }}><Button kind="plain" onPress={() => router.push({ pathname: '/job-card', params: { date: defaultDate } })} disabled={busy}>Add time</Button></View>
+          <View style={{ flex: 1 }}><Button kind="plain" onPress={() => router.push({ pathname: '/job-card', params: { date: defaultDate, quiet: '1' } })} disabled={busy}>Add time</Button></View>
         </View>
       )}
       {said && <Notice tone={said.tone}>{said.text}</Notice>}
@@ -140,7 +140,7 @@ export default function WeekTab() {
                   </View>
                 );
                 return canEdit && mine
-                  ? <Pressable key={c.id} accessibilityRole="button" accessibilityLabel={`${c.clock_on} to ${c.clock_off || 'now'}, ${c.job_label || c.activity_label || 'no job yet'}. Change`} onPress={() => router.push({ pathname: '/job-card', params: { id: c.id, date: c.work_date } })}>{body}</Pressable>
+                  ? <Pressable key={c.id} accessibilityRole="button" accessibilityLabel={`${c.clock_on} to ${c.clock_off || 'now'}, ${c.job_label || c.activity_label || 'no job yet'}. Change`} onPress={() => router.push({ pathname: '/job-card', params: { id: c.id, date: c.work_date, quiet: '1' } })}>{body}</Pressable>
                   : <View key={c.id}>{body}</View>;
               })}
               {byDay[d].entries.map(t => <Body key={t.id} tone="muted">{t.start_time}–{t.end_time} {t.job_label || ''} {t.cost_centre_label || ''} · {hours(entryHours(t) as number)}</Body>)}

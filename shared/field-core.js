@@ -1390,6 +1390,65 @@ export function lastCardFill(l, jobs) {
     splits: splits.map(sp => ({ section_id: '', cost_centre_id: '', ...sp })) };
 }
 
+// ---- a day at a glance: its cards and hours, what is missing from it, and its timeline ----
+export const dayCards = (week, date) => (week?.cards || []).filter(c => cardOnDate(c, date)).sort((a, b) => String(a.clock_on).localeCompare(String(b.clock_on)));
+export const dayEntries = (week, date) => (week?.entries || []).filter(t => t.work_date === date);
+export const entriesMins = list => (list || []).reduce((n, t) => n + Math.max(0, hmMins(t.end_time) - hmMins(t.start_time)), 0);
+// A card's hours are what its blocks add up to (as simPRO will see them).
+export const cardEntryMins = (entries, c) => entriesMins((entries || []).filter(t => String(t.card_id) === String(c.id)));
+// A finished card of more than six hours with no lunch on it: the day asks whether one was taken.
+export const noLunchCard = cards => (cards || []).find(c => c.clock_off && !c.lunch && cardMins(c) > NO_LUNCH_MINS) || null;
+export const noLunchText = c => `No lunch on your ${c.clock_on}–${c.clock_off} card. `;
+export const NO_LUNCH_FIX = 'Tick lunch if you took one';
+// A job published for the person on the day with no time against it (`sched` is /schedule/mine's rows), what it says, and the share a card for it opens with.
+const cardIsOnJob = (r, c) => String(c.job_id) === String(r.job_id) || (c.splits || []).some(sp => String(sp.job_id) === String(r.job_id));
+export const scheduleGaps = (sched, date, cards) => (sched || []).filter(r => r.work_date === date && !r.activity && !(cards || []).some(c => cardIsOnJob(r, c)));
+export const gapText = r => `Scheduled but no time: #${r.job_id} ${r.job_name || ''}. `;
+export const gapSplit = (r, jobs) => ({ job_id: r.job_id, company_id: r.company_id, pct: 100, ...(onlyCostCentre(findJob(jobs || [], r.company_id, r.job_id)) || { section_id: '', cost_centre_id: '' }) });
+// Where a day stands, as its pill says it. → { status, label, tone? } or null for a day with nothing on it.
+export function dayStatus(dayRow, stillOn, count) {
+  return dayRow?.status === 'approved' ? { status: 'approved', label: dayRow.auto ? 'Approved automatically' : 'Approved' }
+    : dayRow?.status === 'submitted' ? { status: 'submitted', label: 'Waiting for approval' }
+    : dayRow?.status === 'rejected' ? { status: 'rejected', label: 'Sent back' }
+    : stillOn ? { status: 'on the clock', label: 'On the clock' }
+    : count ? { status: 'open', tone: 'warn', label: 'Not submitted' } : null;
+}
+// What the day review says about a day that has been sent. → { tone, strong, text } or null.
+export function dayNote(dayRow) {
+  const again = 'Anything you add or change goes through again.';
+  return dayRow?.status === 'submitted' ? { tone: 'info', strong: '', text: `This day is submitted and waiting for approval. ${again}` }
+    : dayRow?.status === 'approved' ? { tone: 'ok', strong: '', text: `${dayRow.auto ? 'This day was approved automatically.' : 'This day is approved.'} ${again}` }
+    : dayRow?.status === 'rejected' ? { tone: 'danger', strong: 'Sent back: ', text: dayRow.decision_note || 'fix it and submit it again' } : null;
+}
+export const DAY_WORDS = { hours: 'Hours today', nothing: 'Nothing logged today.', saving: 'Saving your clock-off…', noSchedule: 'No signal — today can’t be checked against your schedule.', addTime: 'Add time', submit: 'Submit day',
+  notYet: 'Not yet', done: 'Done for today', onPhone: 'On your phone', noJob: 'No job' };
+export const reviewTitle = (date, fmtDate) => `Your day · ${fmtDate(date)}`;
+export const submitHint = autoApprove => `Submitting sends the day. ${submitConsequence(autoApprove)}`;
+// A day by name: Today, Tomorrow, or the date written out (`longDate` writes it).
+export const dayLongOf = (iso, today, longDate) => iso === today ? 'Today' : iso === addDaysYmd(today, 1) ? 'Tomorrow' : longDate(iso);
+// The same number for the same name every time (a colour for a job or a person is chosen by it).
+export const nameHash = name => { let n = 0; for (const c of String(name || '')) n = (n * 31 + c.charCodeAt(0)) >>> 0; return n; };
+// The day's cards along a bar from 6am to 6pm (wider when a card starts earlier or ends later). `cards` are the day's (dayCards), `now` the minutes since
+// midnight. A night shift past midnight runs to the end of its own date, and on the next date is the part from midnight to clock off.
+// → { blocks: [{ card, from, to, open, label, title, tint, left, width, named }], ticks: [{ m, left, label }], now: where the now line sits or null, summary }; left and width are percentages.
+export function dayTimeline(cards, date, now) {
+  if (!cards?.length) return null;
+  const raw = cards.map(c => {
+    const tail = c.work_date !== date, over = runsPastMidnight(c);
+    const from = tail ? 0 : hmMins(c.clock_on), to = c.clock_off ? (over && !tail ? 1440 : hmMins(c.clock_off)) : Math.max(now, from + 1);
+    const label = c.job_id ? `#${c.job_id}` : c.activity_label || DAY_WORDS.noJob;
+    return { card: c, from, to, open: !c.clock_off, label, tint: c.job_id ? String(c.job_id) : '', title: `${c.job_label || c.activity_label || label}: ${c.clock_on} – ${c.clock_off || 'now'}` };
+  }).filter(b => b.to > b.from);
+  const lo = Math.min(6 * 60, ...raw.map(b => b.from)), hi = Math.max(18 * 60, ...raw.map(b => b.to));
+  const span = hi - lo, pct = m => ((m - lo) / span) * 100;
+  const ticks = [];
+  for (let m = Math.ceil(lo / 180) * 180; m <= hi; m += 180) ticks.push(m);
+  const hm = m => `${(m / 60) % 12 === 0 ? 12 : Math.floor(m / 60) % 12}${m % 60 ? ':' + pad2(m % 60) : ''}${m < 720 ? 'am' : 'pm'}`;
+  return { blocks: raw.map(b => ({ ...b, left: pct(b.from), width: Math.max(1.2, pct(b.to) - pct(b.from)), named: pct(b.to) - pct(b.from) >= 9 })),
+    ticks: ticks.map(m => ({ m, left: pct(m), label: hm(m) })), now: now >= lo && now <= hi ? pct(now) : null,
+    summary: raw.map(b => `${b.label} ${b.card.clock_on}–${b.card.clock_off || 'now'}`).join(', ') };
+}
+
 // ---- the session and links ----
 // The session's fingerprint: the first 8 bytes of SHA-256 over "Bearer <session id>", as 16 hex characters. Everything kept on a device for one session (the outbox,
 // the offline copies) is tagged with it, and the service worker keys its copies with the same value, so one person's never show for the next. '' with no session.
