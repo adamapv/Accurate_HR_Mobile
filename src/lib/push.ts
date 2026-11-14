@@ -3,10 +3,13 @@
 // person's. On sign-out the token is removed. A build with no push service set up has no token, and nothing here happens. Tapping a notification opens the
 // screen its link names (src/lib/links.ts); a chat opens that chat.
 import { Platform } from 'react-native';
-import * as Notifications from 'expo-notifications';
+import { SAFE_MODE } from './crash';
 import type { Api } from './api-core';
 import { APP_VERSION, HAS_PUSH } from './config';
 import { screenFor } from './links';
+
+// The phone's notifications are loaded only when first needed, and never in safe mode.
+const N = () => require('expo-notifications') as typeof import('expo-notifications');
 
 // The channel the Worker's notifications arrive on (Android), made once.
 export const PUSH_CHANNEL = { id: 'general', name: 'Notifications' };
@@ -15,17 +18,17 @@ let registered: string | null = null;   // the token the Worker has for this pho
 
 // Whether the phone will show notifications, asking once if it has not been asked.
 async function allowed(): Promise<boolean> {
-  const now = await Notifications.getPermissionsAsync();
+  const now = await N().getPermissionsAsync();
   if (now.granted) return true;
   if (!now.canAskAgain) return false;
-  return (await Notifications.requestPermissionsAsync()).granted;
+  return (await N().requestPermissionsAsync()).granted;
 }
 
 export async function registerForPush(api: Api): Promise<void> {
   try {
-    if (!HAS_PUSH || Platform.OS !== 'android' || !(await allowed())) return;   // an iPhone joins when there is an iPhone build
-    await Notifications.setNotificationChannelAsync(PUSH_CHANNEL.id, { name: PUSH_CHANNEL.name, importance: Notifications.AndroidImportance.DEFAULT });
-    const token = (await Notifications.getDevicePushTokenAsync()).data;
+    if (SAFE_MODE || !HAS_PUSH || Platform.OS !== 'android' || !(await allowed())) return;   // an iPhone joins when there is an iPhone build
+    await N().setNotificationChannelAsync(PUSH_CHANNEL.id, { name: PUSH_CHANNEL.name, importance: N().AndroidImportance.DEFAULT });
+    const token = (await N().getDevicePushTokenAsync()).data;
     if (typeof token !== 'string' || !token || token === registered) return;
     await api('/push/device', { method: 'POST', body: { token, platform: 'android', app_version: APP_VERSION } });
     registered = token;

@@ -36,8 +36,6 @@ module.exports = {
       ['expo-audio', { microphonePermission: 'AccurateHR uses the microphone to record a voice message in a chat.', enableBackgroundRecording: false, enableBackgroundPlayback: false }],
       // The app lock asks the phone who is holding it; the app never sees a face or a fingerprint.
       ['expo-local-authentication', { faceIDPermission: 'AccurateHR uses Face ID to unlock the app when you have switched the app lock on.' }],
-      // What is waiting on the phone is also sent now and then with the app closed.
-      'expo-background-task',
       // A notification stays up while someone is on the clock. Nothing is pushed to the phone yet, so remote notifications are off.
       ['expo-notifications', { color: '#5468FF', enableBackgroundRemoteNotifications: false }],
       ['expo-splash-screen', { backgroundColor: '#0A0A12', image: './assets/images/splash-icon.png', imageWidth: 120 }],

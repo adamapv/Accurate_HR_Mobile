@@ -2,14 +2,19 @@
 // stays up while on the clock leads Home; one from the Worker leads where its link says (src/lib/push.ts).
 import { useEffect } from 'react';
 import { router, type Href } from 'expo-router';
-import * as Notifications from 'expo-notifications';
+import type { NotificationResponse } from 'expo-notifications';
+import { SAFE_MODE } from '@/lib/crash';
 import { CLOCK_NOTICE_ID } from '@/lib/clock-notice-core';
 import { pushTarget } from '@/lib/push';
 
+// The phone's notifications are loaded only when first needed, and never in safe mode.
+const N = () => require('expo-notifications') as typeof import('expo-notifications');
+
 export function PushTaps() {
   useEffect(() => {
+    if (SAFE_MODE) return undefined;
     let handled = '';
-    const open = (r: Notifications.NotificationResponse | null | undefined) => {
+    const open = (r: NotificationResponse | null | undefined) => {
       if (!r) return;
       const req = r.notification.request;
       const key = `${req.identifier}:${r.notification.date}`;
@@ -19,8 +24,8 @@ export function PushTaps() {
       router.push(pushTarget(req.content.data as Record<string, unknown> | null) as Href);
     };
     // The tap that opened the app from closed, then every tap after.
-    try { open(Notifications.getLastNotificationResponse()); } catch { /* nothing opened the app */ }
-    const sub = Notifications.addNotificationResponseReceivedListener(open);
+    try { open(N().getLastNotificationResponse()); } catch { /* nothing opened the app */ }
+    const sub = N().addNotificationResponseReceivedListener(open);
     return () => sub.remove();
   }, []);
   return null;

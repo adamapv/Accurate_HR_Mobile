@@ -10,7 +10,6 @@ import { fingerprintOf, makeOffline, onBackOnline } from './offline';
 import type { Offline } from './offline-core';
 
 import { EMAIL_KEY, SESSION_KEY, TENANT_KEY } from './keys';
-import { sendInBackground, setLiveOutbox } from './background';
 import { clearClockNotice } from './clock-notice-clear';
 import { registerForPush, unregisterFromPush } from './push';
 
@@ -97,10 +96,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   useEffect(() => { void load(); }, [load]);
 
   // Send what is waiting on the phone: when the app opens or comes back to the front, when the signal returns, and every minute while it is open.
-  const signedIn = state.status === 'signedIn', loaded = state.status !== 'loading';
-  // With the app closed the phone sends it too, now and then, for as long as someone is signed in; it uses this outbox while the app is in memory.
-  useEffect(() => { setLiveOutbox(offline); return () => setLiveOutbox(null); }, [offline]);
-  useEffect(() => { if (loaded) void sendInBackground(signedIn); }, [signedIn, loaded]);
+  const signedIn = state.status === 'signedIn';
   // The Worker is told how to reach this phone with notifications, for as long as someone is signed in.
   useEffect(() => { if (signedIn) void registerForPush(api); }, [signedIn, api]);
   useEffect(() => {
