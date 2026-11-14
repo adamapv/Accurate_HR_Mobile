@@ -1520,6 +1520,20 @@ export function jobSyncSaid(t) {
   return { text: bits.length ? `Jobs synced: ${bits.join(', ')}` : 'Jobs are up to date', tone: 'ok' };
 }
 
+// ---- sharing a card's time across cost centres and jobs ----
+// The shares (rows of { pct }) as a total, what is said of it, and the time each share really lays out as (what goes to simPRO).
+export const splitTotal = rows => (rows || []).reduce((n, r) => n + (Number(r.pct) || 0), 0);
+export const splitTotalText = rows => `Total ${splitTotal(rows)}%`;
+export const splitIsWhole = rows => splitTotal(rows) === 100;
+// Hours typed for a share, as the percentage of the day's worked time it is (a share is a whole percent).
+export const hoursToPct = (hours, workedMins) => workedMins > 0 ? Math.round(Number(hours) * 60 / workedMins * 100) : 0;
+export const pctToHours = (pct, workedMins) => Math.round(workedMins * (Number(pct) || 0) / 100 / 60 * 100) / 100;
+export const SPLIT_WORDS = { asHours: 'Enter as hours', asPercent: 'Enter as %', evenly: 'Split evenly', addJob: 'Another job', addCostCentre: 'Cost centre', maxRows: 20 };
+// What goes to simPRO: each block of time with the job and cost centre it is for, and where lunch falls. `nameOf(share index)` is a share's label.
+export const goesToText = (plan, nameOf) => `Goes to simPRO as: ${plan.blocks.map(b => `${b.day ? 'next day ' : ''}${b.start}–${b.end} ${nameOf(b.split)}`).join(', ')}${plan.lunch ? ` (lunch ${plan.lunch})` : ''}`;
+// A share's label: its cost centre's name, with the job's number first when the card has more than one job.
+export const shareName = (costCentreLabel, jobId, severalJobs) => { const cc = costCentreLabel || 'Cost centre'; return severalJobs ? `#${jobId} ${cc}` : cc; };
+
 // ---- the session and links ----
 // The session's fingerprint: the first 8 bytes of SHA-256 over "Bearer <session id>", as 16 hex characters. Everything kept on a device for one session (the outbox,
 // the offline copies) is tagged with it, and the service worker keys its copies with the same value, so one person's never show for the next. '' with no session.
