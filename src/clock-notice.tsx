@@ -4,7 +4,7 @@
 // the app. If the phone will not show notifications, nothing happens and the app works as before.
 import { useEffect, useRef } from 'react';
 import { Platform } from 'react-native';
-import * as Notifications from 'expo-notifications';
+import { SAFE_MODE } from '@/lib/crash';
 import { openCardState } from '@shared/field-core.js';
 import { applyToOpenCard, applyToRecent } from '@shared/offline-queue.js';
 import { CLOCK_CHANNEL, CLOCK_NOTICE_ID, clockNotice } from '@/lib/clock-notice-core';
@@ -13,18 +13,21 @@ import { localNowHM, localToday } from '@/lib/dates';
 import { useOutbox } from '@/lib/use-outbox';
 import { useRead } from '@/lib/use-read';
 
+// The phone's notifications are loaded only when first needed, and never in safe mode.
+const N = () => require('expo-notifications') as typeof import('expo-notifications');
+
 type Open = { card: { id: string; work_date: string; clock_on: string; job_id: string | null; job_label: string | null; activity_label: string | null } | null; night: unknown; recent?: unknown[] };
 
 // With the app in front the notification still goes in the list, with no banner and no sound.
-try { Notifications.setNotificationHandler({ handleNotification: async () => ({ shouldShowBanner: false, shouldShowList: true, shouldPlaySound: false, shouldSetBadge: false }) }); } catch { /* nowhere to show one */ }
+try { if (!SAFE_MODE) N().setNotificationHandler({ handleNotification: async () => ({ shouldShowBanner: false, shouldShowList: true, shouldPlaySound: false, shouldSetBadge: false }) }); } catch { /* nowhere to show one */ }
 
 
 // Asked for once, the first time there is something to show; a "no" is not asked again.
 async function allowed(): Promise<boolean> {
-  const now = await Notifications.getPermissionsAsync();
+  const now = await N().getPermissionsAsync();
   if (now.granted) return true;
   if (!now.canAskAgain) return false;
-  return (await Notifications.requestPermissionsAsync()).granted;
+  return (await N().requestPermissionsAsync()).granted;
 }
 
 export function ClockNotice() {
@@ -36,16 +39,16 @@ export function ClockNotice() {
   const notice = open.data === undefined && !view.card ? undefined : clockNotice(view.card, state.sameDay);
   const key = notice === undefined ? '?' : notice ? notice.key : '';
   useEffect(() => {
-    if (key === '?' || key === shown.current) return;   // not known yet, or already saying this
+    if (SAFE_MODE || key === '?' || key === shown.current) return;   // not known yet, or already saying this
     shown.current = key;
     void (async () => {
       try {
         if (!notice) return await clearClockNotice();
         if (!(await allowed())) return;
         if (Platform.OS === 'android') {
-          await Notifications.setNotificationChannelAsync(CLOCK_CHANNEL.id, { name: CLOCK_CHANNEL.name, importance: Notifications.AndroidImportance.LOW, lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC, showBadge: false });
+          await N().setNotificationChannelAsync(CLOCK_CHANNEL.id, { name: CLOCK_CHANNEL.name, importance: N().AndroidImportance.LOW, lockscreenVisibility: N().AndroidNotificationVisibility.PUBLIC, showBadge: false });
         }
-        await Notifications.scheduleNotificationAsync({ identifier: CLOCK_NOTICE_ID, content: { title: notice.title, body: notice.body, sticky: true, autoDismiss: false, sound: false, data: { link: '/' } },
+        await N().scheduleNotificationAsync({ identifier: CLOCK_NOTICE_ID, content: { title: notice.title, body: notice.body, sticky: true, autoDismiss: false, sound: false, data: { link: '/' } },
           trigger: Platform.OS === 'android' ? { channelId: CLOCK_CHANNEL.id } : null });
       } catch { shown.current = ''; /* try again on the next change */ }
     })();

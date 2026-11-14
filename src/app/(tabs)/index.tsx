@@ -19,6 +19,7 @@ import { useRead } from '@/lib/use-read';
 import { useOutbox } from '@/lib/use-outbox';
 import { fmtDate, fmtMins, fmtTime, localNowHM, localToday } from '@/lib/dates';
 import { Avatar, Body, Button, Card, Empty, Heading, List, Notice, Pill, Problem, Row, Screen, Title } from '@/ui';
+import { SafeModeCard } from '@/safe-mode';
 
 // The shared rules are plain JavaScript, so what these two take and give back is spelled out here.
 type Gate = { ready: boolean; held: boolean; outstanding: unknown[] };
@@ -127,6 +128,7 @@ function SignedIn({ me }: { me: Me }) {
 
   return (
     <Screen>
+      <SafeModeCard />
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
         <View style={{ flex: 1 }}>
           <Title>Hi {me.employee.name.split(/\s+/)[0]}</Title>

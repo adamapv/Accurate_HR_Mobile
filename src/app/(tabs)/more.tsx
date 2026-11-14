@@ -12,7 +12,8 @@ import { useRead } from '@/lib/use-read';
 import { LOCK_WORDS } from '@/lib/lock-core';
 import { useLock } from '@/lock';
 import * as Clipboard from 'expo-clipboard';
-import { crashText, forgetCrash, lastCrash } from '@/lib/crash';
+import { crashText, forgetCrash, lastCrash, SAFE_MODE } from '@/lib/crash';
+import { SafeModeCard } from '@/safe-mode';
 import { Avatar, Body, Button, Card, Heading, List, Notice, Pill, Problem, Row, Screen, Title } from '@/ui';
 
 export default function More() {
@@ -47,7 +48,8 @@ export default function More() {
         </View>
       </Card>
 
-      {crash && (
+      <SafeModeCard />
+      {crash && !SAFE_MODE && (
         <Card>
           <Body strong>{crash.fatal ? 'The app closed unexpectedly' : 'A screen hit a problem'}</Body>
           <Body tone="muted">{`${crash.message}\nVersion ${crash.build}`}</Body>

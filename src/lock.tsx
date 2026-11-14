@@ -3,7 +3,7 @@
 // The setting is forgotten with the session, so the next person on this phone starts with it off.
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { AppState, StyleSheet, View } from 'react-native';
-import * as LocalAuthentication from 'expo-local-authentication';
+import { SAFE_MODE } from '@/lib/crash';
 import * as SecureStore from 'expo-secure-store';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { LOCK_WORDS, lockAvailable, lockOnOpen, lockOnReturn, lockProblem } from '@/lib/lock-core';
@@ -13,6 +13,8 @@ import { useTheme } from '@/theme';
 import { Body, Button, Problem, Title } from '@/ui';
 
 export const LOCK_KEY = 'hrhead_lock';
+// The phone's own unlock is loaded only when it is first needed, and never in safe mode.
+const native = () => require('expo-local-authentication') as typeof import('expo-local-authentication');
 type Lock = { available: boolean; on: boolean; setOn: (on: boolean) => Promise<string> };   // setOn answers with what to say, or throws with why not
 const Ctx = createContext<Lock>({ available: false, on: false, setOn: async () => '' });
 export const useLock = () => useContext(Ctx);
@@ -20,7 +22,7 @@ export const useLock = () => useContext(Ctx);
 // Ask the phone who is holding it. → '' when unlocked, else what to say (which may be nothing, when the prompt was simply closed).
 async function ask(prompt: string): Promise<{ ok: boolean; problem: string }> {
   try {
-    const r = await LocalAuthentication.authenticateAsync({ promptMessage: prompt, cancelLabel: 'Cancel', disableDeviceFallback: false });
+    const r = await native().authenticateAsync({ promptMessage: prompt, cancelLabel: 'Cancel', disableDeviceFallback: false });
     return r.success ? { ok: true, problem: '' } : { ok: false, problem: lockProblem(r.error) };
   } catch { return { ok: false, problem: LOCK_WORDS.failed }; }
 }
@@ -39,10 +41,14 @@ export function LockProvider({ children }: { children: ReactNode }) {
 
   // What this phone can do, and whether the lock was switched on here. The session may have loaded first: one that was already on the phone opens locked.
   useEffect(() => {
+    if (SAFE_MODE) return;
     let live = true;
     void (async () => {
-      const [hardware, level, kept] = await Promise.all([
-        LocalAuthentication.hasHardwareAsync().catch(() => false), LocalAuthentication.getEnrolledLevelAsync().catch(() => 0), SecureStore.getItemAsync(LOCK_KEY).catch(() => null)]);
+      let hardware = false, level = 0, kept: string | null = null;
+      try {
+        const la = native();
+        [hardware, level, kept] = await Promise.all([la.hasHardwareAsync().catch(() => false), la.getEnrolledLevelAsync().catch(() => 0), SecureStore.getItemAsync(LOCK_KEY).catch(() => null)]);
+      } catch { /* this phone cannot lock the app */ }
       if (!live) return;
       const can = lockAvailable({ hardware, level: Number(level) });
       onRef.current = can && kept === '1'; ready.current = true;

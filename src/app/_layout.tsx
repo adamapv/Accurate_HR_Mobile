@@ -4,7 +4,8 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { SessionProvider } from '@/lib/session';
 import { LockProvider } from '@/lock';
 import { useTheme } from '@/theme';
-import { noteCrash } from '@/lib/crash';
+import { markStarting, noteCrash, startedCleanly } from '@/lib/crash';
+import { AppState } from 'react-native';
 import { APP_BUILD } from '@/lib/config';
 import { Body, Button, Screen, Title } from '@/ui';
 import type { ErrorBoundaryProps } from 'expo-router';
@@ -24,8 +25,16 @@ export function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
   );
 }
 
+let marked = false;
 export default function RootLayout() {
+  if (!marked) { marked = true; markStarting(); }
   const t = useTheme();
+  // Open for a few seconds with nothing gone wrong: this start counts as a good one (src/lib/crash.ts).
+  useEffect(() => {
+    const timer = setTimeout(startedCleanly, 4000);
+    const sub = AppState.addEventListener('change', s => { if (s === 'background') startedCleanly(); });
+    return () => { clearTimeout(timer); sub.remove(); };
+  }, []);
   return (
     <SafeAreaProvider>
       <SessionProvider>
