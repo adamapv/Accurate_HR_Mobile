@@ -19,6 +19,7 @@ import { useCostCentreStars } from '@/lib/use-stars';
 import { useTheme } from '@/theme';
 import { Dots } from '@/dots';
 import { CostCentreField, JobField, type PickJob } from '@/job-pick';
+import { Slider } from '@/slider';
 import { take } from '@/lib/handoff';
 import { ChooseField, WhenField, type Option } from '@/pickers';
 import { Choice, Toggle, Body, Button, Card, Field, Loading, Notice, Pill, Problem, Screen, Title } from '@/ui';
@@ -267,11 +268,7 @@ function Form({ card, open, date, start, preJob, review }: { card: CardRow | nul
                       onEndEditing={e => setRows(rs => setSplitPct(rs, r.key, String(hoursToPct(e.nativeEvent.text.replace(',', '.'), plan.worked))) as Row[])} />
                   : <Field label={`Share (%)${plan.worked > 0 ? ` · ${fmtMins(rowMins(i))}` : ''}`} keyboardType="number-pad" value={String(r.pct)} maxLength={3}
                       onChangeText={v => setRows(rs => setSplitPct(rs, r.key, v.replace(/\D/g, '')) as Row[])} />}
-                <View style={{ flexDirection: 'row', gap: 8 }}>
-                  {[-10, -5, 5, 10].map(d => (
-                    <View key={d} style={{ flex: 1 }}><Button kind="plain" onPress={() => setRows(rs => setSplitPct(rs, r.key, String(Math.max(1, Math.min(99, (Number(r.pct) || 0) + d)))) as Row[])}>{d > 0 ? `+${d}` : String(d)}</Button></View>
-                  ))}
-                </View>
+                <Slider label="Share" value={Number(r.pct) || 0} onChange={n => setRows(rs => setSplitPct(rs, r.key, String(n)) as Row[])} />
                 <Button kind="plain" icon="trash-outline" onPress={() => setRows(rs => dropSplits(rs, new Set([r.key])) as Row[])}>Remove</Button>
               </>
             )}
@@ -290,10 +287,8 @@ function Form({ card, open, date, start, preJob, review }: { card: CardRow | nul
             <Body strong tone={splitIsWhole(rows) ? 'muted' : 'danger'}>{splitTotalText(rows) as string}</Body>
             {plan.worked > 0 && <Pill tone="neutral">{fmtMins(plan.worked)} worked</Pill>}
           </View>
-          <View style={{ flexDirection: 'row', gap: 10 }}>
-            <View style={{ flex: 1 }}><Button kind="plain" onPress={() => setRows(rs => splitEvenly(rs) as Row[])}>{SPLIT_WORDS.evenly as string}</Button></View>
-            {plan.worked > 0 && <View style={{ flex: 1 }}><Button kind="plain" onPress={() => setInHours(v => !v)}>{(inHours ? SPLIT_WORDS.asPercent : SPLIT_WORDS.asHours) as string}</Button></View>}
-          </View>
+          <Button kind="plain" onPress={() => setRows(rs => splitEvenly(rs) as Row[])}>{SPLIT_WORDS.evenly as string}</Button>
+          {plan.worked > 0 && <Button kind="plain" onPress={() => setInHours(v => !v)}>{(inHours ? SPLIT_WORDS.asPercent : SPLIT_WORDS.asHours) as string}</Button>}
           {plan.blocks.length > 0 && rows.every(r => r.cost_centre_id) && (
             <Body tone="muted">{goesToText(plan, (i: number) => {
               const r = rows[i], job = jobOf(r), label = (job && (costCentreOptions(job) as { value: string; label: string }[]).find(o => o.value === `${r.section_id}:${r.cost_centre_id}`)?.label) || '';
