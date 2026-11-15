@@ -8,7 +8,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { clampDay, dateOf, dateParts, dayLine, daysIn, FLIP_WORDS as W, HOURS, minuteItems, MONTHS, outOfRange, timeOf, timeParts, yearItems } from '@/lib/flip-core';
 import { isoLocal, localNowHM } from '@/lib/dates';
 import { feel } from '@/lib/haptics';
-import { space, useTheme } from '@/theme';
+import { space, useDisplay, useTheme } from '@/theme';
 import { Dots } from '@/dots';
 import { Button } from '@/ui';
 
@@ -68,8 +68,9 @@ export function FlipSheet({ title, mode, value, min, max, step, onSet, onClose }
   const rolled = dateOf(date.y, date.m, date.d), chosen = mode === 'date' ? clampDay(rolled, min, max) : timeOf(time.h, time.m, step);
 
   const a = useRef(new Animated.Value(0)).current;
-  useEffect(() => { Animated.spring(a, { toValue: 1, useNativeDriver: true, damping: 22, stiffness: 240, mass: 0.9 }).start(); }, [a]);
-  const leave = (then?: () => void) => Animated.timing(a, { toValue: 0, duration: 170, easing: Easing.in(Easing.cubic), useNativeDriver: true }).start(() => { then?.(); onClose(); });
+  const { calm } = useDisplay();   // Calmer screen: the sheet is simply there, and simply gone
+  useEffect(() => { if (calm) a.setValue(1); else Animated.spring(a, { toValue: 1, useNativeDriver: true, damping: 22, stiffness: 240, mass: 0.9 }).start(); }, [a, calm]);
+  const leave = (then?: () => void) => { if (calm) { then?.(); onClose(); return; } Animated.timing(a, { toValue: 0, duration: 170, easing: Easing.in(Easing.cubic), useNativeDriver: true }).start(() => { then?.(); onClose(); }); };
 
   return (
     <Modal transparent visible animationType="none" statusBarTranslucent onRequestClose={() => leave()}>

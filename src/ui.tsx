@@ -6,7 +6,7 @@ import { ActivityIndicator, Animated, Easing, KeyboardAvoidingView, Platform, Pr
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useSegments } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { radius, space, TOUCH, useTheme } from '@/theme';
+import { radius, space, TOUCH, useDisplay, useTheme } from '@/theme';
 import { Dots, dotsCan } from '@/dots';
 import { feel } from '@/lib/haptics';
 import { useSessionMaybe } from '@/lib/session';
@@ -28,7 +28,8 @@ const toneOf = (t: Theme, tone: Tone) => { const fg = tone === 'ok' ? t.ok : ton
 // Something that can be pressed gives a little under the thumb: it shrinks a touch while held and springs back.
 export function Touch({ children, onPress, disabled, style, outer, scale = 0.97, ...rest }: { children: ReactNode; onPress: () => void; disabled?: boolean; style?: StyleProp<ViewStyle>; outer?: StyleProp<ViewStyle>; scale?: number } & Pick<PressableProps, 'accessibilityRole' | 'accessibilityLabel' | 'accessibilityState' | 'hitSlop'>) {
   const v = useRef(new Animated.Value(1)).current;
-  const to = (x: number) => Animated.spring(v, { toValue: x, useNativeDriver: true, speed: 50, bounciness: 0 }).start();
+  const { calm } = useDisplay();   // Calmer screen: nothing gives under the thumb
+  const to = (x: number) => { if (!calm) Animated.spring(v, { toValue: x, useNativeDriver: true, speed: 50, bounciness: 0 }).start(); };
   return (
     <Pressable {...rest} disabled={disabled} onPress={onPress} onPressIn={() => to(scale)} onPressOut={() => to(1)} style={outer}>
       <Animated.View style={[style, { transform: [{ scale: v }] }]}>{children}</Animated.View>
@@ -59,7 +60,8 @@ export function Screen({ children, centered }: { children: ReactNode; centered?:
   const [title, setTitle] = useState('');
   const [refreshing, setRefreshing] = useState(false);
   const y = useRef(new Animated.Value(0)).current, enter = useRef(new Animated.Value(0)).current;
-  useEffect(() => { Animated.timing(enter, { toValue: 1, duration: 240, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start(); }, [enter]);
+  const { calm } = useDisplay();   // Calmer screen: every screen simply appears
+  useEffect(() => { if (calm) enter.setValue(1); else Animated.timing(enter, { toValue: 1, duration: 240, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start(); }, [enter, calm]);
   const ctx = useMemo(() => ({ setTitle }), []);
   const shown = y.interpolate({ inputRange: [24, 56], outputRange: [0, 1], extrapolate: 'clamp' });
   const canRefresh = !centered && session?.state.status === 'signedIn';
@@ -294,13 +296,15 @@ export function Problem({ children }: { children: ReactNode }) {
 export function Loading() {
   const t = useTheme();
   const v = useRef(new Animated.Value(0.45)).current;
+  const { calm } = useDisplay();
   useEffect(() => {
+    if (calm) { v.setValue(0.7); return; }   // Calmer screen: the shape of what is coming holds still
     const loop = Animated.loop(Animated.sequence([
       Animated.timing(v, { toValue: 1, duration: 700, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
       Animated.timing(v, { toValue: 0.45, duration: 700, easing: Easing.inOut(Easing.quad), useNativeDriver: true })]));
     loop.start();
     return () => loop.stop();
-  }, [v]);
+  }, [v, calm]);
   const block = (h: number, w: number | `${number}%` = '100%') => <View style={{ height: h, width: w, borderRadius: h > 40 ? 20 : 10, backgroundColor: t.surface }} />;
   return (
     <SafeAreaView accessibilityLabel="Loading" style={[styles.fill, { backgroundColor: t.bg }]}>

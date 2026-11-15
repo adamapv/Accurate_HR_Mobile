@@ -107,3 +107,13 @@ export function orderForFocus(items, today) {
 
 // Whether anything differs from the standard look.
 export const isStandardReading = prefs => cleanReading(typeof prefs === 'string' ? parseReading(prefs) : prefs) === null;
+
+// ---- what the phone app's Display screen sends and says ----
+// What PUT /me/preferences takes to change one or more settings: the person's whole set with the change on it, cleaned (null for the standard look).
+export const readingDraft = (prefs, patch) => ({ reading: cleanReading({ ...parseReading(prefs), ...patch }) });
+// The settings the phone app applies itself (the font, text size and spacing follow the phone's own settings there, and apply on the web).
+export const READING_APP_SWITCHES = READING_SWITCHES.filter(s => ['focus', 'soft', 'calm'].includes(s.key));
+export const READING_APP_NOTE = 'Font, text size and spacing are kept with you and apply on the web. On this phone, the text size follows the phone’s own settings.';
+// Sunlight mode (a light, high-contrast look) is the device's, not the person's: it stays on the phone, so it can be flipped in the sun and back in the ute.
+export const SUNLIGHT_WORDS = { label: 'Sunlight mode', hint: 'A light, high-contrast look for a phone in bright sun. It stays on this phone, so you can flip it in the sun and back in the ute.' };
+export const READING_SAID = { saved: 'Saved', standard: 'Back to the standard look' };
