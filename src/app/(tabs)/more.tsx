@@ -91,6 +91,7 @@ export default function More() {
       <List>
         {!!me.email_configured && !!me.employee.email && <Row icon="mail-outline" tint="violet" title={emailSw.label} sub={emailOn ? `On, to ${me.employee.email}` : 'Off'} onPress={() => { void toggleEmail(); }} />}
         <Row icon="sunny-outline" tint="teal" title={noteRow.label} sub={noteRow.sub} onPress={() => router.push('/morning-note')} />
+        <Row icon="contrast-outline" tint="blue" title="Display & reading" sub="Sunlight mode, softer colours, calmer screen" onPress={() => router.push('/display')} />
         <Row icon="key-outline" tint="amber" title="Change PIN" onPress={() => router.push('/change-pin?own=1')} />
         <Row icon="lock-closed-outline" tint="green" title={LOCK_WORDS.row} sub={!lock.available ? LOCK_WORDS.rowNone : lock.on ? LOCK_WORDS.rowOn : LOCK_WORDS.rowOff}
           onPress={lock.available ? () => { setProblem(''); lock.setOn(!lock.on).then(setSaid).catch(e => setProblem(e instanceof Error ? e.message : LOCK_WORDS.failed)); } : undefined} />

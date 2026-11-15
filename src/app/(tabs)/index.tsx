@@ -18,7 +18,8 @@ import { useSession, type Me } from '@/lib/session';
 import { useRead } from '@/lib/use-read';
 import { useOutbox } from '@/lib/use-outbox';
 import { fmtDate, fmtMins, fmtTime, localNowHM, localToday, parseDay } from '@/lib/dates';
-import { useTheme } from '@/theme';
+import { useDisplay, useTheme } from '@/theme';
+import { orderForFocus } from '@shared/reading.js';
 import { Avatar, Body, Button, Card, Display, Empty, Heading, Hero, List, Notice, Pill, Problem, Row, Screen, Title } from '@/ui';
 import { SafeModeCard } from '@/safe-mode';
 import { WeekHoursCard, WeekSchedule } from '@/week-parts';
@@ -52,6 +53,9 @@ function SignedIn({ me }: { me: Me }) {
   const sched = useRead<{ rows: SchedRow[] }>(`/schedule/mine?from=${range.from}&to=${range.to}`);
   const week = useRead<Record<string, unknown>>(`/timesheets/mine?date=${day0}`);
   const [copying, setCopying] = useState(false);
+  const { focus } = useDisplay();   // One thing at a time: the job now and what is waiting, one at a time, in place of the full page
+  const [showAll, setShowAll] = useState(false);
+  const [skipped, setSkipped] = useState<string[]>([]);   // skipped for now: they go to the back, until the app is closed
   // What is waiting on the person: a pre-start or ute check due, a card still clocked on from before, days sent back, days to submit, tickets expiring.
   // What waits for the person's decision, for a level that approves leave, days of time or expense claims.
   const access = (me as unknown as { access: Record<string, unknown> }).access;
@@ -76,6 +80,13 @@ function SignedIn({ me }: { me: Me }) {
   const last = (open.data as { last_card?: { work_date: string; day_cards?: number } | null } | undefined)?.last_card || null;
   const waiting = (meAttention({ week: weekView, plant: plant.data, quals: quals.data?.rows, gaps: null, today: day0, onSubmit: undefined }, { fmtDate, fmtHours: (n: number) => `${n.toFixed(1).replace(/\.0$/, '')}h` }) as
     { key: string; tone: string; title: string; meta: string; href?: string; cta?: string }[]).filter(a => a.tone !== 'info');
+  // One thing at a time: what is waiting, as a single list (to approve first, then what is waiting on the person), the first not skipped shown.
+  const focusAll = [
+    ...toApprove.rows.map(r => { const w = approvalWaitingRow(r) as { title: string; meta: string }; return { key: `approve-${r.kind.key}`, tone: 'warn', title: w.title, meta: w.meta, cta: 'Review', go: () => router.push({ pathname: '/approvals', params: { kind: r.kind.key } }) }; }),
+    ...waiting.map(a => { const to = screenFor(a.href); return { key: a.key, tone: a.tone, title: a.title, meta: a.meta, cta: a.cta || 'Open', go: () => { if (to) router.push(to as never); else if (a.key === 'submit') router.push('/week'); } }; }),
+  ];
+  const focusItems = orderForFocus(focusAll, day0) as typeof focusAll;
+  const focusItem = focusItems.find(i => !skipped.includes(i.key)) || null;
   const noTimeToday = !!weekView && (dayCards(weekView, today) as unknown[]).length === 0;
   // People whose job time comes from AccurateJobs do not clock on here.
   const fromJobs = timeFromJobs(me.employee, today) as boolean;
@@ -252,7 +263,26 @@ function SignedIn({ me }: { me: Me }) {
         </Card>
       )}
 
-      {toApprove.rows.length > 0 && (
+      {focus && !showAll && (
+        <>
+          <Heading>Next for you</Heading>
+          {focusItem
+            ? (
+              <Card>
+                <Pill tone={focusItem.tone === 'danger' ? 'danger' : 'warn'}>{focusItems.length > 1 ? `1 of ${focusItems.length}` : 'Waiting on you'}</Pill>
+                <Body strong>{focusItem.title}</Body>
+                <Body tone="muted">{focusItem.meta}</Body>
+                <Button onPress={focusItem.go}>{focusItem.cta}</Button>
+                {focusItems.length > 1 && <Button kind="plain" onPress={() => setSkipped(k => (k.length + 1 >= focusItems.length ? [] : [...k, focusItem.key]))}>Skip for now</Button>}
+              </Card>
+            )
+            : <Empty icon="checkmark-done-outline">Nothing is waiting on you.</Empty>}
+          <Button kind="plain" onPress={() => setShowAll(true)}>Show everything</Button>
+        </>
+      )}
+      {focus && showAll && <Button kind="plain" icon="eye-off-outline" onPress={() => { setShowAll(false); setSkipped([]); }}>One thing at a time</Button>}
+
+      {(!focus || showAll) && toApprove.rows.length > 0 && (
         <>
           <Heading>To approve</Heading>
           <List>
@@ -264,7 +294,7 @@ function SignedIn({ me }: { me: Me }) {
         </>
       )}
 
-      {waiting.length > 0 && (
+      {(!focus || showAll) && waiting.length > 0 && (
         <>
           <Heading>Waiting on you</Heading>
           <List>
@@ -281,16 +311,20 @@ function SignedIn({ me }: { me: Me }) {
       {!sched.data ? <Body tone="muted">{sched.error || 'Loading…'}</Body>
         : sched.data.rows.filter(r => r.work_date === today).length === 0 ? <Empty icon="calendar-outline">Nothing published for you today.</Empty>
         : sched.data.rows.filter(r => r.work_date === today).map(r => jobRow(r, false))}
-      {!!sched.data && sched.data.rows.some(r => r.work_date === addDaysIso(today, 1)) && (
+      {(!focus || showAll) && !!sched.data && sched.data.rows.some(r => r.work_date === addDaysIso(today, 1)) && (
         <>
           <Heading>Tomorrow</Heading>
           {sched.data.rows.filter(r => r.work_date === addDaysIso(today, 1)).map(r => jobRow(r, true))}
         </>
       )}
 
-      <Heading>This week’s schedule</Heading>
-      <WeekSchedule rows={sched.data?.rows} today={today} loading={!sched.data && !sched.error} />
-      {!fromJobs && (
+      {(!focus || showAll) && (
+        <>
+          <Heading>This week’s schedule</Heading>
+          <WeekSchedule rows={sched.data?.rows} today={today} loading={!sched.data && !sched.error} />
+        </>
+      )}
+      {(!focus || showAll) && !fromJobs && (
         <>
           <Heading>This week’s hours</Heading>
           <WeekHoursCard week={weekView} expected={Number(me.employee.expected_weekly_hours) || 38} fromJobs={false} today={today} onSubmit={() => router.push('/week')} />

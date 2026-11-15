@@ -3,7 +3,7 @@ import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { SessionProvider } from '@/lib/session';
 import { LockProvider } from '@/lock';
-import { useTheme } from '@/theme';
+import { ThemeProvider, useDisplay } from '@/theme';
 // Loaded here, by the first file the app runs, so an error anywhere after it is written down.
 import { markStarting, noteCrash, startedCleanly } from '@/lib/crash';
 import { AppState } from 'react-native';
@@ -26,10 +26,22 @@ export function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
   );
 }
 
+// The navigator and the lock, drawn in the person's colours (so they sit inside the theme).
+function Navigator() {
+  const { t, mode, calm } = useDisplay();
+  return (
+    <>
+      <StatusBar style={mode === 'light' ? 'dark' : 'light'} />
+      <LockProvider>
+        <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: t.bg }, animation: calm ? 'none' : 'slide_from_right', gestureEnabled: true }} />
+      </LockProvider>
+    </>
+  );
+}
+
 let marked = false;
 export default function RootLayout() {
   if (!marked) { marked = true; markStarting(); }
-  const t = useTheme();
   // Open for a few seconds with nothing gone wrong: this start counts as a good one (src/lib/crash.ts).
   useEffect(() => {
     const timer = setTimeout(startedCleanly, 4000);
@@ -39,10 +51,9 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <SessionProvider>
-        <StatusBar style="light" />
-        <LockProvider>
-          <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: t.bg }, animation: 'slide_from_right', gestureEnabled: true }} />
-        </LockProvider>
+        <ThemeProvider>
+          <Navigator />
+        </ThemeProvider>
       </SessionProvider>
     </SafeAreaProvider>
   );
