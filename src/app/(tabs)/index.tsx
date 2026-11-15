@@ -20,9 +20,10 @@ import { useOutbox } from '@/lib/use-outbox';
 import { fmtDate, fmtMins, fmtTime, localNowHM, localToday, parseDay } from '@/lib/dates';
 import { useDisplay, useTheme } from '@/theme';
 import { orderForFocus } from '@shared/reading.js';
-import { Avatar, Body, Button, Card, Display, Empty, Heading, Hero, List, Notice, Pill, Problem, Row, Screen, Title } from '@/ui';
+import { Body, Button, Card, Display, Empty, Heading, Hero, List, Notice, Pill, Problem, Row, Screen, Title } from '@/ui';
 import { SafeModeCard } from '@/safe-mode';
 import { WeekHoursCard, WeekSchedule } from '@/week-parts';
+import { AccountMenu } from '@/account-menu';
 import { screenFor } from '@/lib/links';
 
 // The shared rules are plain JavaScript, so what these two take and give back is spelled out here.
@@ -216,7 +217,7 @@ function SignedIn({ me }: { me: Me }) {
           <Title>Hi {me.employee.name.split(/\s+/)[0]}</Title>
           <Body tone="muted">{me.company.company_name}{me.access_level ? ` · ${me.access_level}` : ''}</Body>
         </View>
-        <Avatar name={me.employee.name} size={52} />
+        <AccountMenu name={me.employee.name} detail={[me.company.company_name, me.access_level, me.employee.email].filter(Boolean).join(' · ')} />
       </View>
       {open.offlineAt !== null && <Notice tone="warn" icon="cloud-offline-outline">{`No signal. Showing what was saved at ${fmtTime(open.offlineAt)}.`}</Notice>}
       {(seesPos || canChat || canSync) && (

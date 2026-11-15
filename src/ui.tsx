@@ -257,7 +257,7 @@ export function Button({ children, onPress, kind = 'primary', busy, disabled, ic
       {busy ? <ActivityIndicator color={fg} size={compact ? 'small' : undefined} /> : (
         <View style={styles.buttonIn}>
           {icon && <Ionicons name={icon} size={compact ? 15 : 19} color={fg} />}
-          <Text numberOfLines={1} style={[compact ? styles.buttonSmallText : styles.buttonText, { color: fg }]}>{children}</Text>
+          <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75} style={[compact ? styles.buttonSmallText : styles.buttonText, { color: fg, flexShrink: 1 }]}>{children}</Text>
         </View>
       )}
     </Touch>
