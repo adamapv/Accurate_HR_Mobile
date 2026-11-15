@@ -5,6 +5,7 @@ import { linkToHash } from '@shared/field-core.js';
 const SCREENS: Record<string, string> = {
   field: '/', dashboard: '/', me: '/more',
   'my-timesheet': '/week', timesheet: '/week', 'my-schedule': '/schedule',
+  approvals: '/approvals?kind=leave', 'timesheet-approvals': '/approvals?kind=time', 'expense-approvals': '/approvals?kind=expenses',
   'my-leave': '/leave', 'my-expenses': '/expenses', 'my-qualifications': '/quals', 'my-documents': '/documents', 'my-assets': '/assets', 'my-forms': '/forms',
   chat: '/chats', whs: '/safety-reports', policies: '/safety', 'job-safety': '/safety', 'field/pos': '/pos', 'purchase-orders': '/pos', 'plant-checkout': '/plant', documents: '/shared-docs', 'my-hr': '/my-hr', help: '/help', support: '/support', 'my-performance': '/performance', reviews: '/performance', 'my-allowances': '/allowances', 'my-onboarding': '/onboarding', onboarding: '/onboarding', 'my-departure': '/departure', offboarding: '/departure',
 };
