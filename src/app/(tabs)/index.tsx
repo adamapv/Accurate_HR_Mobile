@@ -6,7 +6,7 @@ import { useEffect, useState } from 'react';
 import { Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { can } from '@shared/access.js';
-import { copySaid, dayCards, findJob, meAttention, homeScheduleRange, JOB_SYNC, jobSyncAdd, jobSyncBody, jobSyncMore, jobSyncSaid, onlyCostCentre, openCardState, planJobCard, restHoldText, SAME_AS, sameAsLabel, timeFromJobs } from '@shared/field-core.js';
+import { approvalKindsFor, approvalsWaiting, approvalWaitingRow, copySaid, dayCards, findJob, meAttention, homeScheduleRange, JOB_SYNC, jobSyncAdd, jobSyncBody, jobSyncMore, jobSyncSaid, onlyCostCentre, openCardState, planJobCard, restHoldText, SAME_AS, sameAsLabel, timeFromJobs } from '@shared/field-core.js';
 import { finishChecks, holdText, safetyJobKeys, startButton, startGate, startStep } from '@shared/job-checks.js';
 import { applyToOpenCard, applyToRecent, applyToWeek, describe } from '@shared/offline-queue.js';
 import { addDaysIso } from '@shared/pickers-core.js';
@@ -53,6 +53,11 @@ function SignedIn({ me }: { me: Me }) {
   const week = useRead<Record<string, unknown>>(`/timesheets/mine?date=${day0}`);
   const [copying, setCopying] = useState(false);
   // What is waiting on the person: a pre-start or ute check due, a card still clocked on from before, days sent back, days to submit, tickets expiring.
+  // What waits for the person's decision, for a level that approves leave, days of time or expense claims.
+  const access = (me as unknown as { access: Record<string, unknown> }).access;
+  const mayApprove = (approvalKindsFor((area: string, need: string) => can(access as never, area, need as 'approve')) as unknown[]).length > 0;
+  const dash = useRead<{ stats: Record<string, unknown> }>(mayApprove ? '/dashboard?lite=1' : null);
+  const toApprove = approvalsWaiting(dash.data?.stats, (area: string, need: string) => can(access as never, area, need as 'approve')) as { rows: { kind: { key: string }; count: number }[]; total: number };
   const plant = useRead<{ rows: unknown[] }>('/plant/available');
   const quals = useRead<{ rows: { status: string }[] }>('/qualifications/mine');
   const [busy, setBusy] = useState(false);
@@ -245,6 +250,18 @@ function SignedIn({ me }: { me: Me }) {
             </View>
           ))}
         </Card>
+      )}
+
+      {toApprove.rows.length > 0 && (
+        <>
+          <Heading>To approve</Heading>
+          <List>
+            {toApprove.rows.map((r, i) => {
+              const row = approvalWaitingRow(r) as { title: string; meta: string };
+              return <Row key={r.kind.key} icon="checkmark-done-outline" tint="amber" title={row.title} sub={row.meta} right={<Pill tone="warn">Review</Pill>} onPress={() => router.push({ pathname: '/approvals', params: { kind: r.kind.key } })} last={i === toApprove.rows.length - 1} />;
+            })}
+          </List>
+        </>
       )}
 
       {waiting.length > 0 && (

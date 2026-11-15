@@ -1545,6 +1545,47 @@ export function hoursByRate(week) {
 }
 export const LEAVE_BALANCES_SHOWN = 3;
 
+// ---- approvals: leave, days of time and expense claims waiting for the person's decision ----
+// Which of the three a person can decide is their level's own (`can` is access.js's, passed in), and the server checks each decision again.
+export const APPROVAL_KINDS = [
+  { key: 'leave', area: 'leave', label: 'Leave', noun: 'leave request', one: 'leave request', pendingPath: '/leave-requests/pending', base: '/leave-requests', empty: 'No leave waiting for a decision — you’re all caught up.', sub: 'Leave requests from your team' },
+  { key: 'time', area: 'timesheets', label: 'Time', noun: 'day of time', one: 'day of time', many: 'days of time', pendingPath: '/days/pending', base: '/days', empty: 'No days waiting for approval — you’re all caught up.', sub: 'Time your team has submitted, a day at a time' },
+  { key: 'expenses', area: 'expenses', label: 'Expenses', noun: 'claim', one: 'expense claim', pendingPath: '/expense-claims/pending', base: '/expense-claims', empty: 'No claims waiting for approval — you’re all caught up.', sub: 'Expense claims from your team' },
+];
+export const approvalKindsFor = can => APPROVAL_KINDS.filter(k => can(k.area, 'approve'));
+export const approvalPath = (kind, id, action) => `${kind.base}/${id}/${action}`;
+export const approvalDraft = note => ({ note: note || '' });
+// Rejecting asks for a reason, which is sent to the person; approving needs no more than a tap.
+export const rejectAsk = kind => ({ title: `Reject this ${kind.noun}?`, label: 'Reason (sent to them)', confirmLabel: 'Reject' });
+export const approvalSaid = action => action === 'approve' ? 'Approved' : 'Rejected';
+// Approving leave takes the person off whatever they are planned on those days and onto the leave row of the schedule board: say what, and ask first.
+// `checks` are the answers of GET /leave-requests/:id/schedule-check that have clashes.
+export function leaveBoardAsk(checks, fmtDay) {
+  const list = (checks || []).filter(c => c?.clashes?.length);
+  if (!list.length) return null;
+  const lines = list.map(c => `${c.employee_name} comes off ${c.clashes.slice(0, 6).map(x => `${x.label} (${fmtDay(x.work_date)})`).join(', ')}${c.clashes.length > 6 ? ` and ${c.clashes.length - 6} more` : ''}, and goes on ${c.row_name || 'leave'}.`);
+  return { title: list.length === 1 ? `Take ${list[0].employee_name} off the schedule?` : `Take ${plural(list.length, 'person', 'people')} off the schedule?`, confirmLabel: 'Approve and move them',
+    body: `${lines.join('\n\n')}\n\nThe day is held on the schedule board as approved leave.` };
+}
+// A row of each kind, as a list shows it: { title, meta, notes: [lines], flags: [text] }.
+export function leaveApprovalRow(r, fmtDate, fmtHours) {
+  const after = r.balance_hours == null ? null : Number(r.balance_hours) - Number(r.hours_requested || 0);
+  return { title: r.employee_name, meta: `${r.type_name} · ${r.start_date === r.end_date ? fmtDate(r.start_date) : `${fmtDate(r.start_date)} – ${fmtDate(r.end_date)}`} · ${fmtHours(r.hours_requested)}`,
+    notes: [after == null ? null : `Balance after: ${fmtHours(after)}`, r.clash_count > 0 ? `${r.clash_count} on the team off then${r.clash_names ? `: ${r.clash_names}` : ''}` : null, r.reason || null].filter(Boolean), flags: after != null && after < 0 ? ['Goes below nothing'] : [] };
+}
+export const dayApprovalRow = (r, fmtDate, fmtHours) => ({ title: r.employee_name, meta: `${fmtDate(r.work_date)} · ${fmtHours(r.total_hours)}`, notes: [r.submitted_at ? `Submitted ${fmtDate(r.submitted_at)}` : null].filter(Boolean),
+  flags: (r.flags || []).map(f => f.text) });
+export const claimApprovalRow = (r, fmtDate, fmtMoney) => ({ title: r.employee_name, meta: `${fmtDate(r.claim_date)} · ${fmtMoney(r.total_cents)}`, notes: [r.description || null, r.jobs ? `Charged to ${r.jobs}` : null].filter(Boolean), flags: [] });
+export const approvalRowOf = (kind, r, fmt) => kind.key === 'leave' ? leaveApprovalRow(r, fmt.fmtDate, fmt.fmtHours) : kind.key === 'time' ? dayApprovalRow(r, fmt.fmtDate, fmt.fmtHours) : claimApprovalRow(r, fmt.fmtDate, fmt.fmtMoney);
+// What is waiting, from GET /dashboard?lite=1's stats (a company or team scope): [{ kind, count }] for the kinds the level can decide, and the total.
+export function approvalsWaiting(stats, can) {
+  if (!stats || !(stats.scope === 'company' || stats.scope === 'team')) return { rows: [], total: 0 };
+  const counts = { leave: stats.pending_leave, time: stats.pending_timesheets, expenses: stats.pending_expenses };
+  const rows = approvalKindsFor(can).map(k => ({ kind: k, count: Number(counts[k.key]) || 0 })).filter(r => r.count > 0);
+  return { rows, total: rows.reduce((n, r) => n + r.count, 0) };
+}
+export const approvalWaitingRow = ({ kind, count }) => ({ key: kind.key, title: `${plural(count, kind.one, kind.many)} to decide`, meta: 'Waiting for your decision' });
+
 // ---- the session and links ----
 // The session's fingerprint: the first 8 bytes of SHA-256 over "Bearer <session id>", as 16 hex characters. Everything kept on a device for one session (the outbox,
 // the offline copies) is tagged with it, and the service worker keys its copies with the same value, so one person's never show for the next. '' with no session.
