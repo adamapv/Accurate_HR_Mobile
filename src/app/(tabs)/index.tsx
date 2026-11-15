@@ -3,10 +3,10 @@
 // nothing is held on a guess (only once what goes with the job has been read, for someone whose level has the Job safety area). The clock is read with the web Field view's own rules (shared/field-core.js) and written through
 // the outbox (shared/offline-queue.js), so a clock-on with no signal is kept on the phone and sent once when the signal returns.
 import { useEffect, useState } from 'react';
-import { Text, View } from 'react-native';
+import { Alert, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { can } from '@shared/access.js';
-import { approvalKindsFor, approvalsWaiting, approvalWaitingRow, copySaid, dayCards, findJob, meAttention, homeScheduleRange, JOB_SYNC, jobSyncAdd, jobSyncBody, jobSyncMore, jobSyncSaid, onlyCostCentre, openCardState, planJobCard, restHoldText, SAME_AS, sameAsLabel, timeFromJobs } from '@shared/field-core.js';
+import { approvalKindsFor, approvalsWaiting, approvalWaitingRow, copySaid, TODO_DONE_SAID, todoDoneDraft, todoRows, dayCards, findJob, meAttention, homeScheduleRange, JOB_SYNC, jobSyncAdd, jobSyncBody, jobSyncMore, jobSyncSaid, onlyCostCentre, openCardState, planJobCard, restHoldText, SAME_AS, sameAsLabel, timeFromJobs } from '@shared/field-core.js';
 import { finishChecks, holdText, safetyJobKeys, startButton, startGate, startStep } from '@shared/job-checks.js';
 import { applyToOpenCard, applyToRecent, applyToWeek, describe } from '@shared/offline-queue.js';
 import { addDaysIso } from '@shared/pickers-core.js';
@@ -62,6 +62,9 @@ function SignedIn({ me }: { me: Me }) {
   const mayApprove = (approvalKindsFor((area: string, need: string) => can(access as never, area, need as 'approve')) as unknown[]).length > 0;
   const dash = useRead<{ stats: Record<string, unknown> }>(mayApprove ? '/dashboard?lite=1' : null);
   const toApprove = approvalsWaiting(dash.data?.stats, (area: string, need: string) => can(access as never, area, need as 'approve')) as { rows: { kind: { key: string }; count: number }[]; total: number };
+  // The to-dos: documents to sign, policies to read, onboarding tasks, safety actions and statements people on a job still have to sign on to.
+  const todos = useRead<Record<string, unknown>>('/todos');
+  const todo = todos.data ? (todoRows(todos.data) as { key: string; title: string; meta: string; href?: string; done?: { path: string; id: string } }[]) : [];
   const plant = useRead<{ rows: unknown[] }>('/plant/available');
   const quals = useRead<{ rows: { status: string }[] }>('/qualifications/mine');
   const [busy, setBusy] = useState(false);
@@ -81,8 +84,15 @@ function SignedIn({ me }: { me: Me }) {
   const waiting = (meAttention({ week: weekView, plant: plant.data, quals: quals.data?.rows, gaps: null, today: day0, onSubmit: undefined }, { fmtDate, fmtHours: (n: number) => `${n.toFixed(1).replace(/\.0$/, '')}h` }) as
     { key: string; tone: string; title: string; meta: string; href?: string; cta?: string }[]).filter(a => a.tone !== 'info');
   // One thing at a time: what is waiting, as a single list (to approve first, then what is waiting on the person), the first not skipped shown.
+  const tickOff = (r: { title: string; done?: { path: string; id: string } }) => { const target = r.done; if (target) Alert.alert(r.title, 'Mark this as done?', [{ text: 'Cancel', style: 'cancel' }, { text: 'Done', onPress: () => {
+    const d = todoDoneDraft(target) as { method: 'PUT'; path: string; body: object };
+    setProblem('');
+    void api(d.path, { method: d.method, body: d.body }).then(async () => { await todos.reload(); changed(); setProblem(''); }).catch(e => setProblem(e instanceof Error ? e.message : 'Something went wrong. Try again.'));
+  } }]); };
+  const openTodo = (r: { done?: { path: string; id: string }; href?: string; title: string }) => { const to = screenFor(r.href); if (r.done) tickOff(r); else if (to) router.push(to as never); };
   const focusAll = [
     ...toApprove.rows.map(r => { const w = approvalWaitingRow(r) as { title: string; meta: string }; return { key: `approve-${r.kind.key}`, tone: 'warn', title: w.title, meta: w.meta, cta: 'Review', go: () => router.push({ pathname: '/approvals', params: { kind: r.kind.key } }) }; }),
+    ...todo.map(r => ({ key: `todo-${r.key}`, tone: 'warn', title: r.title, meta: r.meta, cta: r.done ? 'Mark done' : 'Open', go: () => openTodo(r) })),
     ...waiting.map(a => { const to = screenFor(a.href); return { key: a.key, tone: a.tone, title: a.title, meta: a.meta, cta: a.cta || 'Open', go: () => { if (to) router.push(to as never); else if (a.key === 'submit') router.push('/week'); } }; }),
   ];
   const focusItems = orderForFocus(focusAll, day0) as typeof focusAll;
@@ -303,6 +313,17 @@ function SignedIn({ me }: { me: Me }) {
               return <Row key={a.key} icon={a.tone === 'danger' ? 'alert-circle-outline' : 'flag-outline'} tint={a.tone === 'danger' ? 'pink' : 'amber'} title={a.title} sub={a.meta}
                 right={<Pill tone={a.tone === 'danger' ? 'danger' : 'warn'}>{a.cta || 'Open'}</Pill>} onPress={to ? () => router.push(to as never) : a.key === 'submit' ? () => router.push('/week') : undefined} last={i === waiting.length - 1} />;
             })}
+          </List>
+        </>
+      )}
+
+      {(!focus || showAll) && todo.length > 0 && (
+        <>
+          <Heading>To do</Heading>
+          <List>
+            {todo.map((r, i) => (
+              <Row key={r.key} icon={r.done ? 'checkbox-outline' : 'document-text-outline'} tint="violet" title={r.title} sub={r.meta} right={<Pill tone="neutral">{r.done ? 'Mark done' : 'Open'}</Pill>} onPress={() => openTodo(r)} last={i === todo.length - 1} />
+            ))}
           </List>
         </>
       )}

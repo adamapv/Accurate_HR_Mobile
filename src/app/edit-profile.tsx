@@ -1,12 +1,13 @@
 // Edit profile: the person's own details and emergency contact. The fields, their labels and what is saved are the web app's own (shared/field-core.js); the
-// Worker refuses it for a level that may not change its own details, in its own words. The address is typed here (the web app's address search is not in the
-// app). It needs signal.
+// Worker refuses it for a level that may not change its own details, in its own words. The address box searches as it is typed and fills the suburb, state and
+// postcode when one is picked. It needs signal.
 import { useState } from 'react';
 import { Redirect, router } from 'expo-router';
 import { EMERGENCY_FIELDS, PERSONAL_FIELDS, PROFILE_PANELS, profileDraft, profileFormStart } from '@shared/field-core.js';
 import { useSession } from '@/lib/session';
 import { localToday } from '@/lib/dates';
 import { WhenField } from '@/pickers';
+import { AddressField } from '@/address-field';
 import { Body, Button, Field, Heading, Problem, Screen, Title } from '@/ui';
 
 type FieldT = { key: string; label: string; type?: string; hint?: string; address?: boolean };
@@ -26,7 +27,10 @@ export default function EditProfile() {
     try { await api('/me', { method: 'PUT', body: profileDraft(f) }); await refreshMe(); changed(); router.back(); }
     catch (e) { setProblem(e instanceof Error ? e.message : 'Something went wrong. Try again.'); setBusy(false); }
   };
-  const box = (x: FieldT) => x.type === 'date'
+  const box = (x: FieldT) => x.address
+    ? <AddressField key={x.key} label={x.label} value={String(f[x.key] || '')} onChange={v => set(x.key, v)} maxLength={200}
+        onPick={fill => setForm({ ...f, address_line1: String(fill.address_line1 || ''), suburb: String(fill.suburb || ''), state: String(fill.state || ''), postcode: String(fill.postcode || '') })} />
+    : x.type === 'date'
     ? <WhenField key={x.key} label={x.label} mode="date" value={String(f[x.key] || '').slice(0, 10)} maxDate={localToday()} onChange={v => set(x.key, v)} />
     : (
       <Field key={x.key} label={x.label} value={String(f[x.key] || '')} onChangeText={v => set(x.key, v)} maxLength={x.address ? 200 : 120}
@@ -36,7 +40,7 @@ export default function EditProfile() {
     <Screen>
       <Title>Edit profile</Title>
       <Heading>{PANELS.personal}</Heading>
-      {(PERSONAL_FIELDS as FieldT[]).map(x => [box(x), x.hint && !x.address ? <Body key={`${x.key}-hint`} tone="muted">{x.hint}</Body> : null])}
+      {(PERSONAL_FIELDS as FieldT[]).map(x => [box(x), x.hint ? <Body key={`${x.key}-hint`} tone="muted">{x.hint}</Body> : null])}
       <Heading>{PANELS.emergency}</Heading>
       {(EMERGENCY_FIELDS as FieldT[]).map(box)}
       <Problem>{problem}</Problem>
