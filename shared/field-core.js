@@ -1586,6 +1586,46 @@ export function approvalsWaiting(stats, can) {
 }
 export const approvalWaitingRow = ({ kind, count }) => ({ key: kind.key, title: `${plural(count, kind.one, kind.many)} to decide`, meta: 'Waiting for your decision' });
 
+// ---- the street-address box that searches as it is typed ----
+// The Worker's answer is Google Places when its key is set and OpenStreetMap otherwise (GET lookup/address?q=&session=, then lookup/address/pick?id=&session= for a
+// result that does not carry its address). `session` is one random token for a search, so the provider bills it as one; a new one starts after a pick.
+export const ADDRESS_SEARCH = { minChars: 4, waitMs: 300 };   // the Worker's own minimum is ADDRESS_LIMITS.minQuery in src/lookup.mjs: scripts/test-field-core.mjs holds the two together
+export const addressSearchPath = (q, session) => `/lookup/address?q=${encodeURIComponent(String(q || '').trim())}&session=${encodeURIComponent(session || '')}`;
+export const addressPickPath = (id, session) => `/lookup/address/pick?id=${encodeURIComponent(id)}&session=${encodeURIComponent(session || '')}`;
+// Whether what is in the box should be searched: only what the person has typed (an address already saved, or filled in by a pick, never opens the list), long enough,
+// and not the street of the last pick.
+export const addressWanted = (value, typed, lastPick) => { const q = String(value || '').trim(); return !!typed && q.length >= ADDRESS_SEARCH.minChars && q !== lastPick; };
+// A picked result as what fills the form: { address_line1, suburb, state, postcode } and where it is (ACC-379, so the board can say who lives nearest a site; a form that
+// does not keep it loses nothing). `picked` is the answer of the pick route, for a result that has no address of its own. null when there is no address to fill in.
+export function addressFill(item, picked) {
+  const address = item?.address || picked?.address || null;
+  if (!address) return null;
+  const location = item?.location || picked?.location || null;
+  return location ? { ...address, home_lat: location.lat, home_lng: location.lng } : { ...address };
+}
+// Which of a form's own boxes the pick fills in (the others are left alone).
+export const addressPatch = (form, fill) => ({ ...form, ...(fill || {}) });
+
+// ---- the to-dos waiting on a person (GET /todos) ----
+// One list of what the person has to do: documents to sign or acknowledge, policies to read, onboarding and offboarding tasks, safety actions, and (for the leader of a
+// job) the people booked on it who have not signed its statement. A row with `done` can be ticked off there ({ path, id }: see todoDoneDraft); one with `href` opens
+// its own screen (an address of the web app, which the phone app maps to a screen of its own).
+export function todoRows(data) {
+  return [
+    ...(data?.documents || []).map(d => ({ key: `d${d.id}`, title: `${d.requires_signature ? 'Sign' : 'Acknowledge'}: ${d.title}`, meta: 'Document', href: '#/my-documents' })),
+    ...(data?.policies || []).map(p => ({ key: `p${p.id}`, title: `Read & acknowledge: ${p.title}`, meta: 'Company policy', href: '#/policies' })),
+    ...(data?.onboarding_tasks || []).map(t => ({ key: `o${t.id}`, title: t.title, due: t.due_date, meta: `Onboarding · ${t.run_employee_name}`, done: { path: '/onboarding-tasks', id: t.id } })),
+    ...(data?.offboarding_tasks || []).map(t => ({ key: `f${t.id}`, title: t.title, due: t.due_date, meta: `Offboarding · ${t.run_employee_name}`, done: { path: '/offboarding-tasks', id: t.id } })),
+    ...(data?.whs_actions || []).map(a => ({ key: `w${a.id}`, title: a.title, due: a.due_date, meta: `WHS ${a.source_type || 'action'}`, done: { path: '/whs/actions', id: a.id } })),
+    // For the leader of a job (ACC-328): the people booked on it in the next week who have not signed its SWMS.
+    ...(data?.swms_unsigned || []).map(x => ({ key: `su${x.company_id}:${x.job_id}:${x.swms_id}`, title: `${plural(x.people.length, 'person', 'people')} still to sign on: ${x.swms_title}`,
+      due: x.people[0].first_day, meta: `${x.job_label} · ${x.people.map(p => p.name).join(', ')}`, href: '#/job-safety' })),
+  ];
+}
+// What ticking one off sends: a safety action is done, the rest completed.
+export const todoDoneDraft = ({ path, id }) => ({ method: 'PUT', path, body: { id, status: path === '/whs/actions' ? 'done' : 'completed' } });
+export const TODO_DONE_SAID = 'Marked done';
+
 // ---- the session and links ----
 // The session's fingerprint: the first 8 bytes of SHA-256 over "Bearer <session id>", as 16 hex characters. Everything kept on a device for one session (the outbox,
 // the offline copies) is tagged with it, and the service worker keys its copies with the same value, so one person's never show for the next. '' with no session.
