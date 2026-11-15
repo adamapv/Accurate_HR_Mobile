@@ -62,7 +62,7 @@ One-time setup:
 
 After that: Actions tab, **iPhone build**, **Run workflow**. About 20 minutes later the build is in TestFlight (Apple takes a few more minutes to process it first). A TestFlight build lasts 90 days. The staging app has its own bundle ID, so it needs its own App Store Connect app (steps 3 and 4 again with `--profile staging`) before the workflow can send it.
 
-Not yet on iPhone: notifications from the Worker (`src/lib/push.ts` registers Android phones only; the Worker would first have to send through Apple's push service). Everything else is the same code as Android, but none of it has been tried on an iPhone yet.
+Not yet on iPhone: notifications from the Worker. The app side is written (`src/lib/push.ts`) but off; it switches on in a build made with `IOS_PUSH=1` once the Worker sends through Apple's push service and takes `platform: "ios"`. Everything else is the same code as Android, but none of it has been tried on an iPhone yet.
 
 ## Working on it
 
