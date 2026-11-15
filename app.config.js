@@ -13,6 +13,11 @@ const commit = String(process.env.BUILD_COMMIT || info.commit || '').slice(0, 7)
 // This project's id on expo.dev, filled in once by `npx eas-cli init` (see "Trying it on an iPhone" in README.md). Only the iPhone build needs it.
 const EAS_PROJECT_ID = '';
 
+// Push notifications need Firebase's file, and the file names one app (co.accuratehr.app), so only the production build takes it: the staging app has another package name,
+// and a build whose package the file does not name fails. Kept out of the repo (it is public): the Android build workflow writes it from a secret, and a phone's own copy may
+// sit beside this file.
+const hasPush = !staging && fs.existsSync(path.join(__dirname, 'google-services.json'));
+
 module.exports = {
   expo: {
     name: staging ? 'AccurateHR (staging)' : 'AccurateHR',
@@ -30,7 +35,7 @@ module.exports = {
       package: staging ? 'co.accuratehr.app.staging' : 'co.accuratehr.app',
       versionCode: build || 1,
       // The push service's own file (Firebase): notifications from the Worker reach the phone only in a build that has it.
-      ...(fs.existsSync(path.join(__dirname, 'google-services.json')) ? { googleServicesFile: './google-services.json' } : {}),
+      ...(hasPush ? { googleServicesFile: './google-services.json' } : {}),
       adaptiveIcon: { backgroundColor: '#3DA9E6', foregroundImage: './assets/images/android-icon-foreground.png' },
     },
     plugins: [
@@ -47,6 +52,6 @@ module.exports = {
       ['expo-notifications', { color: '#5468FF', enableBackgroundRemoteNotifications: false }],
       ['expo-splash-screen', { backgroundColor: '#0A0A12', image: './assets/images/splash-icon.png', imageWidth: 120 }],
     ],
-    extra: { push: fs.existsSync(path.join(__dirname, 'google-services.json')), pushIos: process.env.IOS_PUSH === '1', apiUrl: staging ? 'https://staging.accuratehr.co' : 'https://app.accuratehr.co', env: staging ? 'staging' : 'production', build, commit, ...(EAS_PROJECT_ID ? { eas: { projectId: EAS_PROJECT_ID } } : {}) },
+    extra: { push: hasPush, pushIos: process.env.IOS_PUSH === '1', apiUrl: staging ? 'https://staging.accuratehr.co' : 'https://app.accuratehr.co', env: staging ? 'staging' : 'production', build, commit, ...(EAS_PROJECT_ID ? { eas: { projectId: EAS_PROJECT_ID } } : {}) },
   },
 };

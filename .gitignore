@@ -41,3 +41,6 @@ example
 # generated native folders
 /ios
 /android
+
+# Firebase's file for push notifications: the build workflow writes it from a secret; never commit it (this repo is public).
+google-services.json
