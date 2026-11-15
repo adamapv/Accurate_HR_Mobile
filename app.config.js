@@ -5,8 +5,13 @@ const path = require('path');
 const staging = process.env.APP_ENV === 'staging';
 // Every build has its own number, so the More tab can say exactly which one is on a phone. The Android build on GitHub passes its run number (the same number as in
 // the name of the file it makes) and the commit it was built from; a build made any other way is "dev".
-const build = Number(process.env.BUILD_NUMBER) || 0;
-const commit = String(process.env.BUILD_COMMIT || '').slice(0, 7);
+// The iPhone build runs on Expo's servers, which do not see this computer's environment, so its workflow writes the same two values into build-info.json (never committed).
+let info = {};
+try { info = JSON.parse(fs.readFileSync(path.join(__dirname, 'build-info.json'), 'utf8')); } catch { /* no such file: a build made another way */ }
+const build = Number(process.env.BUILD_NUMBER || info.build) || 0;
+const commit = String(process.env.BUILD_COMMIT || info.commit || '').slice(0, 7);
+// This project's id on expo.dev, filled in once by `npx eas-cli init` (see "Trying it on an iPhone" in README.md). Only the iPhone build needs it.
+const EAS_PROJECT_ID = '';
 
 module.exports = {
   expo: {
@@ -18,7 +23,9 @@ module.exports = {
     scheme: staging ? 'accuratehr-staging' : 'accuratehr',
     userInterfaceStyle: 'dark',
     backgroundColor: '#0A0A12',
-    ios: { bundleIdentifier: staging ? 'co.accuratehr.app.staging' : 'co.accuratehr.app', supportsTablet: false, buildNumber: String(build || 1) },
+    ios: { bundleIdentifier: staging ? 'co.accuratehr.app.staging' : 'co.accuratehr.app', supportsTablet: false, buildNumber: String(build || 1),
+      // The app uses only the phone's own encryption (HTTPS), which Apple treats as exempt; this answers its export question for every upload.
+      config: { usesNonExemptEncryption: false } },
     android: {
       package: staging ? 'co.accuratehr.app.staging' : 'co.accuratehr.app',
       versionCode: build || 1,
@@ -40,6 +47,6 @@ module.exports = {
       ['expo-notifications', { color: '#5468FF', enableBackgroundRemoteNotifications: false }],
       ['expo-splash-screen', { backgroundColor: '#0A0A12', image: './assets/images/splash-icon.png', imageWidth: 120 }],
     ],
-    extra: { push: fs.existsSync(path.join(__dirname, 'google-services.json')), apiUrl: staging ? 'https://staging.accuratehr.co' : 'https://app.accuratehr.co', env: staging ? 'staging' : 'production', build, commit },
+    extra: { push: fs.existsSync(path.join(__dirname, 'google-services.json')), apiUrl: staging ? 'https://staging.accuratehr.co' : 'https://app.accuratehr.co', env: staging ? 'staging' : 'production', build, commit, ...(EAS_PROJECT_ID ? { eas: { projectId: EAS_PROJECT_ID } } : {}) },
   },
 };

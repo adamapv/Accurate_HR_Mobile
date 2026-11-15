@@ -1,0 +1,39 @@
+# Builds the iPhone app on Expo's servers (EAS Build) and, if asked, sends it to TestFlight. No Mac is needed.
+# Needs the one-time setup in README.md ("Trying it on an iPhone"): an Apple Developer account, and EXPO_TOKEN saved under Settings > Secrets and variables > Actions.
+# Run it from the Actions tab: choose "iPhone build", then "Run workflow", then which server the app should talk to.
+name: iPhone build
+on:
+  workflow_dispatch:
+    inputs:
+      server:
+        description: Which server the app talks to
+        type: choice
+        options: [production, staging]
+        default: production
+      testflight:
+        description: Send the finished build to TestFlight
+        type: boolean
+        default: true
+jobs:
+  ios:
+    runs-on: ubuntu-latest
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      # The project is sent to Expo as it stands on this runner, including build-info.json below, which is not committed.
+      EAS_NO_VCS: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run check
+      # The build's own number and commit, shown on the More tab (read by app.config.js). The same run number the Android build uses.
+      - run: node -e "require('fs').writeFileSync('build-info.json', JSON.stringify({ build: Number(process.env.N), commit: process.env.C }))"
+        env:
+          N: ${{ github.run_number }}
+          C: ${{ github.sha }}
+      - run: npx --yes eas-cli@latest build --platform ios --profile ${{ inputs.server }} --non-interactive --wait
+      - if: ${{ inputs.testflight }}
+        run: npx --yes eas-cli@latest submit --platform ios --profile ${{ inputs.server }} --latest --non-interactive --wait

@@ -45,7 +45,24 @@ The staging build installs beside the production one as "AccurateHR (staging)".
 
 Every build has its own number: the one at the end of the file's name under Artifacts (`AccurateHR-production-57`). The bottom of the More tab says which build is on the phone, with the commit it was made from: "Version 0.1.0 · build 57 (1a2b3c4)". Android also uses the number to know a newer build from an older one.
 
-An iPhone cannot install an app this way. iPhone builds need the Apple Developer account.
+An iPhone cannot install an app this way. iPhone builds need the Apple Developer account (next section).
+
+## Trying it on an iPhone
+
+An iPhone app is signed through an Apple Developer account (about US$99 a year) and installed through TestFlight, Apple's testing app. No Mac is needed: the build runs on Expo's servers (EAS Build), started from the **iPhone build** workflow on GitHub.
+
+One-time setup:
+
+1. Enrol at developer.apple.com/programs. A company account needs a D-U-N-S number and can take a few days.
+2. Make a free account at expo.dev. On a computer with Node, from this folder run `npx eas-cli login`, then `npx eas-cli init`. It prints a project id: paste it into `EAS_PROJECT_ID` at the top of `app.config.js` and commit.
+3. Run `npx eas-cli build --platform ios --profile production` once by hand. It asks for the Apple login and makes the certificate, the App ID (`co.accuratehr.app`) and the provisioning profile itself. Let it also set up push notifications when it offers.
+4. In App Store Connect (appstoreconnect.apple.com) make a new app with that bundle ID. Copy its numeric Apple ID into `ascAppId` under `submit.production.ios` in `eas.json`. Run `npx eas-cli submit --platform ios --profile production` once by hand; it offers to make the App Store Connect API key it uses from then on.
+5. On expo.dev, make an access token (Account settings, Access tokens) and save it on GitHub as the secret `EXPO_TOKEN`.
+6. In App Store Connect, under TestFlight, add testers (by email, or a public link). They install TestFlight from the App Store, then the app from your invite.
+
+After that: Actions tab, **iPhone build**, **Run workflow**. About 20 minutes later the build is in TestFlight (Apple takes a few more minutes to process it first). A TestFlight build lasts 90 days. The staging app has its own bundle ID, so it needs its own App Store Connect app (steps 3 and 4 again with `--profile staging`) before the workflow can send it.
+
+Not yet on iPhone: notifications from the Worker (`src/lib/push.ts` registers Android phones only; the Worker would first have to send through Apple's push service). Everything else is the same code as Android, but none of it has been tried on an iPhone yet.
 
 ## Working on it
 
