@@ -2,14 +2,16 @@
 // Android), never in plain storage. Signing out, a session the server no longer accepts and "Not your company?" each forget what belongs to the person before.
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import * as SecureStore from 'expo-secure-store';
-import { AppState } from 'react-native';
+import { AppState, Platform } from 'react-native';
+import Storage from 'expo-sqlite/kv-store';
 import { ApiError, createApi, type Api } from './api-core';
 import { feel } from './haptics';
 import { API_URL, APP_VERSION } from './config';
+import { checkFreshInstall } from './fresh-install-core';
 import { fingerprintOf, makeOffline, onBackOnline } from './offline';
 import type { Offline } from './offline-core';
 
-import { EMAIL_KEY, SESSION_KEY, TENANT_KEY } from './keys';
+import { EMAIL_KEY, INSTALL_MARKER, SESSION_KEY, TENANT_KEY } from './keys';
 import { clearClockNotice } from './clock-notice-clear';
 import { registerForPush, unregisterFromPush } from './push';
 
@@ -81,6 +83,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
   const load = useCallback(async () => {
     setState({ status: 'loading' });
+    // An iPhone's Keychain outlives the app: forget it on the first start after the app is put back on.
+    await checkFreshInstall({ platform: Platform.OS, getMarker: () => Storage.getItemAsync(INSTALL_MARKER), setMarker: () => Storage.setItemAsync(INSTALL_MARKER, '1'),
+      forgetKept: async () => { await Promise.all([SESSION_KEY, TENANT_KEY, EMAIL_KEY].map(k => SecureStore.deleteItemAsync(k))); } });
     const [s, t, e] = await Promise.all([SESSION_KEY, TENANT_KEY, EMAIL_KEY].map(k => SecureStore.getItemAsync(k).catch(() => null)));
     sid.current = s; tenant.current = t; setTenant(t); setLastEmail(e || '');
     if (!s) { offline.forgetAll(); return setState({ status: 'signedOut' }); }

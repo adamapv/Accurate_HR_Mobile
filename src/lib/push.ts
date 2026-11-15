@@ -5,7 +5,7 @@
 import { Platform } from 'react-native';
 import { SAFE_MODE } from './crash';
 import type { Api } from './api-core';
-import { APP_VERSION, HAS_PUSH } from './config';
+import { APP_VERSION, HAS_PUSH, HAS_PUSH_IOS } from './config';
 import { screenFor } from './links';
 
 // The phone's notifications are loaded only when first needed, and never in safe mode.
@@ -26,11 +26,13 @@ async function allowed(): Promise<boolean> {
 
 export async function registerForPush(api: Api): Promise<void> {
   try {
-    if (SAFE_MODE || !HAS_PUSH || Platform.OS !== 'android' || !(await allowed())) return;   // an iPhone joins when there is an iPhone build
-    await N().setNotificationChannelAsync(PUSH_CHANNEL.id, { name: PUSH_CHANNEL.name, importance: N().AndroidImportance.DEFAULT });
+    // An iPhone registers only in a build made with IOS_PUSH=1 (app.config.js), once the Worker sends through Apple's push service and takes platform "ios".
+    const os = Platform.OS === 'android' ? 'android' : Platform.OS === 'ios' ? 'ios' : '';
+    if (SAFE_MODE || !os || !(os === 'android' ? HAS_PUSH : HAS_PUSH_IOS) || !(await allowed())) return;
+    if (os === 'android') await N().setNotificationChannelAsync(PUSH_CHANNEL.id, { name: PUSH_CHANNEL.name, importance: N().AndroidImportance.DEFAULT });
     const token = (await N().getDevicePushTokenAsync()).data;
     if (typeof token !== 'string' || !token || token === registered) return;
-    await api('/push/device', { method: 'POST', body: { token, platform: 'android', app_version: APP_VERSION } });
+    await api('/push/device', { method: 'POST', body: { token, platform: os, app_version: APP_VERSION } });
     registered = token;
   } catch { /* no push service in this build, or no signal: the app works as before */ }
 }
