@@ -29,6 +29,14 @@ jobs:
           distribution: temurin
           java-version: 17
       - uses: gradle/actions/setup-gradle@v4
+      # Push notifications: Firebase's file for the production app comes from a repository secret (GOOGLE_SERVICES_JSON), never from the repo, which is public.
+      # Without the secret, or for a staging build, nothing is written and the build has no push (app.config.js).
+      - name: Firebase file for push notifications
+        if: ${{ inputs.server == 'production' }}
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+        run: |
+          if [ -n "$GOOGLE_SERVICES_JSON" ]; then printf '%s' "$GOOGLE_SERVICES_JSON" > google-services.json; echo "Firebase file written"; else echo "No GOOGLE_SERVICES_JSON secret: this build has no push"; fi
       - run: npm ci
       - run: npm run check
       - run: npx expo prebuild --platform android --no-install
