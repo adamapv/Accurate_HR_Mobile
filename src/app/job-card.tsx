@@ -16,6 +16,7 @@ import type { Draft } from '@/lib/offline-core';
 import { fmtDate, fmtMins, localNowHM, localToday } from '@/lib/dates';
 import { isOnline } from '@/lib/offline';
 import { useCostCentreStars } from '@/lib/use-stars';
+import { useJobStars } from '@/lib/use-job-stars';
 import { useTheme } from '@/theme';
 import { Dots } from '@/dots';
 import { CostCentreField, JobField, type PickJob } from '@/job-pick';
@@ -95,6 +96,7 @@ function Form({ card, open, date, start, preJob, review }: { card: CardRow | nul
   const [problem, setProblem] = useState('');
   const [from, setFrom] = useState<string | null>(d0?.from || null);   // the day the times came from, if any
   const ccStars = useCostCentreStars(setProblem);
+  const jobStars = useJobStars(setProblem);
   // The day's published jobs: offered over the job box, and a day with exactly one picks it.
   const sched = useRead<{ rows: Ref[] }>(`/schedule/mine?from=${form.work_date}&to=${form.work_date}`);
   const scheduled = (sched.data?.rows || []).filter(r => r.work_date === form.work_date && r.job_id);
@@ -254,7 +256,7 @@ function Form({ card, open, date, start, preJob, review }: { card: CardRow | nul
         const ownJob = i === 0 || !r.job_id || jobKeyOf({ id: prev.job_id, company_id: prev.company_id }) !== jobKeyOf({ id: r.job_id, company_id: r.company_id });   // rows on one job sit under one job box
         return (
           <Card key={r.key}>
-            {ownJob && <JobField label="Job" jobs={jobs} companies={companies} scheduled={scheduled} recent={recent.data?.rows || []} job={job} loading={!jobsRead.data} onChoose={j => pickJob(r.key, j)} />}
+            {ownJob && <JobField label="Job" jobs={jobs} companies={companies} scheduled={scheduled} recent={recent.data?.rows || []} stars={jobStars} job={job} loading={!jobsRead.data} onChoose={j => pickJob(r.key, j)} />}
             {!ownJob && <Body tone="muted">Also on #{r.job_id}</Body>}
             {!!job && (job.closed
               ? <Body tone="muted">This job is closed. Its cost centre stays as it was.</Body>
