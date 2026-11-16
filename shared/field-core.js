@@ -1303,7 +1303,7 @@ export const jobKeyOf = j => j?.id ? `${j.company_id || ''}:${j.id}` : '';
 export const jobTitleOf = j => `#${j.id} ${j.name || ''}`.trim();
 export const jobMetaOf = j => [j.customer_name, j.site_name && j.site_name !== j.customer_name ? j.site_name : null].filter(Boolean).join(' · ');
 export const JOB_LIST_LIMIT = 200;   // rows drawn at once; searching narrows the rest
-export const JOB_WORDS = { scheduled: 'Scheduled for you', recent: 'Recent', choose: 'Choose a job…', none: 'No jobs yet — they’re copied from simPRO overnight', hint: 'Number, name, customer or site', closed: 'closed' };
+export const JOB_WORDS = { scheduled: 'Scheduled for you', starred: 'Your starred jobs', recent: 'Recent', choose: 'Choose a job…', none: 'No jobs yet — they’re copied from simPRO overnight', hint: 'Number, name, customer or site', closed: 'closed' };
 export const jobCapText = found => found.length > JOB_LIST_LIMIT ? `Showing the first ${JOB_LIST_LIMIT} of ${found.length}: type to narrow them down.` : '';
 // Jobs under their company's name when there is more than one company (a job of a company no longer listed goes last, under Other).
 export function jobGroups(list, companies) {
@@ -1314,17 +1314,34 @@ export function jobGroups(list, companies) {
 }
 // What a search found, as the list is drawn: the jobs published for the person that day in a group of their own at the top (`scheduled` is rows of
 // /schedule/mine for the day), then the rest under their companies, capped.
-export function jobSearchGroups(found, scheduled, companies) {
+// `starred` is the person's own starred jobs (their keys, from jobStarKeys): they come next, under a heading of their own, and are not listed again under their company.
+export function jobSearchGroups(found, scheduled, companies, starred) {
   const keys = new Set((scheduled || []).map(r => `${r.company_id || ''}:${r.job_id}`));
+  const stars = new Set(starred || []);
   const mine = found.filter(j => keys.has(jobKeyOf(j)));
-  return [...(mine.length ? [{ key: 'sched', title: JOB_WORDS.scheduled, list: mine }] : []), ...jobGroups(found.filter(j => !keys.has(jobKeyOf(j))).slice(0, JOB_LIST_LIMIT), companies)];
+  const kept = found.filter(j => !keys.has(jobKeyOf(j)) && stars.has(jobKeyOf(j)));
+  const rest = found.filter(j => !keys.has(jobKeyOf(j)) && !stars.has(jobKeyOf(j)));
+  return [...(mine.length ? [{ key: 'sched', title: JOB_WORDS.scheduled, list: mine }] : []), ...(kept.length ? [{ key: 'star', title: JOB_WORDS.starred, list: kept }] : []), ...jobGroups(rest.slice(0, JOB_LIST_LIMIT), companies)];
 }
 // The one-tap jobs over the box: the day's published jobs, and the ones lately worked on (`recent` is /job-cards/recent's rows), leaving out the one chosen.
-export function jobShortcuts({ jobs, scheduled, recent, value }) {
+// `starred` (rows of GET /jobs/favourites) are the person's own starred jobs, offered as buttons of their own after the day's jobs.
+export function jobShortcuts({ jobs, scheduled, recent, starred, value }) {
   const pick = rows => { const seen = new Set(); return (rows || []).map(r => findJob(jobs || [], r.company_id, r.job_id)).filter(j => j && jobKeyOf(j) !== value && !seen.has(jobKeyOf(j)) && seen.add(jobKeyOf(j))); };
   const sched = pick(scheduled);
-  return { scheduled: sched, recent: pick(recent).filter(j => !sched.some(s => jobKeyOf(s) === jobKeyOf(j))) };
+  const shown = new Set(sched.map(jobKeyOf));
+  const stars = pick(starred).filter(j => !shown.has(jobKeyOf(j)));
+  stars.forEach(j => shown.add(jobKeyOf(j)));
+  return { scheduled: sched, starred: stars.slice(0, STARRED_JOB_MAX), recent: pick(recent).filter(j => !shown.has(jobKeyOf(j))) };
 }
+// A person's starred jobs (GET /jobs/favourites → rows: [{ company_id, job_id }]): their keys, a list with one put on or taken off, what is sent, and what is said when it
+// could not be saved. A star is the person's own, on one company's job.
+export const STARRED_JOB_MAX = 6;   // how many are offered as buttons over the job box
+export const jobStarKeys = rows => (rows || []).map(r => `${r.company_id || ''}:${r.job_id}`);
+export const jobStarRow = job => ({ company_id: job.company_id, job_id: job.id });
+const sameJobStar = (a, b) => a.company_id === b.company_id && a.job_id === b.job_id;
+export const jobStarPut = (rows, row, on) => on ? [...(rows || []).filter(r => !sameJobStar(r, row)), row] : (rows || []).filter(r => !sameJobStar(r, row));
+export const jobStarDraft = (row, on) => ({ ...row, favourite: on });
+export const jobStarFailed = (on, why) => `Couldn’t ${on ? 'star' : 'take the star off'} that job — ${why}`;
 // The one job published for the person on a day, when there is exactly one: a card with no job yet opens on it.
 export function soleScheduledJob(schedule, date, jobs) {
   const todays = (schedule || []).filter(r => r.work_date === date && r.job_id);

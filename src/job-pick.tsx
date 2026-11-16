@@ -6,25 +6,28 @@ import { View } from 'react-native';
 import { CC_WORDS, costCentreChipName, costCentreGroups, costCentreLabel, jobCapText, jobKeyOf, jobMetaOf, jobSearchGroups, jobShortcuts, jobTitleOf, JOB_WORDS, STARRED_CC_MAX } from '@shared/field-core.js';
 import { filterJobs } from '@shared/pickers-core.js';
 import { PickBox, PickSheet, QuickPicks, type PickGroup } from '@/pickers';
+import type { JobStars } from '@/lib/use-job-stars';
 
 export type PickJob = { id: string; company_id: string; name: string | null; customer_name?: string | null; site_name?: string | null; sections: { id: string; name: string; cost_centres: { id: string; name: string }[] }[]; closed?: boolean };
 type Ref = { company_id: string; job_id: string };
 type CcRow = { key: string; title: string; meta: string | null; text: string; section_id: string; cost_centre_id: string; section_name: string; disabled?: boolean };
 
-export function JobField({ label, jobs, companies, scheduled, recent, job, loading, onChoose }: { label: string; jobs: PickJob[]; companies: { id: string; name: string }[]; scheduled: Ref[]; recent: Ref[]; job: PickJob | undefined; loading: boolean;
+export function JobField({ label, jobs, companies, scheduled, recent, stars, job, loading, onChoose }: { label: string; jobs: PickJob[]; companies: { id: string; name: string }[]; scheduled: Ref[]; recent: Ref[]; stars: JobStars; job: PickJob | undefined; loading: boolean;
   onChoose: (j: PickJob) => void }) {
   const [open, setOpen] = useState(false);
-  const cuts = jobShortcuts({ jobs, scheduled, recent, value: jobKeyOf(job) }) as { scheduled: PickJob[]; recent: PickJob[] };
+  const cuts = jobShortcuts({ jobs, scheduled, recent, starred: stars.rows, value: jobKeyOf(job) }) as { scheduled: PickJob[]; starred: PickJob[]; recent: PickJob[] };
+  const on = new Set(stars.keys);
   const found = (q: string) => (q.trim() ? filterJobs(jobs, q) : jobs) as PickJob[];
-  const groupsFor = (q: string): PickGroup[] => (jobSearchGroups(found(q), scheduled, companies) as { key: string; title: string | null; list: PickJob[] }[])
-    .map(g => ({ key: String(g.key), title: g.title, rows: g.list.map(j => ({ key: jobKeyOf(j) as string, title: jobTitleOf(j) as string, meta: jobMetaOf(j) as string, tag: j.closed ? (JOB_WORDS.closed as string) : undefined })) }));
+  const groupsFor = (q: string): PickGroup[] => (jobSearchGroups(found(q), scheduled, companies, stars.keys) as { key: string; title: string | null; list: PickJob[] }[])
+    .map(g => ({ key: String(g.key), title: g.title, rows: g.list.map(j => ({ key: jobKeyOf(j) as string, title: jobTitleOf(j) as string, meta: jobMetaOf(j) as string, tag: j.closed ? (JOB_WORDS.closed as string) : undefined, star: on.has(jobKeyOf(j) as string) })) }));
   const pick = (key: string) => { const j = jobs.find(x => jobKeyOf(x) === key); if (j) onChoose(j); };
   return (
     <View style={{ gap: 10 }}>
       <QuickPicks strong label={`${JOB_WORDS.scheduled}:`} picks={cuts.scheduled.map(j => ({ key: jobKeyOf(j) as string, title: jobTitleOf(j) as string }))} onPick={pick} />
+      <QuickPicks label="Starred:" picks={cuts.starred.map(j => ({ key: jobKeyOf(j) as string, title: jobTitleOf(j) as string }))} onPick={pick} />
       <QuickPicks label={`${JOB_WORDS.recent}:`} picks={cuts.recent.slice(0, 6).map(j => ({ key: jobKeyOf(j) as string, title: `#${j.id}` }))} onPick={pick} />
       <PickBox label={label} value={job ? (jobTitleOf(job) as string) : ''} meta={job ? (jobMetaOf(job) as string) : null} placeholder={loading ? 'Loading jobs…' : (JOB_WORDS.choose as string)} onPress={() => setOpen(true)} />
-      {open && <PickSheet title={label} hint={JOB_WORDS.hint as string} groupsFor={groupsFor} footerFor={q => jobCapText(found(q)) as string} empty={JOB_WORDS.none as string} onPick={pick} onClose={() => setOpen(false)} />}
+      {open && <PickSheet title={label} hint={JOB_WORDS.hint as string} groupsFor={groupsFor} footerFor={q => jobCapText(found(q)) as string} empty={JOB_WORDS.none as string} onPick={pick} onStar={(key, star) => { const j = jobs.find(x => jobKeyOf(x) === key); if (j) void stars.toggle(j, star); }} onClose={() => setOpen(false)} />}
     </View>
   );
 }
