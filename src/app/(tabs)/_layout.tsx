@@ -16,11 +16,13 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { useSession } from '@/lib/session';
 import { useOutbox } from '@/lib/use-outbox';
 import { Body, Button, Loading, Screen, Title } from '@/ui';
-import { useTheme } from '@/theme';
+import { useDisplay, useTheme } from '@/theme';
 
 export default function TabsLayout() {
   const { state, retry, signOut } = useSession();
   const t = useTheme();
+  const { mode } = useDisplay();
+  const dock = mode === 'light' ? t.surface : '#161625';   // the dock follows Sunlight mode
   const queued = useOutbox();
   const failed = queued.filter(e => e.status === 'failed').length;
   // Badges, as on the web: Job card while a day needs submitting, Safety for the policies still to read and the statements still to sign on to.
@@ -53,7 +55,7 @@ export default function TabsLayout() {
     <>
     {!SAFE_MODE && <ClockNotice />}
     {!SAFE_MODE && <PushTaps />}
-    <Tabs screenListeners={{ tabPress: () => feel.pick() }} screenOptions={{ headerShown: false, tabBarActiveTintColor: t.accent2, tabBarInactiveTintColor: t.muted, tabBarStyle: { position: 'absolute', marginHorizontal: 14, bottom: Math.max(insets.bottom, 10) + 4, height: 74, paddingTop: 8, paddingBottom: 12, borderRadius: 37, backgroundColor: '#161625', borderTopWidth: StyleSheet.hairlineWidth, borderWidth: StyleSheet.hairlineWidth, borderColor: t.line, borderTopColor: t.line, shadowColor: '#000000', shadowOpacity: 0.5, shadowRadius: 18, shadowOffset: { width: 0, height: 10 }, elevation: 18 }, tabBarLabelStyle: { fontSize: 11, fontWeight: '800', marginTop: 2, lineHeight: 14 }, tabBarItemStyle: { paddingVertical: 0, height: 54 }, tabBarIconStyle: { height: 30, marginTop: 0 }, tabBarLabelPosition: 'below-icon', tabBarHideOnKeyboard: true, animation: 'fade', sceneStyle: { backgroundColor: t.bg } }}>
+    <Tabs screenListeners={{ tabPress: () => feel.pick() }} screenOptions={{ headerShown: false, tabBarActiveTintColor: t.accent2, tabBarInactiveTintColor: t.muted, tabBarStyle: { position: 'absolute', marginHorizontal: 14, bottom: Math.max(insets.bottom, 10) + 4, height: 74, paddingTop: 8, paddingBottom: 12, borderRadius: 37, backgroundColor: dock, borderTopWidth: StyleSheet.hairlineWidth, borderWidth: StyleSheet.hairlineWidth, borderColor: t.line, borderTopColor: t.line, shadowColor: '#000000', shadowOpacity: mode === 'light' ? 0.18 : 0.5, shadowRadius: 18, shadowOffset: { width: 0, height: 10 }, elevation: 18 }, tabBarLabelStyle: { fontSize: 11, fontWeight: '800', marginTop: 2, lineHeight: 14 }, tabBarItemStyle: { paddingVertical: 0, height: 54 }, tabBarIconStyle: { height: 30, marginTop: 0 }, tabBarLabelPosition: 'below-icon', tabBarHideOnKeyboard: true, animation: 'fade', sceneStyle: { backgroundColor: t.bg } }}>
       <Tabs.Screen name="index" options={{ title: 'Home', tabBarIcon: icon('home'), tabBarBadge: failed || undefined }} />
       <Tabs.Screen name="day" options={{ title: 'Job card', tabBarIcon: icon('time'), tabBarBadge: toSend || undefined, tabBarAccessibilityLabel: toSend ? 'Job card. You have time to submit' : undefined }} />
       <Tabs.Screen name="safety" options={{ title: 'Safety', tabBarIcon: icon('shield-checkmark'), tabBarBadge: safetyDue ? (safetyDue > 99 ? '99+' : safetyDue) : undefined }} />
