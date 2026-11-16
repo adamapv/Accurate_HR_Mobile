@@ -83,7 +83,11 @@ export function Screen({ children, centered }: { children: ReactNode; centered?:
         </ScreenCtx.Provider>
         {!centered && (
           <View pointerEvents="box-none" style={styles.bar}>
-            <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: t.topbar, borderBottomColor: t.line, borderBottomWidth: StyleSheet.hairlineWidth, opacity: shown }]} />
+            {/* The page's own colour, fading out below, so what scrolls under the title goes soft instead of being cut by a bar. */}
+            <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { opacity: shown }]}>
+              <View style={{ flex: 1, backgroundColor: t.bg }} />
+              {Array.from({ length: 8 }, (_, i) => <View key={i} style={{ position: 'absolute', left: 0, right: 0, top: BAR + i * 3, height: 3, backgroundColor: t.bg, opacity: 0.85 * (1 - i / 8) }} />)}
+            </Animated.View>
             {back && (
               <Touch accessibilityRole="button" accessibilityLabel="Back" hitSlop={10} scale={0.9} onPress={() => { feel.pick(); router.back(); }} outer={styles.backAt} style={[styles.back, { backgroundColor: t.surface2 }]}>
                 <Ionicons name="chevron-back" size={22} color={t.fg} />
@@ -331,7 +335,7 @@ const styles = StyleSheet.create({
   bar: { position: 'absolute', top: 0, left: 0, right: 0, height: BAR, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingHorizontal: space.md },
   backAt: { position: 'absolute', left: 14, top: 6 },
   back: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
-  barTitle: { fontSize: 17, fontWeight: '700', maxWidth: '64%' },
+  barTitle: { fontSize: 15, fontWeight: '600', maxWidth: '64%', letterSpacing: 0.2 },
   screen: { paddingHorizontal: 20, paddingTop: space.xl, paddingBottom: space.xxl, flexGrow: 1 },
   content: { gap: space.lg, flexGrow: 1 },
   under: { paddingTop: BAR + space.sm },
