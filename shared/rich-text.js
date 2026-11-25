@@ -17,6 +17,13 @@
 // including the class styles in the <style> block that Word sends along with its HTML. Tables are kept as plain tables: rows, cells,
 // header cells and merged cells, each cell holding text (and lists).
 //
+// Pictures (announcements only, 19 Nov 2026): sanitizeRich(html, { images: true }) also keeps a picture as its own block,
+// <p class="pic"><img data-pic="annpic_..." width= height= alt= data-size="s|m"></p>. A picture is only ever NAMED here, by the
+// id of a row the Worker keeps for the company; there is no src, so no address of any kind (and nothing pasted in with an
+// <img src>, from a web page or Word, ever gets through). The page shows it by fetching that id with the person's own session
+// (public/app.js), and the Worker checks the id is the company's own before it saves a body. Without the option, as everywhere
+// else, a picture is dropped like any tag the cleaner does not know.
+//
 // Text written before the editor existed is plain text with line breaks. isRichText() tells the two apart (everything
 // sanitizeRich writes starts with a block tag); plain text is shown as it always was, and turned into paragraphs
 // (plainToRich) only when someone edits it or a contract is made from it.
@@ -49,6 +56,7 @@ const VOID = new Set(['br', 'hr', 'img', 'input', 'meta', 'link', 'area', 'base'
 // Elements that are dropped with everything inside them.
 const DROP = new Set(['script', 'style', 'textarea', 'title', 'xmp', 'iframe', 'noembed', 'noframes', 'noscript', 'plaintext', 'xml', 'template',
   'object', 'applet', 'svg', 'math', 'canvas', 'audio', 'video', 'select', 'frameset', 'frame']);
+const PIC_ATTR = new Set(['data-pic', 'data-size', 'alt', 'width', 'height']);   // all an <img> is read for, and only with { images: true }
 const RE_NAME = /<([A-Za-z][^\s/>]*)/y, RE_SKIP = /[\s/]*/y, RE_ATTR = /[^\s/>=]+/y, RE_EQ = /\s*=\s*/y, RE_UNQ = /[^\s>]*/y, RE_CLOSE = /<\/([A-Za-z][^\s/>]*)[^>]*/y;
 
 function readTag(src, i) {
@@ -77,7 +85,7 @@ function readTag(src, i) {
       } else { RE_UNQ.lastIndex = p; value = RE_UNQ.exec(src)[0]; p = RE_UNQ.lastIndex; }
     }
     // Only these are ever looked at. The first of a repeated attribute wins, as in a browser.
-    if ((name === 'style' || name === 'href' || name === 'class' || name === 'colspan' || name === 'rowspan' || name === 'color') && !(name in attrs)) attrs[name] = decode(value);
+    if ((name === 'style' || name === 'href' || name === 'class' || name === 'colspan' || name === 'rowspan' || name === 'color' || PIC_ATTR.has(name)) && !(name in attrs)) attrs[name] = decode(value);
   }
   return { tag, attrs, end: p };
 }
@@ -118,7 +126,7 @@ function parse(src) {
       i = gt < 0 ? n : gt + 1;
       continue;
     }
-    if (VOID.has(tag)) { if (tag === 'br' || tag === 'hr') add({ tag, attrs, kids: [] }); continue; }
+    if (VOID.has(tag)) { if (tag === 'br' || tag === 'hr' || tag === 'img') add({ tag, attrs, kids: [] }); continue; }
     if (tag === 'li') {   // a new <li> ends the one before it
       for (let j = stack.length - 1; j >= 1 && stack[j].tag !== 'ul' && stack[j].tag !== 'ol'; j--) if (stack[j].tag === 'li') { stack.length = j; break; }
     }
@@ -336,8 +344,27 @@ function walk(kids, c, f, tag, depth) {
 export const PAGE_BREAK = '<hr class="pb">';
 const ORDERED_MARKER = /^(?:\(?(?:\d+|[a-zA-Z]{1,6})[.)]|\d+(?:\.\d+)+\.?)$/;
 
+// A picture's id: what the Worker makes for one (hrId('annpic')), and nothing else.
+export const PICTURE_ID = /^annpic_[a-z0-9]{8,40}$/;
+const dim = v => { const n = /^\d{1,5}$/.test(String(v ?? '').trim()) ? parseInt(v, 10) : 0; return n >= 1 && n <= 10000 ? n : 0; };
+// A picture block, or '' when it is not one the cleaner may keep. It stands on its own line (never inside a list or a table).
+function pictureHtml(el) {
+  const id = String(el.attrs['data-pic'] || '').trim();
+  if (!PICTURE_ID.test(id)) return '';
+  const w = dim(el.attrs.width), hh = dim(el.attrs.height);
+  const alt = String(el.attrs.alt || '').replace(JUNK, '').replace(/\s+/g, ' ').trim().slice(0, 200);
+  const size = el.attrs['data-size'] === 's' || el.attrs['data-size'] === 'm' ? el.attrs['data-size'] : '';
+  return `<p class="pic"><img data-pic="${id}"${w && hh ? ` width="${w}" height="${hh}"` : ''}${alt ? ` alt="${escAttr(alt)}"` : ''}${size ? ` data-size="${size}"` : ''}></p>`;
+}
+
 function element(el, c, f, tag, depth) {
   const t = el.tag, st = styleOf(el);
+  if (t === 'img') {   // a picture is a block of its own, and only where the caller said pictures are allowed
+    if (!c.images || c.flat) return;
+    const html = pictureHtml(el);
+    if (html) { flush(c, tag); c.raw(html); }
+    return;
+  }
   if (st && (st.display === 'none' || st['mso-hide'] === 'all')) return;
   const mso = (st && st['mso-list']) || '';
   if (/(?:^|\s)ignore\b/.test(mso)) {   // Word's own bullet or number, written as a separate piece of text in front of the paragraph
@@ -479,7 +506,8 @@ function wordLists(items) {
   return html;
 }
 
-export function sanitizeRich(input) {
+export function sanitizeRich(input, opts) {
+  const images = !!opts && typeof opts === 'object' && opts.images === true;
   let src = String(input ?? '');
   if (src.length > RICH_INPUT_MAX) src = src.slice(0, RICH_INPUT_MAX);
   // What Word and Google put on the clipboard carries the page around the pasted part. Only the pasted part is read, but its style
@@ -493,6 +521,7 @@ export function sanitizeRich(input) {
   }
   const out = [];
   const c = ctx((h, tag, ind) => out.push(typeof h === 'string' ? `<${tag}${ind ? ` class="i${ind}"` : ''}>${h}</${tag}>` : h), h => out.push(h));
+  c.images = images;
   const tree = parse(src);
   try {
     const css = headCss + tree.css;
@@ -518,7 +547,10 @@ export function plainToRich(text) {
   const paras = String(text ?? '').replace(/\r\n?/g, '\n').split(/\n[ \t]*\n+/).map(p => p.trim()).filter(Boolean);
   return sanitizeRich(paras.map(p => `<p>${p.split('\n').map(l => escapeHtml(l.trim())).join('<br>')}</p>`).join(''));
 }
-export const toRich = s => isRichText(s) ? sanitizeRich(s) : plainToRich(s);
+export const toRich = (s, opts) => isRichText(s) ? sanitizeRich(s, opts) : plainToRich(s);
+// The pictures a cleaned body names, in order and once each, and whether it has any.
+export const richPictureIds = html => [...new Set([...String(html ?? '').matchAll(/<img data-pic="(annpic_[a-z0-9]{8,40})"/g)].map(m => m[1]))];
+export const hasPictures = html => /<img data-pic="annpic_[a-z0-9]{8,40}"/.test(String(html ?? ''));
 // What a body says with the markup taken away (to tell an empty one, or to preview it). Plain text comes back as it is.
 export function richToText(s) {
   if (!isRichText(s)) return String(s ?? '');

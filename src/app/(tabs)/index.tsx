@@ -24,6 +24,7 @@ import { Body, Button, Card, Display, Empty, Heading, Hero, List, Notice, Pill, 
 import { SafeModeCard } from '@/safe-mode';
 import { WeekHoursCard, WeekSchedule } from '@/week-parts';
 import { AccountMenu } from '@/account-menu';
+import { TodaysTasks } from '@/tasks';
 import { screenFor } from '@/lib/links';
 
 // The shared rules are plain JavaScript, so what these two take and give back is spelled out here.
@@ -259,6 +260,9 @@ function SignedIn({ me }: { me: Me }) {
           )}
         <Problem>{problem || open.error}</Problem>
       </Hero>
+
+      {/* A driver's tasks for the day, right under the clock (nothing shows for anyone else, and it shows in One thing at a time too). */}
+      <TodaysTasks today={today} />
 
       {failed.length > 0 && (
         <Card>

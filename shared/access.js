@@ -45,26 +45,45 @@ const ASK_FOR_HELP = { key: 'edit', label: 'Can ask for help' };   // the same t
 const ALLOW_ACCESS = { key: 'approve', label: 'Can allow account access' };
 const WRITE_AND_ATTACH = { key: 'edit', label: 'Can write and attach' };   // the same tick, worded for job safety: writing a SWMS and choosing what goes with which job
 const PUBLISH_SWMS = { key: 'approve', label: 'Can publish SWMS' };
+const COPY_JOBS = { key: 'approve', label: 'Can copy quotes and jobs' };   // the second tick, worded for the Copy quote and Copy job tools
+const BOOK_OTHERS = { key: 'edit', label: 'Can book others' };   // the same tick, worded for bookings
+const PLAN_TASKS = { key: 'edit', label: 'Can plan tasks' };   // the same tick, worded for tasks: making them and putting them on a driver's day
+const ENTER_TIME = { key: 'edit', label: 'Can add and change' };   // the same tick, worded for entering time on someone else's day
 
 // group is the tab each area belongs to in the app. `scopeLabels` words a company-wide area's choices.
 export const AREAS = [
-  { key: 'people', label: 'People and records', group: 'Team', scopes: FULL, actions: [EDIT],
-    blurb: 'The people directory, profiles and personal details.' },
+  // People and records (live 23 Nov 2026): whose records a level reaches (the People screen needs Their team or Everyone; a person's own record is always theirs), and Can
+  // change, the office's part within that reach: a person's record and profile, login details, PIN and sign-in. Adding a person needs Everyone as well. What each record
+  // shows of pay, bank, date of birth and address is the Sensitive data tab's, and the cards of other areas on a person's page follow those areas.
+  { key: 'people', label: 'People and records', group: 'Team', scopes: FULL, actions: [EDIT], live: true,
+    blurb: 'The people directory and each person’s page: whose they can open (Their team or Everyone), and with Can change, editing a person, sending login details and resetting a PIN. Adding a person needs Everyone.' },
   // One scope only: everyone can see their own details; the tick says whether they can change them.
   { key: 'my_details', label: 'Own details', group: 'Team', scopes: ['own'], actions: [EDIT], live: true,
     blurb: 'Their own profile under My HR: address, emergency contact, phone and photo.' },
   { key: 'leave', label: 'Leave', group: 'Team', scopes: FULL, actions: [EDIT, APPROVE], live: true,
     blurb: 'Leave requests and balances, approving them, and the team leave calendar (Their team or Everyone).' },
-  { key: 'timesheets', label: 'Timesheets', group: 'Team', scopes: FULL, actions: [APPROVE],
-    blurb: 'Days of time submitted for approval, and approving them.' },
-  { key: 'expenses', label: 'Expenses', group: 'Team', scopes: FULL, actions: [EDIT, APPROVE],
-    blurb: 'Claims, their approval and paying approved claims.' },
+  // Timesheets (live 23 Nov 2026): whose submitted days a level sees (the Timesheet hub needs Their team or Everyone), and Can approve, which decides them. Their team is
+  // the people they manage and, for people grouped by jobs, the ones who worked on a job they lead. A person's own time (My timesheet, the job card) is always theirs.
+  { key: 'timesheets', label: 'Timesheets', group: 'Team', scopes: FULL, actions: [APPROVE], live: true,
+    blurb: 'Other people’s days of time: seeing the days they have submitted (Their team or Everyone), and approving them. Their own time is always theirs to log and send.' },
+  // Entering time on someone else's day (a day they missed, a card that is wrong), from the Details of their row in a pay cycle. The scope is whose days: Their team
+  // or Everyone; Can add and change is the right itself. The card is the person's own (they are told, and it says who entered it); the day is submitted for them and,
+  // by someone who can approve it, approved in the same step. Live from the start, so a level decides it. Admins and owners start with it; nobody else does.
+  { key: 'time_for_others', label: 'Time for others', group: 'Team', scopes: ['none', 'team', 'all'], actions: [ENTER_TIME], live: true,
+    blurb: 'Adding, changing and removing time on another person’s day when they have missed it or got it wrong, then submitting that day for them (and approving it, with Can approve under Timesheets). The person is told, and the card says who entered it.' },
+  // Expenses (live 23 Nov 2026). A person's own claims are theirs to make and send whenever the area is not None. Can change is the office's part: claiming for someone
+  // else, changing or deleting their claim, changing one already sent, and marking approved claims paid. Can approve is deciding the claims of the people in scope.
+  { key: 'expenses', label: 'Expenses', group: 'Team', scopes: FULL, actions: [EDIT, APPROVE], live: true,
+    blurb: 'Expense claims: making their own, approving other people’s, and (with Can change) changing someone else’s claim and marking approved claims paid.' },
   // Allowances (living away from home, meals, PPE): the scope is whose allowances they can see; Can change is choosing who carries which allowance and which jobs
   // do (the library and its rates are Company setup); Can approve is deciding the weeks that need a manager. Live from the start, so a level decides it.
   { key: 'allowances', label: 'Allowances', group: 'Team', scopes: FULL, actions: [EDIT, APPROVE], live: true,
     blurb: 'Allowances paid for time on jobs: seeing them, choosing who carries which and which jobs do, and approving them. The allowance types and their rates are under Company setup.' },
-  { key: 'reviews', label: 'Performance', group: 'Team', scopes: FULL, actions: [EDIT],
-    blurb: 'Review cycles, goals and one-on-ones.' },
+  // Performance (live 23 Nov 2026): whose reviews and goals a level reaches (the Performance reviews screen needs Their team or Everyone). Can change is reviewing: writing
+  // the manager's part of a review they are the reviewer of, and running one-on-ones with their people; with Everyone it is running the whole thing (cycles, anyone's
+  // review). A person's own review, goals and one-on-ones are always theirs.
+  { key: 'reviews', label: 'Performance', group: 'Team', scopes: FULL, actions: [EDIT], live: true,
+    blurb: 'Review cycles, goals and one-on-ones: whose they see (Their team or Everyone), and with Can change, reviewing their people. Everyone with Can change runs the cycles. Their own are always theirs.' },
   // Chat is company-wide: everyone with it on can message anyone. Private one-to-one chats stay private to the two people
   // whatever the level; Can moderate is deleting other people's messages in the Office channel and in groups.
   { key: 'chat', label: 'Chat', group: 'Team', scopes: COMPANY, actions: [SEND, MODERATE], live: true,
@@ -76,16 +95,23 @@ export const AREAS = [
   // Keeping a group to the right people (12 Nov 2026): taking someone else out of a group you are in. Anyone with Chat can still start a group, name it and add people.
   { key: 'chat_groups', label: 'Manage chat groups', group: 'Team', scopes: COMPANY, actions: [{ key: 'edit', label: 'Can manage' }], live: true,
     scopeLabels: { all: 'Yes' }, blurb: 'Taking people out of a chat group they are in, so a job’s group keeps to the people on the job. Anyone with Chat can already start a group, rename it and add people, and anyone can leave one.' },
-  { key: 'qualifications', label: 'Licences and tickets', group: 'Team', scopes: FULL, actions: [EDIT],
-    blurb: 'Who holds which licence or ticket, and what is expiring.' },
+  // Licences and tickets (live 23 Nov 2026): whose tickets a level may read (a person's own are always theirs to see and to send in for review). Everyone opens the company-wide
+  // Compliance view; Everyone with Can change is the office's part: adding and changing anyone's ticket, the review queue, ticket types, who needs which, and the reminders.
+  { key: 'qualifications', label: 'Licences and tickets', group: 'Team', scopes: FULL, actions: [EDIT], live: true,
+    blurb: 'Whose licences and tickets they can read (Their team or Everyone; Everyone opens Compliance). With Everyone and Can change: adding and approving tickets, ticket types, requirements and reminders.' },
   { key: 'documents', label: 'Employee documents', group: 'Team', scopes: ['none', 'own', 'all'], actions: [EDIT], live: true,
     blurb: 'The HR paperwork kept on each person; Can change is uploading.' },
-  { key: 'contracts', label: 'Contracts', group: 'Team', scopes: ['none', 'own', 'all'], actions: [EDIT],
-    blurb: 'Contracts and offers of employment, and the job details they are pre-filled with (award, hours, place of work, states).' },
-  { key: 'onboarding', label: 'Onboarding', group: 'Team', scopes: ['none', 'own', 'all'], actions: [EDIT],
-    blurb: 'New starter checklists and induction.' },
-  { key: 'offboarding', label: 'Offboarding', group: 'Team', scopes: ['none', 'own', 'all'], actions: [EDIT],
-    blurb: 'Departures and exit interviews.' },
+  // Contracts (live 23 Nov 2026). A person's own contract is always theirs to read and sign once it has been sent. Everyone is reading anyone's contracts on their page;
+  // Everyone with Can change is the office's part: making, sending, withdrawing and emailing contracts and offers. The templates are Company setup; the salary is Sensitive data.
+  { key: 'contracts', label: 'Contracts', group: 'Team', scopes: ['none', 'own', 'all'], actions: [EDIT], live: true,
+    blurb: 'Contracts and offers of employment. Everyone reads anyone’s on their page; with Can change, making, sending and withdrawing them. Their own is always theirs to read and sign.' },
+  // Onboarding and Offboarding (live 23 Nov 2026). A person's own run, and any task given to them, is always theirs. The scope is whose runs they see besides (their team's
+  // checklist, as a manager does, or everyone's). Everyone with Can change is the office's part: starting, changing and cancelling a run and its tasks, and for a departure
+  // the reason, final pay and rehire notes, which nobody else sees. The templates are the Hiring area's.
+  { key: 'onboarding', label: 'Onboarding', group: 'Team', scopes: FULL, actions: [EDIT], live: true,
+    blurb: 'New starters’ checklists and induction: whose they see (Their team or Everyone), and with Everyone and Can change, starting and changing them. Their own is always theirs.' },
+  { key: 'offboarding', label: 'Offboarding', group: 'Team', scopes: FULL, actions: [EDIT], live: true,
+    blurb: 'Departures: whose checklist they see (Their team or Everyone), and with Everyone and Can change, starting one and its reason, final pay and rehire notes. Their own is always theirs.' },
   { key: 'hiring', label: 'Hiring and employee types', group: 'Team', scopes: COMPANY, actions: [EDIT], live: true,
     scopeLabels: { all: 'Yes' }, blurb: 'The Hire board, starter packs, employee types, and the onboarding and offboarding templates.' },
   // The Field view (ACC-358): whether a phone opens the app as the field app for people on the tools (Home, Job card, Safety, My week, More) or as the
@@ -94,23 +120,56 @@ export const AREAS = [
   // `free`: it opens no records and lets nobody do anything, so it is left out of "nobody can hand out more than they hold" (an admin without it still sets it).
   { key: 'field_view', label: 'Uses the Field view', group: 'Team', scopes: COMPANY, actions: [], live: true, free: true,
     scopeLabels: { all: 'Yes' }, blurb: 'On a phone, the field app for people on the tools (Home, Job card, Safety, My week, More) instead of the full app laid out for a small screen. Any device can still switch to the other under More or the account menu.' },
-  { key: 'reports', label: 'Reports', group: 'Team', scopes: ['none', 'team', 'all'], actions: [],
-    blurb: 'Headcount, leave, hours and compliance reports.' },
+  // Reports (live 23 Nov 2026): whose figures the reports cover. Their team is themselves and the people they manage; Everyone is the whole company, and is what the
+  // company-wide reports (expenses, incidents, corrective actions, intercompany hours) need. The plant report follows workshop access.
+  { key: 'reports', label: 'Reports', group: 'Team', scopes: ['none', 'team', 'all'], actions: [], live: true,
+    blurb: 'Headcount, leave, hours and compliance reports: for their team, or for everyone. The expense, incident and intercompany reports need Everyone.' },
 
   // Live since 6 Nov 2026 (ACC-375). Their own is My schedule only (their published days); Their team is the board for the people they manage and the jobs they
   // lead; Everyone is the whole board. Can change is planning and publishing; someone who plans everyone also renames tags and pins jobs to everyone's board.
   { key: 'schedule', label: 'Schedule', group: 'Operations', scopes: FULL, actions: [EDIT], live: true,
     blurb: 'Who is working on which job each day. Their own is My schedule; Their team is the board for the people they manage and the jobs they lead; Everyone is the whole board. Can change is planning and publishing.' },
-  { key: 'jobs', label: 'Jobs', group: 'Operations', scopes: COMPANY, actions: [EDIT],
-    scopeLabels: { all: 'Yes' }, blurb: 'Open simPRO jobs, sections and cost centres. Can change is the team leaders, the project manager set here, and whether a job’s time counts as productive.' },
+  // The Whole-day schedule (20 Nov 2026): a read-only list of where everyone is working on a day that has been published, for the people on the tools ("the boys onsite can see where
+  // everyone is working"). A company-wide yes or no with no ticks: the published jobs and who and what is on them, and never leave or a day off. Live from the start, so a level decides it.
+  // Managers, admins and owners already see all of it on the board, so they start with it; staff and mechanics start without it until a level is set.
+  { key: 'schedule_day', label: 'Whole-day schedule', group: 'Operations', scopes: COMPANY, actions: [], live: true,
+    scopeLabels: { all: 'Yes' }, blurb: 'Seeing where everyone is working on a day, read only: each published job and who and what is on it. Leave and days off are never shown. It is separate from Schedule, which is planning the board and seeing your own days.' },
+  // Bookings (20 Nov 2026): one person booked for a start time and a duration, several a day (a surveyor's calendar), optionally linked to a job. Their own is
+  // the bookings made for them or by them; Everyone is every booking and every bookable person's calendar. Can book others is making, changing and cancelling
+  // bookings. Live from the start, so a level decides it. Managers, admins and owners start with everything; staff and mechanics start without it.
+  { key: 'bookings', label: 'Bookings', group: 'Operations', scopes: ['none', 'own', 'all'], actions: [BOOK_OTHERS], live: true,
+    blurb: 'Timed bookings for a person, several a day, each with a start time and how long it takes. Their own is the bookings made for them or by them; Everyone is every booking. Can book others is making, changing and cancelling them.' },
+  // Who can be booked: a yes or no with no ticks. Only the people whose level says Yes are offered in the booking form and have a booking calendar; they can move
+  // or decline a booking made for them and say it is done. `free` like the Field view: it opens no one else's records, so an admin without it still sets it.
+  { key: 'takes_bookings', label: 'Takes bookings', group: 'Operations', scopes: COMPANY, actions: [], live: true, free: true,
+    scopeLabels: { all: 'Yes' }, blurb: 'Can be booked: these people are offered in the booking form and have a booking calendar. They see the bookings made for them, and can move one, decline it with a reason or mark it done.' },
+  // Tasks (26 Nov 2026): things for a driver to do on a day (pick up a pit, take a fuel cell to a yard), put on the driver's day by the office and ticked off on the driver's phone.
+  // Their own is the driver's: their own tasks once the day has been published to them, and finishing them. Everyone is the office's: every task and the board, and Can plan tasks is
+  // making, changing, moving, cancelling and finishing them. Live from the start, so a level decides it. Managers, admins and owners start with everything; staff and mechanics without.
+  { key: 'tasks', label: 'Tasks', group: 'Operations', scopes: ['none', 'own', 'all'], actions: [PLAN_TASKS], live: true,
+    blurb: 'Tasks for drivers: things to pick up and take somewhere, put on a driver’s day and ticked off on their phone. Their own is the driver’s: their own tasks and finishing them. Everyone is every task and the board; Can plan tasks is making and moving them.' },
+  // Who can be given a task: a yes or no with no ticks. The people whose level says Yes are the drivers: each has a lane on the schedule and a column on the Tasks board, and can be
+  // given tasks. `free` like Takes bookings: it opens no one else's records, so an admin without it still sets it.
+  { key: 'takes_tasks', label: 'Takes tasks', group: 'Operations', scopes: COMPANY, actions: [], live: true, free: true,
+    scopeLabels: { all: 'Yes' }, blurb: 'Can be given tasks: these people are the drivers. Each has a lane on the schedule and a column on the Tasks board, and sees the tasks put on their day (once the day is published) with a Done button.' },
+  // Jobs (live 23 Nov 2026): Yes opens the Jobs screen. Choosing a job for their own time, a purchase order or a booking needs no area: everyone has the job list.
+  // Can change is who leads a job and whether its time counts as productive; Can copy is the Copy quote and Copy job tools, which write to simPRO.
+  { key: 'jobs', label: 'Jobs', group: 'Operations', scopes: COMPANY, actions: [EDIT, COPY_JOBS], live: true,
+    scopeLabels: { all: 'Yes' }, blurb: 'The Jobs screen: open simPRO jobs, sections and cost centres. Can change is the team leaders, the project manager set here, and whether a job’s time counts as productive. Can copy is Copy quote and Copy job. Everyone can still choose a job on their own time.' },
   { key: 'purchase_orders', label: 'Purchase orders', group: 'Operations', scopes: ['none', 'own', 'all'], actions: [RAISE], live: true,
     blurb: 'simPRO purchase order numbers: whose they can see, and whether they can raise one.' },
-  { key: 'assets', label: 'Assets', group: 'Operations', scopes: FULL, actions: [EDIT],
-    blurb: 'Tools and equipment issued to people, and the ute checks on the utes they hold (Can change: choosing a ute’s checklist and checking any ute in reach).' },
-  { key: 'workshop', label: 'Workshop and plant', group: 'Operations', scopes: COMPANY, actions: [EDIT],
+  // Assets (live 23 Nov 2026): whose tools and equipment a level sees (what a person holds themselves is always theirs). Everyone is the whole register, unissued items
+  // and plant included; with Can change it is the office's part: adding, changing, issuing, transferring and taking back. Plant is also the workshop's.
+  { key: 'assets', label: 'Assets', group: 'Operations', scopes: FULL, actions: [EDIT], live: true,
+    blurb: 'Tools and equipment issued to people: whose they see (Their team or Everyone, which is the whole register). Everyone with Can change adds, changes, issues and transfers them. Also the ute checks on the utes in reach (Can change: choosing a ute’s checklist and checking any ute in reach).' },
+  // Workshop and plant (live 23 Nov 2026): Yes sees the workshop (plant, the maintenance matrix, work orders, defects, parts, the plant reports and every ute's checks);
+  // Can change does its work. Mechanics and admins as standard; a manager has neither.
+  { key: 'workshop', label: 'Workshop and plant', group: 'Operations', scopes: COMPANY, actions: [EDIT], live: true,
     scopeLabels: { all: 'Yes' }, blurb: 'Plant, work orders, defects, parts and servicing.' },
-  { key: 'whs', label: 'Safety and WHS', group: 'Operations', scopes: ['none', 'own', 'team', 'all'], actions: [EDIT],
-    blurb: 'Incidents, hazards, investigations and corrective actions.' },
+  // Safety and WHS (live 23 Nov 2026). There is no None: everyone can always report a hazard or an incident, read the hazard register and see what they reported. The
+  // scope is whose incidents they see, and the names on them; Can change is editing, investigating and closing, corrective actions, and (with Everyone) the summary.
+  { key: 'whs', label: 'Safety and WHS', group: 'Operations', scopes: ['own', 'team', 'all'], actions: [EDIT], live: true,
+    blurb: 'Incidents, hazards, investigations and corrective actions. Everyone can report and can read the hazard register; this is whose incidents they see, and (Can change) investigating, closing and corrective actions.' },
   // Job safety (28 Oct 2026): the checklists ticked when starting and finishing a job, and the SWMS written for the work. The scope is whose records a person
   // sees (the checklists they have ticked and the SWMS they have signed on to, their team's, or everyone's); anyone with the area reads the SWMS that have been
   // published. Can write and attach is writing a SWMS and choosing which checklists and SWMS go with which job; Can publish SWMS is making a version official.
@@ -170,6 +229,9 @@ const DEFAULTS = {
   my_details: rolesGrant(G('own', 'edit'), G('own', 'edit'), G('own', 'edit')),
   leave: rolesGrant(G('own', 'edit'), G('team', 'edit', 'approve'), G('all', 'edit', 'approve')),
   timesheets: rolesGrant(G('own'), G('team', 'approve'), G('all', 'approve')),
+  // A new capability, so nobody had it before: admins and owners start with it (Adam, 17 Nov 2026: the office back-fills missing hours in AccurateHR, not in simPRO);
+  // managers, staff and mechanics start without it, and a level can give a manager Their team.
+  time_for_others: rolesGrant(NONE, NONE, G('all', 'edit')),
   expenses: rolesGrant(G('own'), G('team', 'approve'), G('all', 'edit', 'approve')),
   // Staff see their own; managers see and approve their team's; admins and owners also choose who carries which allowance and which jobs do.
   allowances: rolesGrant(G('own'), G('team', 'approve'), G('all', 'edit', 'approve')),
@@ -179,11 +241,11 @@ const DEFAULTS = {
   // Off for staff and mechanics (a tech asks the office to save it), on for managers, admins and owners.
   chat_save: rolesGrant(NONE, G('all', 'edit'), G('all', 'edit')),
   chat_groups: rolesGrant(NONE, G('all', 'edit'), G('all', 'edit')),
-  qualifications: rolesGrant(G('own'), G('own'), G('all', 'edit')),
+  qualifications: rolesGrant(G('own'), G('team'), G('all', 'edit')),
   documents: rolesGrant(G('own'), G('own'), G('all', 'edit')),
   contracts: rolesGrant(G('own'), G('own'), G('all', 'edit')),
-  onboarding: rolesGrant(G('own'), G('own'), G('all', 'edit')),
-  offboarding: rolesGrant(G('own'), G('own'), G('all', 'edit')),
+  onboarding: rolesGrant(G('own'), G('team'), G('all', 'edit')),
+  offboarding: rolesGrant(G('own'), G('team'), G('all', 'edit')),
   hiring: rolesGrant(NONE, NONE, G('all', 'edit')),
   reports: rolesGrant(NONE, G('team'), G('all')),
   // The Field view is for people on the tools: on for the standard Employee and Mechanic levels, off for Manager, Admin and Owner (the full app on a phone).
@@ -191,7 +253,15 @@ const DEFAULTS = {
   // Adam's decision when the area went live (6 Nov 2026, ACC-375): anyone from Manager up has the whole board and everything on it. The built-in Manager level
   // used to plan their own team only; a level set to Their team still does.
   schedule: rolesGrant(G('own'), G('all', 'edit'), G('all', 'edit')),
-  jobs: rolesGrant(NONE, G('all'), G('all', 'edit')),
+  // A new capability: managers, admins and owners already see every published day on the board, so they start with it; staff and mechanics start without it.
+  schedule_day: rolesGrant(NONE, G('all'), G('all')),
+  // New capabilities (20 Nov 2026): from Manager up, everyone's bookings and booking others; nobody takes bookings until a level says so.
+  bookings: rolesGrant(NONE, G('all', 'edit'), G('all', 'edit')),
+  takes_bookings: rolesGrant(NONE, NONE, NONE),
+  // New capabilities (26 Nov 2026): from Manager up, every task and planning them; nobody takes tasks until a level says so.
+  tasks: rolesGrant(NONE, G('all', 'edit'), G('all', 'edit')),
+  takes_tasks: rolesGrant(NONE, NONE, NONE),
+  jobs: rolesGrant(NONE, G('all', 'approve'), G('all', 'edit', 'approve')),
   purchase_orders: rolesGrant(G('own', 'edit'), G('all', 'edit'), G('all', 'edit')),
   assets: rolesGrant(G('own'), G('own'), G('all', 'edit')),
   workshop: { user: NONE, mechanic: G('all', 'edit'), manager: NONE, admin: G('all', 'edit'), owner: G('all', 'edit') },
