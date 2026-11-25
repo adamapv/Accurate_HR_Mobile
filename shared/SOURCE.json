@@ -1,20 +1,22 @@
 {
   "repo": "adamapv/AccurateHR",
-  "commit": "20e0c0232ea9de312514cfb576acd036dcd5f1e2",
+  "commit": "56dbb0d2ce51d8792a8db6bdc2f3ffc6ab0bfbb7",
   "files": {
-    "access.js": "b486c5098ae89af2cd1654c8304e0ec8cb06f2045331a035df2e3f5ab472aa4e",
+    "access.js": "2401526c5cac915da533eec9a0666b97ed865fdf7a30a7121305e664dd639afb",
     "pay-rules.js": "f6b1fe411612f1280d33a8bbb572af2e2dd990e294e14e9ff51c25601c8fc13a",
-    "pickers-core.js": "187eb2caf60c759d8ee3cbeafabb97127025814c732f67212cd2c9b945be3063",
-    "field-core.js": "ab3945b1827c45cf64c4089d52cc61796419cd5682caa14895f23f7e1c4efcf1",
+    "pickers-core.js": "69740eab9e2d1e43947ee57f173893d8a5343192fcf32802f01d72894240b554",
+    "field-core.js": "3ba9e29a27ef51d3a92c11b8ff9774d8a29823f79267131e979e8fa24e5c27be",
     "job-checks.js": "41e28047578969ddcb83454844599f01d0e033cd5af18287e71768797d77571a",
     "whs-core.js": "6ba147163402118254d9d5eec7e47bc06eba72882e48b92506282e6fe173287d",
-    "chat-core.js": "2b6da5ed53a02daa5725fa5485db5f00232d59883bb9dac591c939014edbe82c",
-    "offline-queue.js": "72c373f2fe528c3d6dadb679849b8f347bb3f8cdc362df05565e6cc374651e5c",
-    "rich-text.js": "621b12c798d46435d168a8fd37518a5c875bd2c51826f979e8f7db606b99705f",
+    "chat-core.js": "680c21faa39948096d6d1190c817ac5727b031b66afc6ac88dd439d11598f11c",
+    "offline-queue.js": "179991b938d3fe21fda8cc6f122c1814631ecf9b4997a2fedbd09c8507daaa02",
+    "rich-text.js": "a494de8d0a82cf9c4d75d5abf5feb1c0dc6d3e3e4a69a371d451f791a4db8263",
     "swms.js": "3bb7b953bb0b2e2764933fdcb0d411d3e32df196a5edab7becedbe87282e2ca7",
     "reading.js": "b0b56d58671cd36e57eb709f56bbaf6379090150340cf867cb2500382286d3d4",
     "locale.js": "a947ac130aad76d4823d8c2c26c52508048e6c538fe013c890494fe45d343595",
-    "help.js": "61664d0c30cfc3688ee489977cc507dccdd8b277176e12e66712fa131b2977c8",
+    "help.js": "583d11a449480166da2b3256fc4e316f9b608a8fa0721afc2700ca41230499a3",
+    "task-core.js": "319c42e18024bdb0b91ebcd15616eedec83347cd87fd5b004448ed4dc9bdc79c",
+    "booking-core.js": "15a552367f8b4c64d7e8335096aac0602cc8d3f2b24bf45bf3601ea5e0fa78c9",
     "../src/theme/tokens.ts": "23c765d708eed8e2179e3b8853b2b9abc062325c3132da59a87bbc938e478cf6"
   }
 }

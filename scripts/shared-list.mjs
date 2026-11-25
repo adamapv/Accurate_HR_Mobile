@@ -15,4 +15,6 @@ export const SHARED = [
   'reading.js',       // Reading & focus settings
   'locale.js',        // a company's state, time zone and regulator
   'help.js',          // the help: its topics, who sees which task, what a search keeps
+  'task-core.js',     // the driver's tasks: the day (what is next, what is done, what is later), the pick-up and drop-off, what waits for signal
+  'booking-core.js',  // bookings' own rules; task-core.js takes its day arithmetic and day words from it (it imports access.js, which is listed above)
 ];

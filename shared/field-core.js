@@ -1480,6 +1480,30 @@ export const SCHEDULE_AHEAD_DAYS = 27;   // My schedule shows four weeks from to
 export const byWorkDate = rows => (rows || []).reduce((m, r) => { (m[r.work_date] = m[r.work_date] || []).push(r); return m; }, {});
 export const SCHED_WORDS = { none: 'Nothing published', past: '—', more: 'See the next four weeks', sub: 'Where you’re working over the next four weeks. A day appears once it’s published.',
   empty: 'Nothing scheduled for you yet. Days show up here when your manager publishes them.' };
+// ---- Everyone today (the Whole-day schedule area, 20 Nov 2026): where everyone is working, read only ----
+export const WHOLE_DAY_WORDS = { title: 'Everyone today', sub: 'Where everyone is working: each published job and who is on it. A day appears once it is published.', search: 'Find a person or a job',
+  empty: 'Nothing has been published for this day yet.', link: 'See where everyone is working', ahead: 14, back: 7 };
+// A person as the list says it: their name, and their nickname after it when they have one.
+export const crewName = c => c.aka ? `${c.name} “${c.aka}”` : c.name;
+const wholeNorm = s => String(s == null ? '' : s).toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g, '').trim();
+// The published day's rows (GET /schedule/day: [{ company_id, job_id, activity, name, customer_name, site_name, crew: [{ id, name, aka, me }], plant: [names] }]) narrowed to what a search
+// holds: a person's name or nickname, or a job's number, name, customer or site. A row stays whole (everyone on it, so you see who is with them), with `found` listing the people matched
+// by name and `mine` saying the person asking is on it. Nothing typed is every row, in the order sent.
+export function wholeDayRows(rows, q = '') {
+  const n = wholeNorm(q), out = [];
+  for (const r of rows || []) {
+    const crew = r.crew || [], found = n ? crew.filter(c => wholeNorm(c.name).includes(n) || wholeNorm(c.aka).includes(n)).map(c => c.id) : [];
+    const job = n ? [`#${r.job_id}`, r.job_id, r.name, r.customer_name, r.site_name].some(f => wholeNorm(f).includes(n)) : false;
+    if (n && !found.length && !job) continue;
+    out.push({ ...r, found, mine: crew.some(c => c.me) });
+  }
+  return out;
+}
+// The days the stepper can reach: a week back to two weeks ahead (the Worker refuses others), and the day one step on, or null at the end.
+export function wholeDayStep(day, today, by) {
+  const next = addDaysYmd(day, by);
+  return next < addDaysYmd(today, -WHOLE_DAY_WORDS.back) || next > addDaysYmd(today, WHOLE_DAY_WORDS.ahead) ? null : next;
+}
 // "Same as <day>": the last day's cards copied onto today. `last` is /job-cards/open's last_card (day_cards says how many cards that day has).
 export const sameAsLabel = (last, fmtDate) => `Same as ${fmtDate(last.work_date)}${last.day_cards > 1 ? ` · ${last.day_cards} cards` : ''}`;
 export const SAME_AS = { busy: 'Copying…', needsSignal: 'Same as needs signal — or tap Add time and use that day’s times there.' };

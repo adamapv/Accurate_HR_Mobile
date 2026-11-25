@@ -21,6 +21,12 @@
 //   A fourth is 'job-run': ticking a job checklist (path '/job-safety/runs', body { company_id, job_id, checklist_id, run_date, items }, local_card { job_id, job_label,
 //   checklist_id, checklist_name, phase, held } where held lists the required items that were Not OK, which is what holds Start on the phone). Its client_ref is the entry
 //   id and the server answers a run it already has for it. isJobRun() tells it apart; the job card views leave it alone too.
+//   A fifth is 'booking': something done to a booking with no signal (path '/bookings/<id>/postpone', '/done' or '/visit', body { note } or { visit_notes },
+//   local_card { booking_id, action, words, note, visit_notes } for Booked today while it waits: queuedDraft and applyQueued in public/booking-core.js). Its
+//   client_ref is the entry id, and the server answers a resend with the booking as it is. isBooking() tells it apart; the job card views leave it alone too.
+//   A sixth is 'task': a driver's Done (or Undo) with no signal (path '/tasks/<id>/done' or '/reopen', body {}, local_card { task_id, action, words } for Home while it waits:
+//   queuedDraft and applyQueued in public/task-core.js). Its client_ref is the entry id, and the server answers a resend with the task as it is. isTask() tells it apart;
+//   the job card views leave it alone too.
 //   path is '/job-cards' (a new card), '/job-cards/<server id>' or '/job-cards/local:<entry id>'
 //   (a card that has not been sent yet: a change or delete of one collapses into its own POST).
 //   A new card's body carries client_ref = the entry id, so a reply lost on the way never makes a
@@ -41,6 +47,10 @@ export const QUEUE_KEY = 'hrhead_offline_queue';
 export const isChat = entry => entry?.kind === 'chat-send';
 export const isSignOn = entry => entry?.kind === 'swms-signon';
 export const isJobRun = entry => entry?.kind === 'job-run';
+// A booking action kept while there is no signal (postpone, done, visit notes: queuedDraft in public/booking-core.js). Not a job card either.
+export const isBooking = entry => entry?.kind === 'booking';
+// A task finished (or its Done undone) with no signal (queuedDraft in public/task-core.js). Not a job card either.
+export const isTask = entry => entry?.kind === 'task';
 const isLocal = path => /^\/job-cards\/local:/.test(path || '');
 const localId = path => String(path).slice('/job-cards/local:'.length);
 
@@ -175,6 +185,8 @@ export function describe(entry) {
   const what = c.job_label || (c.job_id ? `#${c.job_id}` : c.activity_label || '');
   const on = what ? ` on ${what}` : '';
   switch (entry.kind) {
+    case 'booking': return c.words || 'A change to a booking';
+    case 'task': return c.words || 'A change to a task';
     case 'job-run': return `Tick “${c.checklist_name || 'a checklist'}”${on}`;
     case 'swms-signon': return `Sign on to “${c.swms_title || 'a SWMS'}”${on}`;
     case 'chat-send': { const t = String(c.body || '').replace(/\s+/g, ' ').trim(); return `Message “${t.length > 40 ? `${t.slice(0, 40)}…` : t}”`; }
@@ -192,7 +204,7 @@ export function describe(entry) {
 export function applyToOpenCard(serverCard, entries) {
   let card = serverCard || null, pending = false, clockedOff = false;
   for (const e of entries) {
-    if (e.status !== 'pending' || isChat(e) || isSignOn(e) || isJobRun(e)) continue;
+    if (e.status !== 'pending' || isChat(e) || isSignOn(e) || isJobRun(e) || isBooking(e) || isTask(e)) continue;
     if (e.method === 'POST') {
       if (!e.body?.clock_off && !e.local_card?.clock_off) { card = { id: `local:${e.id}`, ...(e.local_card || e.body), pending: true, client_ref: e.id }; pending = true; clockedOff = false; }
       continue;
@@ -234,7 +246,7 @@ export function applyToWeek(week, entries, planBlocks) {
     })).filter(t => inWeek(t.work_date));
   };
   for (const e of entries) {
-    if (e.status !== 'pending' || isChat(e) || isSignOn(e) || isJobRun(e)) continue;
+    if (e.status !== 'pending' || isChat(e) || isSignOn(e) || isJobRun(e) || isBooking(e) || isTask(e)) continue;
     if (e.method === 'POST') {
       const card = { id: `local:${e.id}`, ...(e.local_card || e.body), pending: true };
       if (!card.work_date || !touches(card)) continue;
@@ -262,7 +274,7 @@ export function applyToRecent(recent, entries) {
   const cards = [...(recent || [])];
   const shape = (id, c) => ({ id, work_date: c.work_date, clock_on: c.clock_on, clock_off: c.clock_off });
   for (const e of entries) {
-    if (e.status !== 'pending' || isChat(e) || isSignOn(e) || isJobRun(e)) continue;
+    if (e.status !== 'pending' || isChat(e) || isSignOn(e) || isJobRun(e) || isBooking(e) || isTask(e)) continue;
     const c = { ...(e.body || {}), ...(e.local_card || {}) };
     if (e.method === 'POST') {
       if (c.work_date && c.clock_on && c.clock_off) cards.push(shape(`local:${e.id}`, c));

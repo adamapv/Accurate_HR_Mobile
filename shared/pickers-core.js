@@ -154,3 +154,75 @@ export function filterJobs(jobs, query, companyOf = () => '') {
   const byLabel = new Map(jobs.map(j => [j, `${j.id} ${j.name || ''} · ${j.customer_name || ''} · ${j.site_name || ''} · ${companyOf(j) || ''}`]));
   return filterOptions(jobs.map(j => ({ job: j, label: byLabel.get(j) })), q).map(o => o.job);
 }
+
+// ---- The flip date and time sheet ----
+// What the flip-clock sheet (public/pickers.js, FlipSheet) rolls through and what a roll means: a rack of tiles that roll up and down, each with an arrow over and under it.
+// Where the date and time boxes use it: the Field view on a touch screen (the phone app's own sheet, `Accurate_HR_Mobile` src/flip.tsx, is the same look and the same rules;
+// its src/lib/flip-core.ts says the same things in TypeScript, and can read these instead). Plain functions, so Node tests them (scripts/test-pickers.mjs).
+
+export const FLIP_WORDS = { set: 'Set', now: 'Now', today: 'Today', clear: 'Clear', hour: 'HOUR', minute: 'MIN', day: 'DAY', month: 'MONTH', year: 'YEAR', close: 'Close', earlier: 'earlier', later: 'later', choose: 'Choose',
+  dateBox: 'Choose a date', timeBox: 'Choose a time' };
+export const FLIP_MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+const WEEKDAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+// The hours of a day, and the minutes on offer: every one, or every `step` (a time that is kept to quarter hours goes in 15s).
+export const FLIP_HOURS = Array.from({ length: 24 }, (_, i) => pad2(i));
+export const flipMinutes = step => { const s = step > 1 ? step : 1; return Array.from({ length: Math.ceil(60 / s) }, (_, i) => pad2(i * s)); };
+// Where the wheels sit for a time ('HH:MM'; none, or something that is not a time, opens on `fallback`), snapped to the step: { h: the hour, m: which of flipMinutes }.
+export function flipTimeParts(hm, step, fallback) {
+  const s = step > 1 ? step : 1;
+  const [h, m] = (/^\d{1,2}:\d{2}$/.test(hm || '') ? hm : fallback).split(':').map(Number);
+  const mins = (Math.round((h * 60 + m) / s) * s) % 1440;
+  return { h: Math.floor(mins / 60), m: (mins % 60) / s };
+}
+export const flipTimeOf = (h, m, step) => `${pad2(h)}:${pad2(m * (step > 1 ? step : 1))}`;
+
+// A date on the wheels: { y, m (0 to 11), d }. A value that is not a day opens on `fallback` (today).
+export const flipDaysIn = (y, m0) => new Date(y, m0 + 1, 0).getDate();
+export function flipDateParts(iso, fallback) { const p = parseIso(iso) || parseIso(fallback); return p ? { y: p.y, m: p.m0, d: p.d } : { y: 1970, m: 0, d: 1 }; }
+// A date from the three wheels; a day the month does not have is its last (31 rolled onto February).
+export const flipDateOf = (y, m0, d) => `${String(y).padStart(4, '0')}-${pad2(m0 + 1)}-${pad2(Math.min(d, flipDaysIn(y, m0)))}`;
+// Kept inside the earliest and latest day allowed.
+export const flipClamp = (iso, min, max) => (max && iso > max ? max : min && iso < min ? min : iso);
+// The years on the wheel: from the earliest day allowed (else far enough back for a date of birth) to the latest (else far enough on for an expiry date). `year` is the year
+// the wheel opens on: with no limit at an end it is always there (an old date of birth, a far expiry), never cut off.
+export function flipYears(today, min, max, year = null) {
+  const from = parseIso(min)?.y ?? Math.min(1930, year ?? 1930), to = Math.max(from, parseIso(max)?.y ?? Math.max((parseIso(today)?.y ?? 2026) + 15, year ?? 0));
+  return Array.from({ length: to - from + 1 }, (_, i) => from + i);
+}
+export const flipWeekday = iso => { const p = parseIso(iso); return p ? WEEKDAY_NAMES[new Date(p.y, p.m0, p.d).getDay()] : ''; };
+// The day named in full over the wheels: "Wednesday 18 Nov 2026".
+export const flipDayLine = iso => { const p = parseIso(iso); return p ? `${flipWeekday(iso)} ${p.d} ${MONTH_NAMES[p.m0].slice(0, 3)} ${p.y}` : ''; };
+// What the sheet says when the wheels show a day outside what is allowed (Set then sets the nearest allowed one).
+export const flipOutOfRange = (rolled, min, max) => (max && rolled > max ? 'That is the latest day you can choose.' : min && rolled < min ? 'That is the earliest day you can choose.' : '');
+// How a wheel reads for a screen reader: the month in full, the rest as they are.
+export const flipMonthName = m0 => MONTH_NAMES[m0] || '';
+
+// Which tile a roll has stopped on (`top` is how far the wheel has scrolled, each tile is `tile` tall), and where an arrow or a key moves a wheel to: the tile
+// `by` away, or none at all past either end.
+export const flipIndexAt = (top, tile, last) => Math.max(0, Math.min(last, Math.round(top / tile)));
+export const flipStep = (index, by, last) => Math.max(0, Math.min(last, index + by));
+
+// A number or a time drawn as dots, like a dot matrix display (the phone app's clock and hours figures, a time in the box and over the Start sheet): each character is a grid
+// of five by seven (a colon and a full stop are one wide) and only its lit dots are drawn. → { width, height, r, dots: [[x, y]] } in the units of `size` (the height of
+// a character), or null when something in `text` has no glyph (draw it as ordinary text).
+const GLYPHS = {
+  '0': ['.###.', '#...#', '#...#', '#...#', '#...#', '#...#', '.###.'], '1': ['..#..', '.##..', '..#..', '..#..', '..#..', '..#..', '.###.'],
+  '2': ['.###.', '#...#', '....#', '...#.', '..#..', '.#...', '#####'], '3': ['#####', '...#.', '..#..', '...#.', '....#', '#...#', '.###.'],
+  '4': ['...#.', '..##.', '.#.#.', '#..#.', '#####', '...#.', '...#.'], '5': ['#####', '#....', '####.', '....#', '....#', '#...#', '.###.'],
+  '6': ['..##.', '.#...', '#....', '####.', '#...#', '#...#', '.###.'], '7': ['#####', '....#', '...#.', '..#..', '.#...', '.#...', '.#...'],
+  '8': ['.###.', '#...#', '#...#', '.###.', '#...#', '#...#', '.###.'], '9': ['.###.', '#...#', '#...#', '.####', '....#', '...#.', '.##..'],
+  ':': ['.', '.', '#', '.', '#', '.', '.'], '.': ['.', '.', '.', '.', '.', '.', '#'], ' ': ['..', '..', '..', '..', '..', '..', '..'], '-': ['....', '....', '....', '####', '....', '....', '....'],
+};
+export function dotMatrix(text, size) {
+  const s = String(text ?? '');
+  if (!s || ![...s].every(c => c in GLYPHS)) return null;
+  const pitch = size / 7, r = pitch * 0.39, gap = pitch * 0.9, dots = [];
+  let x0 = 0;
+  [...s].forEach((c, i) => {
+    const g = GLYPHS[c];
+    g.forEach((line, y) => [...line].forEach((on, x) => { if (on === '#') dots.push([x0 + x * pitch + pitch / 2, y * pitch + pitch / 2]); }));
+    x0 += g[0].length * pitch + (i < s.length - 1 ? gap : 0);
+  });
+  return { width: x0, height: size, r, dots };
+}

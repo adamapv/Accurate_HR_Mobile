@@ -257,3 +257,55 @@ export const CHAT_REACTION_REMOVE = 'Remove my reaction';
 export const reactionRows = (rows, me) => (rows || []).map(r => ({ key: r.id, text: `${r.emoji}  ${r.id === me ? 'You' : r.name}` }));
 export const reactionMine = (rows, me) => (rows || []).find(r => r.id === me)?.emoji || null;
 export const reactionsPath = id => `/chat/messages/${id}/reactions`;
+
+// ---- a link to a chat, and the pop-up chat on a computer ----
+// Where a link (a notification's, a toast's, a push's) leads when it is a chat: "#/chat?t=<chat>&m=<message>", with or without the address in front, and the Field view's
+// "#/field/chat" too. null for any other link; a chat link with no chat names none, so it opens the list. The app opens a chat link as a pop-up on a computer and as the
+// full screen anywhere else (phone, Field view), and a person's own link to the screen is never turned into a pop-up.
+export function chatLinkTarget(link) {
+  const m = String(link || '').match(/^(?:https?:\/\/[^/]+)?\/?#\/(field\/)?chat(?:\?([^#]*))?$/);
+  if (!m) return null;
+  const q = new URLSearchParams(m[2] || ''), seq = Number(q.get('m'));
+  return { field: !!m[1], threadId: q.get('t') || null, seq: Number.isInteger(seq) && seq > 0 ? seq : null };
+}
+// The pop-up chats on a computer (windows along the bottom right of the page, which stays where it is and keeps working). What is up is the list of chats (or the Chat bar that stands for it)
+// and up to DOCK_MAX chat windows, oldest on the left and the newest next to the list, each one a window or minimised to a tab. Nothing here knows about the page: these are only the moves
+// between those states, and how many windows fit across a window of a given width.
+export const DOCK_START = { list: false, chats: [] };
+export const DOCK_MAX = 4;   // chats kept up at once: opening one more lets the oldest go
+export const dockOpenList = s => (s.list ? s : { ...s, list: true });
+export const dockCloseList = s => (s.list ? { ...s, list: false } : s);
+// Open a chat (the list, a toast, a push, the search): a window for it beside the others (the one that was already up for it comes back up, a minimised one included, and lands on the
+// message if one is named). With no chat named it is the list that opens.
+export function dockOpenChat(s, target) {
+  const id = target?.threadId;
+  if (!id) return dockOpenList(s);
+  const seq = target.seq || null, mine = s.chats.find(c => c.id === id);
+  if (mine) return !mine.min && (!seq || mine.seq === seq) ? s : { ...s, chats: s.chats.map(c => (c.id === id ? { id, seq, min: false } : c)) };
+  return { ...s, chats: [...s.chats, { id, seq, min: false }].slice(-DOCK_MAX) };
+}
+const dockChange = (s, id, fn) => { const c = s.chats.find(x => x.id === id); if (!c) return s; const next = fn(c); return next === c ? s : { ...s, chats: s.chats.map(x => (x === c ? next : x)) }; };
+export const dockMinimiseChat = (s, id) => dockChange(s, id, c => (c.min ? c : { ...c, min: true }));
+export const dockCloseChat = (s, id) => (s.chats.some(c => c.id === id) ? { ...s, chats: s.chats.filter(c => c.id !== id) } : s);
+export const dockCloseAll = () => DOCK_START;
+// Is anything up (the list, or a chat)? Then the chats are being asked for; otherwise only the count on the Chat bar is.
+export const dockIsUp = s => s.list || s.chats.length > 0;
+// Is this chat in front of the person (a window, not a tab)? Then a new message in it needs no pop-up toast, as with the full screen.
+export const dockShows = (s, threadId) => !!threadId && s.chats.some(c => c.id === threadId && !c.min);
+// How wide each part is, so how many windows fit across a window of the given width: a chat window, a minimised tab, the list, the Chat bar, the gap between them and the edge.
+export const DOCK_W = { chat: 330, tab: 180, list: 320, bar: 150, gap: 10, edge: 24 };
+// What each chat shows as, left to right: 'full' (a window), 'tab' (minimised, or a window that has no room) or 'hidden' (no room even for a tab: it stays kept, and shows again when there is
+// room). The newest, next to the list, is given room first.
+export function dockLayout(s, width) {
+  const avail = Math.max(0, (width || 0) - DOCK_W.edge * 2);
+  let used = s.list ? DOCK_W.list : DOCK_W.bar;
+  const out = [];
+  for (let i = s.chats.length - 1; i >= 0; i--) {
+    const c = s.chats[i];
+    if (!c.min && used + DOCK_W.gap + DOCK_W.chat <= avail) { out.unshift({ ...c, show: 'full' }); used += DOCK_W.gap + DOCK_W.chat; }
+    else if (used + DOCK_W.gap + DOCK_W.tab <= avail) { out.unshift({ ...c, show: 'tab' }); used += DOCK_W.gap + DOCK_W.tab; }
+    else out.unshift({ ...c, show: 'hidden' });
+  }
+  return out;
+}
+export const CHAT_DOCK = { title: 'Chats', open: 'Open chats', hide: 'Hide the list of chats', newChat: 'New chat', minimise: 'Minimise chat', restore: 'Show chat', close: 'Close chat' };
