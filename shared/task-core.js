@@ -7,9 +7,9 @@
 // the office on their behalf); 'cancelled' is kept but off every list. A task a driver has not finished stays on their day until it is done: the days before today
 // carry over.
 import { can, scopeOf } from './access.js';
-import { addDays, dayWords } from './booking-core.js';
+import { addDays, dayWords, cleanFiles } from './booking-core.js';
 
-export { addDays, dayWords };
+export { addDays, dayWords, MAX_FILES } from './booking-core.js';
 
 export const TASK_STATUSES = ['todo', 'planned', 'done', 'cancelled'];
 export const STATUS_WORDS = { todo: 'To plan', planned: 'Planned', done: 'Done', cancelled: 'Cancelled' };
@@ -21,6 +21,7 @@ export const MAX_MOVE = 200;   // the most tasks one move names (a column's whol
 export const TASK_WORDS = {
   screen: 'Tasks', add: 'New task', toPlan: 'To plan', planned: 'Planned', done: 'Done', doneButton: 'Done', undo: 'Undo', cancel: 'Cancel task', reopen: 'Bring it back', moveTo: 'Move to',
   from: 'Pick up', to: 'Drop off', notes: 'Notes', none: 'No tasks', allDone: 'All done for today. Thank you.', today: 'Today’s tasks', next: 'Next', then: 'Then', late: 'From an earlier day',
+  cant: 'I can’t do this', tryAgain: 'Try again', addNote: 'Add a note or photo', sentAll: 'Nothing left on your list. The office knows about the ones you couldn’t do.',
 };
 
 const two = s => String(s == null ? '' : s).trim();
@@ -28,6 +29,50 @@ const clip = (s, n) => two(s).slice(0, n);
 export const ymdOk = s => /^\d{4}-\d{2}-\d{2}$/.test(s || '') && !Number.isNaN(Date.parse(`${s}T00:00:00Z`)) && new Date(`${s}T00:00:00Z`).toISOString().slice(0, 10) === s;
 export const statusWord = s => STATUS_WORDS[s] || STATUS_WORDS.todo;
 export const taskTitle = row => two(row?.title) || 'Task';
+
+// ---- repeating, and copying a day ----
+// A new task on a driver's day can be made again on the same weekday of the next weeks (each its own task, so one can be changed or cancelled alone), and a driver's whole day
+// can be copied onto another day or driver. Nothing repeats by itself: there is no standing job to forget about.
+export const REPEAT_MAX_WEEKS = 12;
+export const REPEAT_CHOICES = [0, 1, 2, 3, 4, 6, 8, 12];
+export const repeatWords = n => (n <= 0 ? 'Just this once' : n === 1 ? 'And again next week' : `And again each week for ${n} more weeks`);
+// The dates a task made for `date` is made again on: the same weekday, 1 to REPEAT_MAX_WEEKS weeks later. [] for none.
+export const repeatDates = (date, weeks) => (ymdOk(date) ? Array.from({ length: Math.max(0, Math.min(REPEAT_MAX_WEEKS, Math.floor(Number(weeks) || 0))) }, (_, i) => addDays(date, 7 * (i + 1))) : []);
+// What a copy of a day sends ({ from_assignee_id, from_date, to_assignee_id, to_date }) cleaned: { values } or { error }. A day is never copied onto itself.
+export function cleanCopy(body) {
+  const b = body || {}, v = { from_assignee_id: two(b.from_assignee_id), from_date: two(b.from_date), to_assignee_id: two(b.to_assignee_id), to_date: two(b.to_date) };
+  if (!v.from_assignee_id || !v.to_assignee_id) return { error: 'choose the driver to copy from and the driver to copy to' };
+  if (!ymdOk(v.from_date) || !ymdOk(v.to_date)) return { error: 'choose the day to copy from and the day to copy to' };
+  if (v.from_assignee_id === v.to_assignee_id && v.from_date === v.to_date) return { error: 'choose another day, or another driver, to copy to' };
+  return { values: v };
+}
+
+// ---- what a driver says about a task: they could not do it, and a note or photos with Done ----
+// A driver who could not do a task (the site was shut) says so with one of these reasons and, if they like, a few words; the task stays on their day, flagged, and whoever made it is told.
+// The office puts it back (retry), or moves it to another driver or day. The reasons are big buttons on the phone, so a driver types nothing unless they choose Something else.
+export const CANT_REASONS = [['shut', 'The site was shut'], ['nobody', 'Nobody was there'], ['access', 'I couldn’t get in'], ['details', 'The details were wrong'], ['other', 'Something else']];
+export const CANT_NOTE_MAX = 300;
+export const DONE_NOTE_MAX = 500;
+export const cantLabel = code => CANT_REASONS.find(r => r[0] === code)?.[1] || '';
+// What a driver sent ({ reason, note }) cleaned: { values: { cant_reason, cant_note } } or { error }. Something else needs a few words.
+export function cleanCant(body) {
+  const b = body || {}, code = two(b.reason);
+  if (!CANT_REASONS.some(r => r[0] === code)) return { error: 'say why it couldn’t be done' };
+  const note = clip(b.note, CANT_NOTE_MAX) || null;
+  if (code === 'other' && !note) return { error: 'say what happened' };
+  return { values: { cant_reason: code, cant_note: note } };
+}
+// A flagged task in words: "The site was shut: gate chained". '' for one that is not.
+export const cantWords = row => (row?.cant_at ? [cantLabel(row.cant_reason), two(row.cant_note)].filter(Boolean).join(': ') : '');
+// What a driver adds to a finished task: { values: { done_note, done_files } }. A field not sent keeps what the task had; a file is kept if it is already on the task or was uploaded by the one adding it (`ownPrefix`).
+export function cleanDoneNote(body, existing, ownPrefix) {
+  const b = body || {}, was = existing || {};
+  const done_note = b.done_note === undefined ? (was.done_note ?? null) : (clip(b.done_note, DONE_NOTE_MAX) || null);
+  const done_files = b.done_files === undefined ? (was.done_files || []) : cleanFiles(b.done_files, was.done_files || [], ownPrefix);
+  return { values: { done_note, done_files } };
+}
+export const hasNote = row => !!(two(row?.done_note) || (row?.done_files || []).length);
+export const filePath = (row, n) => `/tasks/${encodeURIComponent(row.id)}/files/${n}`;
 
 // ---- what may be saved ----
 const coord = (v, lo, hi) => { const n = Number(v); return v === null || v === undefined || v === '' || !Number.isFinite(n) || n < lo || n > hi ? null : Math.round(n * 1e6) / 1e6; };
@@ -54,7 +99,7 @@ export function cleanTask(body, existing = null) {
 }
 // What a new task opens with: nobody and no day yet, or the driver and day of the cell it was started in.
 export function formStart({ assignee_id = '', task_date = '' } = {}) {
-  return { title: '', notes: '', from_place: '', from_lat: null, from_lng: null, to_place: '', to_lat: null, to_lng: null, job_key: '', assignee_id, task_date };
+  return { title: '', notes: '', from_place: '', from_lat: null, from_lng: null, to_place: '', to_lat: null, to_lng: null, job_key: '', assignee_id, task_date, repeat_weeks: 0 };
 }
 export function formOf(row) {
   return { title: row.title || '', notes: row.notes || '', from_place: row.from_place || '', from_lat: row.from_lat ?? null, from_lng: row.from_lng ?? null,
@@ -66,7 +111,7 @@ export function taskDraft(form) {
   const cut = String(form.job_key || '').indexOf(':');
   const company_id = cut > 0 ? form.job_key.slice(0, cut) : '', job_id = cut > 0 ? form.job_key.slice(cut + 1) : '';
   return { title: form.title, notes: form.notes, from_place: form.from_place, from_lat: form.from_lat, from_lng: form.from_lng, to_place: form.to_place, to_lat: form.to_lat, to_lng: form.to_lng,
-    company_id, job_id, assignee_id: form.assignee_id || '', task_date: form.task_date || '' };
+    company_id, job_id, assignee_id: form.assignee_id || '', task_date: form.task_date || '', repeat_weeks: form.assignee_id && form.task_date ? Number(form.repeat_weeks) || 0 : 0 };
 }
 export const formProblem = form => cleanTask(taskDraft(form)).error || '';
 
@@ -76,13 +121,16 @@ export const formProblem = form => cleanTask(taskDraft(form)).error || '';
 export function taskActions(row, me, access) {
   const plans = !!row && can(access, 'tasks', 'edit') && scopeOf(access, 'tasks') === 'all';
   const mine = !!row && !!me && row.assignee_id === me && can(access, 'tasks') && row.published !== false && row.published !== 0;
-  const s = row?.status, open = s === 'todo' || s === 'planned';
+  const s = row?.status, open = s === 'todo' || s === 'planned', flagged = !!row?.cant_at;
   return {
     edit: plans && open,
     move: plans && (open || s === 'done'),   // dragging a finished task out of Done brings it back
     done: open && (plans || (mine && s === 'planned')),
+    cant: mine && s === 'planned' && !flagged,   // only the driver says they could not do it
+    retry: s === 'planned' && flagged && (plans || mine),   // the driver tries again, or the office puts it back on their list
     reopen: (s === 'done' && (plans || mine)) || (s === 'cancelled' && plans),
     cancel: plans && open,
+    note: s === 'done' && (plans || mine),   // a note or photos with a finished task
   };
 }
 export const canPlan = access => can(access, 'tasks', 'edit') && scopeOf(access, 'tasks') === 'all';
@@ -168,15 +216,17 @@ export const jobWords = row => (row?.job_id ? `#${row.job_id}${two(row.job_displ
 export const jobKeyOf = row => (row?.job_id ? `${row.company_id || ''}:${row.job_id}` : '');
 
 // ---- the driver's day (Home in the Field view) ----
-// What a driver sees from their published tasks (GET /tasks/mine) on a day: { open, done, next, total, later }. `open` is what is still to do: today's and any earlier day's that
-// were never finished (in order, the earlier ones first); `done` is what was finished today; `next` is the first of `open`; `later` is the next published day with tasks, { date, count }, or null.
+// What a driver sees from their published tasks (GET /tasks/mine) on a day: { open, sent, done, next, total, later }. `open` is what is still to do: today's and any earlier day's that
+// were never finished (in order, the earlier ones first); `sent` is what they said they could not do; `done` is what was finished today; `next` is the first of `open`; `later` is the next
+// published day with tasks, { date, count }, or null.
 export function fieldDay(rows, today) {
   const mine = (rows || []).filter(r => r.status === 'planned' || r.status === 'done');
-  const open = mine.filter(r => r.status === 'planned' && r.task_date <= today).sort(orderOf);
+  const open = mine.filter(r => r.status === 'planned' && !r.cant_at && r.task_date <= today).sort(orderOf);
+  const sent = mine.filter(r => r.status === 'planned' && !!r.cant_at && r.task_date <= today).sort(orderOf);   // the driver could not do these and the office has been told
   const done = mine.filter(r => r.status === 'done' && r.task_date === today).sort((a, b) => orderOf(a, b));
   const ahead = mine.filter(r => r.status === 'planned' && r.task_date > today).sort(orderOf);
   const later = ahead.length ? { date: ahead[0].task_date, count: ahead.filter(r => r.task_date === ahead[0].task_date).length } : null;
-  return { open, done, next: open[0] || null, total: open.length + done.length, later };
+  return { open, sent, done, next: open[0] || null, total: open.length + sent.length + done.length, later };
 }
 export const progressWords = (doneCount, total) => (total > 0 && doneCount >= total ? 'All done' : `${doneCount} of ${total} done`);
 export const laterWords = (later, today) => (later ? `${later.date === addDays(today, 1) ? 'Tomorrow' : dayWords(later.date)}: ${later.count === 1 ? '1 task' : `${later.count} tasks`}` : '');
@@ -186,10 +236,12 @@ export const isLate = (row, today) => row?.status === 'planned' && row.task_date
 // ---- with no signal: what waits on the phone ----
 // Done or Undo kept in the Field view's outbox (public/offline-queue.js) until there is signal. The entry's own id goes with it as client_ref, so a resend after a lost answer
 // is the same action.
-export const QUEUED_ACTIONS = ['done', 'reopen'];
-export function queuedDraft(row, action) {
-  const words = action === 'done' ? `Mark “${taskTitle(row)}” done` : `Undo done on “${taskTitle(row)}”`;
-  return { kind: 'task', method: 'POST', path: `/tasks/${encodeURIComponent(row.id)}/${action}`, body: {}, local_card: { task_id: row.id, action, words } };
+export const QUEUED_ACTIONS = ['done', 'reopen', 'cant', 'retry', 'note'];
+export function queuedDraft(row, action, body = {}) {
+  const t = taskTitle(row);
+  const words = { done: `Mark “${t}” done`, reopen: `Undo done on “${t}”`, cant: `Tell the office about “${t}”`, retry: `Try “${t}” again`, note: `Note on “${t}”` }[action] || `Change “${t}”`;
+  return { kind: 'task', method: 'POST', path: `/tasks/${encodeURIComponent(row.id)}/${action}`, body: { ...body },
+    local_card: { task_id: row.id, action, words, reason: body.reason ?? null, note: body.note ?? null, done_note: body.done_note ?? null } };
 }
 // The tasks as the phone shows them while something waits: each with `waiting` (the action not yet sent, or null) and `failed` (the server's words when it refused one), and
 // with what the action will do already showing. `entries` is this session's outbox.
@@ -202,6 +254,9 @@ export function applyQueued(rows, entries) {
       out.waiting = e.local_card.action;
       if (e.local_card.action === 'done' && out.status === 'planned') out = { ...out, status: 'done' };
       if (e.local_card.action === 'reopen' && out.status === 'done') out = { ...out, status: 'planned' };
+      if (e.local_card.action === 'cant' && out.status === 'planned') out = { ...out, cant_at: 'waiting', cant_reason: e.local_card.reason, cant_note: e.local_card.note };
+      if (e.local_card.action === 'retry') out = { ...out, cant_at: null, cant_reason: null, cant_note: null };
+      if (e.local_card.action === 'note' && out.status === 'done') out = { ...out, done_note: e.local_card.done_note };
     }
     return out;
   });

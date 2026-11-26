@@ -1,6 +1,6 @@
 {
   "repo": "adamapv/AccurateHR",
-  "commit": "56dbb0d2ce51d8792a8db6bdc2f3ffc6ab0bfbb7",
+  "commit": "6c033064d0e5dbe4bc30f2e9d71ca2c2e12cec70",
   "files": {
     "access.js": "2401526c5cac915da533eec9a0666b97ed865fdf7a30a7121305e664dd639afb",
     "pay-rules.js": "f6b1fe411612f1280d33a8bbb572af2e2dd990e294e14e9ff51c25601c8fc13a",
@@ -14,8 +14,8 @@
     "swms.js": "3bb7b953bb0b2e2764933fdcb0d411d3e32df196a5edab7becedbe87282e2ca7",
     "reading.js": "b0b56d58671cd36e57eb709f56bbaf6379090150340cf867cb2500382286d3d4",
     "locale.js": "a947ac130aad76d4823d8c2c26c52508048e6c538fe013c890494fe45d343595",
-    "help.js": "583d11a449480166da2b3256fc4e316f9b608a8fa0721afc2700ca41230499a3",
-    "task-core.js": "319c42e18024bdb0b91ebcd15616eedec83347cd87fd5b004448ed4dc9bdc79c",
+    "help.js": "d2166605ae070d07416980fe11a6b4da03580bcd927a5f3f38a8b00546f8f8b8",
+    "task-core.js": "461a29b05f782d4f7b1e4b2128727ba81c44c8daa2856e8ee290aa90e9903865",
     "booking-core.js": "15a552367f8b4c64d7e8335096aac0602cc8d3f2b24bf45bf3601ea5e0fa78c9",
     "../src/theme/tokens.ts": "23c765d708eed8e2179e3b8853b2b9abc062325c3132da59a87bbc938e478cf6"
   }
